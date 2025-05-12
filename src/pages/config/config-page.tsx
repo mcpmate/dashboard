@@ -9,32 +9,38 @@ import { formatRelativeTime } from '../../lib/utils';
 
 export function ConfigPage() {
   const queryClient = useQueryClient();
-  
-  const { 
+
+  const {
     data: currentConfig,
     isLoading: isLoadingConfig,
     refetch,
-    isRefetching 
+    isRefetching,
+    isError: isConfigError
   } = useQuery({
     queryKey: ['currentConfig'],
     queryFn: configApi.getCurrentConfig,
+    retry: 1,
+    useErrorBoundary: false,
   });
-  
-  const { 
+
+  const {
     data: presets,
-    isLoading: isLoadingPresets 
+    isLoading: isLoadingPresets,
+    isError: isPresetsError
   } = useQuery({
     queryKey: ['configPresets'],
     queryFn: configApi.getPresets,
+    retry: 1,
+    useErrorBoundary: false,
   });
-  
+
   const updateMutation = useMutation({
     mutationFn: configApi.updateConfig,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['currentConfig'] });
     },
   });
-  
+
   const applyPresetMutation = useMutation({
     mutationFn: configApi.applyPreset,
     onSuccess: () => {
@@ -47,8 +53,8 @@ export function ConfigPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Configuration</h2>
         <div className="flex gap-2">
-          <Button 
-            onClick={() => refetch()} 
+          <Button
+            onClick={() => refetch()}
             disabled={isRefetching}
             variant="outline"
             size="sm"
@@ -64,7 +70,7 @@ export function ConfigPage() {
           </Link>
         </div>
       </div>
-      
+
       <div className="grid gap-6">
         <Card>
           <CardHeader>
@@ -103,14 +109,14 @@ export function ConfigPage() {
                       </div>
                     </dl>
                   </div>
-                  
+
                   <div>
                     <h3 className="mb-2 text-sm font-medium text-slate-500">Servers</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
                       {currentConfig.servers.length} configured server{currentConfig.servers.length !== 1 ? 's' : ''}
                     </p>
                   </div>
-                  
+
                   <div>
                     <h3 className="mb-2 text-sm font-medium text-slate-500">Tools</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -118,10 +124,10 @@ export function ConfigPage() {
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end">
                   <Button
-                    onClick={() => {/* Open edit modal */}}
+                    onClick={() => {/* Open edit modal */ }}
                     disabled={updateMutation.isPending}
                   >
                     <Save className="mr-2 h-4 w-4" />
@@ -134,7 +140,7 @@ export function ConfigPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Configuration Presets</CardTitle>

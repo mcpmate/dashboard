@@ -12,6 +12,8 @@ import { ToolsPage } from './pages/tools/tools-page';
 import { SystemPage } from './pages/system/system-page';
 import { SettingsPage } from './pages/settings/settings-page';
 import { NotFoundPage } from './pages/not-found-page';
+import { ApiTestPage } from './pages/debug/api-test-page';
+import { Toaster } from './components/ui/toaster';
 
 // Initialize the query client
 const queryClient = new QueryClient({
@@ -39,10 +41,12 @@ function App() {
             <Route path="tools" element={<ToolsPage />} />
             <Route path="system" element={<SystemPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="debug/api-test" element={<ApiTestPage />} />
             <Route path="404" element={<NotFoundPage />} />
             <Route path="*" element={<Navigate to="/404" replace />} />
           </Route>
         </Routes>
+        <Toaster />
       </BrowserRouter>
     </QueryClientProvider>
   );

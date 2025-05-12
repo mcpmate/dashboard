@@ -20,28 +20,36 @@ export function DashboardPage() {
     queryFn: systemApi.getStatus,
     refetchInterval: 30000,
   });
-  
+
   const { data: servers, isLoading: isLoadingServers } = useQuery({
     queryKey: ['servers'],
     queryFn: serversApi.getAll,
     refetchInterval: 30000,
   });
-  
+
   const { data: tools, isLoading: isLoadingTools } = useQuery({
     queryKey: ['tools'],
     queryFn: toolsApi.getAll,
     refetchInterval: 30000,
   });
 
-  const { data: currentConfig, isLoading: isLoadingConfig } = useQuery({
+  const {
+    data: currentConfig,
+    isLoading: isLoadingConfig,
+    isError: isConfigError
+  } = useQuery({
     queryKey: ['currentConfig'],
     queryFn: configApi.getCurrentConfig,
     refetchInterval: 30000,
+    // Don't retry too many times for config API since we have fallback
+    retry: 1,
+    // Don't show error in React Query devtools
+    useErrorBoundary: false,
   });
-  
-  const connectedServers = servers?.filter(server => server.status === 'connected').length || 0;
-  const enabledTools = tools?.filter(tool => tool.is_enabled).length || 0;
-  
+
+  const connectedServers = servers?.servers?.filter(server => server.status === 'connected').length || 0;
+  const enabledTools = tools?.tools?.filter(tool => tool.is_enabled).length || 0;
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -113,7 +121,7 @@ export function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Servers</CardTitle>
@@ -126,7 +134,7 @@ export function DashboardPage() {
                 {isLoadingServers ? (
                   <div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
                 ) : (
-                  <span className="text-2xl font-bold">{servers?.length || 0}</span>
+                  <span className="text-2xl font-bold">{servers?.servers?.length || 0}</span>
                 )}
               </div>
               <div className="flex items-center justify-between">
@@ -140,7 +148,7 @@ export function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tools</CardTitle>
@@ -153,7 +161,7 @@ export function DashboardPage() {
                 {isLoadingTools ? (
                   <div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
                 ) : (
-                  <span className="text-2xl font-bold">{tools?.length || 0}</span>
+                  <span className="text-2xl font-bold">{tools?.tools?.length || 0}</span>
                 )}
               </div>
               <div className="flex items-center justify-between">
@@ -168,7 +176,7 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="col-span-1 md:col-span-2">
           <CardHeader>
@@ -182,43 +190,43 @@ export function DashboardPage() {
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis 
-                    dataKey="time" 
-                    stroke="#9ca3af" 
+                  <XAxis
+                    dataKey="time"
+                    stroke="#9ca3af"
                     fontSize={12}
                   />
                   <YAxis stroke="#9ca3af" fontSize={12} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1f2937', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
                       border: '1px solid #4b5563',
                       borderRadius: '6px',
                       color: '#e5e7eb'
-                    }} 
+                    }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="cpu" 
-                    stroke="#3b82f6" 
-                    name="CPU (%)" 
+                  <Line
+                    type="monotone"
+                    dataKey="cpu"
+                    stroke="#3b82f6"
+                    name="CPU (%)"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6 }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="memory" 
-                    stroke="#10b981" 
-                    name="Memory (%)" 
+                  <Line
+                    type="monotone"
+                    dataKey="memory"
+                    stroke="#10b981"
+                    name="Memory (%)"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6 }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="connections" 
-                    stroke="#f59e0b" 
-                    name="Connections" 
+                  <Line
+                    type="monotone"
+                    dataKey="connections"
+                    stroke="#f59e0b"
+                    name="Connections"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6 }}
@@ -229,7 +237,7 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -245,9 +253,9 @@ export function DashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : servers?.length ? (
+            ) : servers?.servers?.length ? (
               <div className="space-y-2">
-                {servers.slice(0, 5).map((server) => (
+                {servers.servers.slice(0, 5).map((server) => (
                   <div key={server.name} className="flex items-center justify-between rounded-md border p-3">
                     <span className="font-medium">{server.name}</span>
                     <StatusBadge status={server.status} />
@@ -259,7 +267,7 @@ export function DashboardPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Recent Tools</CardTitle>
@@ -274,9 +282,9 @@ export function DashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : tools?.length ? (
+            ) : tools?.tools?.length ? (
               <div className="space-y-2">
-                {tools.slice(0, 5).map((tool) => (
+                {tools.tools.slice(0, 5).map((tool) => (
                   <div key={`${tool.server_name}-${tool.tool_name}`} className="flex items-center justify-between rounded-md border p-3">
                     <div>
                       <span className="font-medium">{tool.tool_name}</span>

@@ -7,6 +7,8 @@ export interface ServerSummary {
 }
 
 export interface InstanceSummary {
+  startedAt: string | number | Date;
+  lastResponseAt: any;
   id: string;
   status: "running" | "initializing" | "error" | "stopped";
   startTime?: string;
@@ -52,11 +54,16 @@ export interface SystemStatus {
 }
 
 export interface SystemMetrics {
-  cpu_usage_percent: number;
-  memory_usage_bytes: number;
-  active_connections: number;
-  total_requests_mcp: number;
-  error_rate_mcp: number;
+  cpu_usage_percent?: number;
+  memory_usage_bytes?: number;
+  active_connections?: number;
+  total_requests_mcp?: number;
+  error_rate_mcp?: number;
+  uptime_seconds?: number;
+  timestamp?: string;
+  connected_servers_count?: number;
+  total_instances_count?: number;
+  ready_instances_count?: number;
 }
 
 // API Response Status
@@ -108,7 +115,7 @@ export interface MCPServerConfig {
 export interface MCPToolConfig {
   name: string;
   server_name: string;
-  is_enabled: boolean;
+  is_enabled: boolean; // Keep this field name for consistency with API
   settings?: Record<string, any>;
 }
 

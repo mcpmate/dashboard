@@ -6,16 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { RefreshCw, Cpu, MemoryStick as Memory, Network, Database, Gauge } from 'lucide-react';
 import { StatusBadge } from '../../components/status-badge';
 import { formatBytes, formatUptime } from '../../lib/utils';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area
 } from 'recharts';
 
 // Mock data for charts
@@ -38,32 +38,32 @@ const mockRequestsData = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 export function SystemPage() {
-  const { 
+  const {
     data: systemStatus,
     isLoading: isLoadingStatus,
-    refetch, 
-    isRefetching 
+    refetch,
+    isRefetching
   } = useQuery({
     queryKey: ['systemStatus'],
     queryFn: systemApi.getStatus,
     refetchInterval: 30000,
   });
-  
-  const { 
-    data: metrics, 
-    isLoading: isLoadingMetrics 
+
+  const {
+    data: metrics,
+    isLoading: isLoadingMetrics
   } = useQuery({
     queryKey: ['systemMetrics'],
     queryFn: systemApi.getMetrics,
     refetchInterval: 10000,
   });
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">System</h2>
-        <Button 
-          onClick={() => refetch()} 
+        <Button
+          onClick={() => refetch()}
           disabled={isRefetching}
           variant="outline"
           size="sm"
@@ -72,7 +72,7 @@ export function SystemPage() {
           Refresh
         </Button>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -92,7 +92,7 @@ export function SystemPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">CPU</CardTitle>
@@ -104,7 +104,7 @@ export function SystemPage() {
             ) : (
               <div className="flex flex-col gap-1">
                 <span className="text-2xl font-bold">
-                  {metrics?.cpu_usage_percent.toFixed(1)}%
+                  {metrics?.cpu_usage_percent !== undefined ? metrics.cpu_usage_percent.toFixed(1) : '0.0'}%
                 </span>
                 <p className="text-xs text-slate-500">
                   Current CPU Usage
@@ -113,7 +113,7 @@ export function SystemPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Memory</CardTitle>
@@ -134,7 +134,7 @@ export function SystemPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Uptime</CardTitle>
@@ -156,7 +156,7 @@ export function SystemPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="col-span-1 md:col-span-2">
           <CardHeader>
@@ -171,41 +171,41 @@ export function SystemPage() {
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis 
-                    dataKey="time" 
-                    stroke="#9ca3af" 
+                  <XAxis
+                    dataKey="time"
+                    stroke="#9ca3af"
                     fontSize={12}
                     label={{ value: 'Time (minutes)', position: 'insideBottomRight', offset: -10 }}
                   />
-                  <YAxis 
-                    stroke="#9ca3af" 
+                  <YAxis
+                    stroke="#9ca3af"
                     fontSize={12}
-                    domain={[0, 100]} 
+                    domain={[0, 100]}
                     label={{ value: 'Usage %', angle: -90, position: 'insideLeft' }}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1f2937', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
                       border: '1px solid #4b5563',
                       borderRadius: '6px',
                       color: '#e5e7eb'
                     }}
                     formatter={(value) => [`${value.toFixed(1)}%`]}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="cpu" 
-                    stroke="#3b82f6" 
-                    name="CPU" 
+                  <Line
+                    type="monotone"
+                    dataKey="cpu"
+                    stroke="#3b82f6"
+                    name="CPU"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6 }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="memory" 
-                    stroke="#10b981" 
-                    name="Memory" 
+                  <Line
+                    type="monotone"
+                    dataKey="memory"
+                    stroke="#10b981"
+                    name="Memory"
                     strokeWidth={2}
                     dot={false}
                     activeDot={{ r: 6 }}
@@ -215,7 +215,7 @@ export function SystemPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Network Traffic</CardTitle>
@@ -229,42 +229,42 @@ export function SystemPage() {
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis 
-                    dataKey="time" 
-                    stroke="#9ca3af" 
+                  <XAxis
+                    dataKey="time"
+                    stroke="#9ca3af"
                     fontSize={12}
                     label={{ value: 'Time (minutes)', position: 'insideBottomRight', offset: -10 }}
                   />
-                  <YAxis 
-                    stroke="#9ca3af" 
+                  <YAxis
+                    stroke="#9ca3af"
                     fontSize={12}
                     label={{ value: 'KB/s', angle: -90, position: 'insideLeft' }}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1f2937', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
                       border: '1px solid #4b5563',
                       borderRadius: '6px',
                       color: '#e5e7eb'
                     }}
                     formatter={(value) => [`${value.toFixed(1)} KB/s`]}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="in" 
+                  <Area
+                    type="monotone"
+                    dataKey="in"
                     stackId="1"
-                    stroke="#3b82f6" 
-                    fill="#3b82f6" 
-                    name="Inbound" 
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
+                    name="Inbound"
                     fillOpacity={0.3}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="out" 
+                  <Area
+                    type="monotone"
+                    dataKey="out"
                     stackId="1"
-                    stroke="#f59e0b" 
-                    fill="#f59e0b" 
-                    name="Outbound" 
+                    stroke="#f59e0b"
+                    fill="#f59e0b"
+                    name="Outbound"
                     fillOpacity={0.3}
                   />
                 </AreaChart>
@@ -272,7 +272,7 @@ export function SystemPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>API Requests</CardTitle>
@@ -286,39 +286,39 @@ export function SystemPage() {
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis 
-                    dataKey="hour" 
-                    stroke="#9ca3af" 
+                  <XAxis
+                    dataKey="hour"
+                    stroke="#9ca3af"
                     fontSize={12}
                     label={{ value: 'Hour', position: 'insideBottomRight', offset: -10 }}
                   />
-                  <YAxis 
-                    stroke="#9ca3af" 
+                  <YAxis
+                    stroke="#9ca3af"
                     fontSize={12}
                     label={{ value: 'Count', angle: -90, position: 'insideLeft' }}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1f2937', 
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
                       border: '1px solid #4b5563',
                       borderRadius: '6px',
                       color: '#e5e7eb'
                     }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="requests" 
-                    stroke="#10b981" 
-                    fill="#10b981" 
-                    name="Requests" 
+                  <Area
+                    type="monotone"
+                    dataKey="requests"
+                    stroke="#10b981"
+                    fill="#10b981"
+                    name="Requests"
                     fillOpacity={0.3}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="errors" 
-                    stroke="#ef4444" 
-                    fill="#ef4444" 
-                    name="Errors" 
+                  <Area
+                    type="monotone"
+                    dataKey="errors"
+                    stroke="#ef4444"
+                    fill="#ef4444"
+                    name="Errors"
                     fillOpacity={0.3}
                   />
                 </AreaChart>
@@ -327,7 +327,7 @@ export function SystemPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Active Connections</CardTitle>

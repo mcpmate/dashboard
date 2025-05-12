@@ -1,27 +1,84 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useParams, Link } from 'react-router-dom';
-import { serversApi } from '../../lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft, Monitor, PlayCircle, RefreshCw, RotateCw, StopCircle, XCircle } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { StatusBadge } from '../../components/status-badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { ArrowLeft, RefreshCw, Monitor, PlayCircle, StopCircle, RotateCw, XCircle } from 'lucide-react';
-import { StatusBadge } from '../../components/status-badge';
+import { useToast } from '../../components/ui/use-toast';
+import { serversApi } from '../../lib/api';
 import { formatRelativeTime } from '../../lib/utils';
 
 export function ServerDetailPage() {
   const { serverName } = useParams<{ serverName: string }>();
-  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const { data: server, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['server', serverName],
     queryFn: () => serversApi.getServer(serverName || ''),
     enabled: !!serverName,
     refetchInterval: 15000,
   });
-  
+
+  // Instance operation mutation
+  const instanceMutation = useMutation({
+    mutationFn: async ({
+      action,
+      instanceId
+    }: {
+      action: 'disconnect' | 'reconnect' | 'reset' | 'cancel';
+      instanceId: string;
+    }) => {
+      if (!serverName) throw new Error('Server name is required');
+
+      switch (action) {
+        case 'disconnect':
+          return await serversApi.disconnectInstance(serverName, instanceId);
+        case 'reconnect':
+          return await serversApi.reconnectInstance(serverName, instanceId);
+        case 'reset':
+          return await serversApi.resetAndReconnectInstance(serverName, instanceId);
+        case 'cancel':
+          return await serversApi.cancelInstance(serverName, instanceId);
+        default:
+          throw new Error(`Unknown action: ${action}`);
+      }
+    },
+    onSuccess: (_, variables) => {
+      const actionMap = {
+        disconnect: 'Disconnected',
+        reconnect: 'Reconnected',
+        reset: 'Reset and reconnected',
+        cancel: 'Canceled',
+      };
+
+      toast({
+        title: `Instance ${actionMap[variables.action]}`,
+        description: `Instance ${variables.instanceId.substring(0, 8)}... was ${actionMap[variables.action].toLowerCase()} successfully`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['server', serverName] });
+    },
+    onError: (error, variables) => {
+      toast({
+        title: 'Operation Failed',
+        description: `Unable to ${variables.action === 'disconnect' ? 'disconnect' :
+          variables.action === 'reconnect' ? 'reconnect' :
+            variables.action === 'reset' ? 'reset' : 'cancel'} instance: ${error instanceof Error ? error.message : String(error)}`,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Handle instance action
+  const handleInstanceAction = (action: 'disconnect' | 'reconnect' | 'reset' | 'cancel', instanceId: string) => {
+    instanceMutation.mutate({ action, instanceId });
+  };
+
   if (!serverName) {
-    return <div>Server name not provided</div>;
+    return <div>No server name provided</div>;
   }
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -29,14 +86,21 @@ export function ServerDetailPage() {
           <Link to="/servers">
             <Button variant="ghost" size="sm" className="mr-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Servers
+              Back to Server List
             </Button>
           </Link>
           <h2 className="text-3xl font-bold tracking-tight">{serverName}</h2>
-          {!isLoading && server && <StatusBadge status={server.status} className="ml-3" />}
+          {!isLoading && server && (
+            <StatusBadge
+              status={server.status}
+              instances={server.instances}
+              className="ml-3"
+              blinkOnError={true}
+            />
+          )}
         </div>
-        <Button 
-          onClick={() => refetch()} 
+        <Button
+          onClick={() => refetch()}
           disabled={isRefetching}
           variant="outline"
           size="sm"
@@ -45,7 +109,7 @@ export function ServerDetailPage() {
           Refresh
         </Button>
       </div>
-      
+
       {isLoading ? (
         <Card>
           <CardContent className="p-6">
@@ -73,7 +137,13 @@ export function ServerDetailPage() {
                     </div>
                     <div className="flex justify-between">
                       <dt className="font-medium">Status:</dt>
-                      <dd><StatusBadge status={server.status} /></dd>
+                      <dd>
+                        <StatusBadge
+                          status={server.status}
+                          instances={server.instances}
+                          blinkOnError={true}
+                        />
+                      </dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="font-medium">Active Instances:</dt>
@@ -81,7 +151,7 @@ export function ServerDetailPage() {
                     </div>
                   </dl>
                 </div>
-                
+
                 {server.command && (
                   <div>
                     <h3 className="mb-2 text-sm font-medium text-slate-500">Command Configuration</h3>
@@ -108,7 +178,7 @@ export function ServerDetailPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Instances ({server.instances.length})</CardTitle>
@@ -126,80 +196,79 @@ export function ServerDetailPage() {
                           <CardTitle className="text-sm font-medium truncate" title={instance.id}>
                             {instance.id.substring(0, 8)}...
                           </CardTitle>
-                          <StatusBadge status={instance.status} />
+                          <StatusBadge status={instance.status} blinkOnError={instance.status === 'error'} />
                         </div>
-                        {instance.startTime && (
-                          <CardDescription>
-                            Started {formatRelativeTime(instance.startTime)}
-                          </CardDescription>
-                        )}
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <Link to={`/servers/${serverName}/instances/${instance.id}`}>
-                            <Button size="sm" variant="outline">
-                              <Monitor className="mr-2 h-4 w-4" />
-                              Details
-                            </Button>
-                          </Link>
-                          
-                          {instance.status === 'initializing' ? (
-                            <Button 
-                              size="sm" 
-                              variant="destructive"
-                              onClick={() => {
-                                serversApi.cancelInstance(serverName, instance.id)
-                                  .then(() => refetch());
-                              }}
-                            >
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Cancel
-                            </Button>
-                          ) : instance.status === 'running' ? (
-                            <Button 
-                              size="sm" 
-                              variant="secondary"
-                              onClick={() => {
-                                serversApi.disconnectInstance(serverName, instance.id)
-                                  .then(() => refetch());
-                              }}
-                            >
-                              <StopCircle className="mr-2 h-4 w-4" />
-                              Disconnect
-                            </Button>
-                          ) : (
-                            <>
-                              <Button 
-                                size="sm" 
-                                variant="secondary"
-                                onClick={() => {
-                                  serversApi.reconnectInstance(serverName, instance.id)
-                                    .then(() => refetch());
-                                }}
-                              >
-                                <PlayCircle className="mr-2 h-4 w-4" />
-                                Reconnect
+                        <div className="space-y-3">
+                          <div>
+                            <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+                              <span>Created:</span>
+                              <span>{formatRelativeTime(instance.startedAt.toString())}</span>
+                            </div>
+                            <div className="flex justify-between text-xs text-slate-500">
+                              <span>Last Response:</span>
+                              <span>
+                                {instance.lastResponseAt
+                                  ? formatRelativeTime(instance.lastResponseAt.toString())
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex justify-end space-x-2">
+                            <Link to={`/servers/${serverName}/instances/${instance.id}`}>
+                              <Button size="sm" variant="outline">
+                                <Monitor className="h-4 w-4" />
                               </Button>
-                              <Button 
-                                size="sm" 
+                            </Link>
+                            {instance.status === 'running' && (
+                              <Button
+                                size="sm"
                                 variant="outline"
-                                onClick={() => {
-                                  serversApi.resetAndReconnectInstance(serverName, instance.id)
-                                    .then(() => refetch());
-                                }}
+                                onClick={() => handleInstanceAction('disconnect', instance.id)}
+                                disabled={instanceMutation.isPending}
                               >
-                                <RotateCw className="mr-2 h-4 w-4" />
-                                Reset & Reconnect
+                                <StopCircle className="h-4 w-4" />
                               </Button>
-                            </>
-                          )}
+                            )}
+                            {(instance.status === 'stopped' || instance.status === 'error') && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleInstanceAction('reconnect', instance.id)}
+                                  disabled={instanceMutation.isPending}
+                                >
+                                  <PlayCircle className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleInstanceAction('reset', instance.id)}
+                                  disabled={instanceMutation.isPending}
+                                >
+                                  <RotateCw className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {instance.status === 'initializing' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleInstanceAction('cancel', instance.id)}
+                                disabled={instanceMutation.isPending}
+                              >
+                                <XCircle className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
               ) : (
-                <p className="text-center text-slate-500">No instances available for this server.</p>
+                <p className="text-center text-slate-500">This server has no available instances.</p>
               )}
             </CardContent>
           </Card>

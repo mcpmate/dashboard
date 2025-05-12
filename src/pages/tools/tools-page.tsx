@@ -9,34 +9,34 @@ import { Switch } from '../../components/ui/switch';
 export function ToolsPage() {
   const [searchTerm, setSearchTerm] = React.useState('');
   const queryClient = useQueryClient();
-  
-  const { 
-    data: tools, 
-    isLoading, 
-    refetch, 
-    isRefetching 
+
+  const {
+    data: tools,
+    isLoading,
+    refetch,
+    isRefetching
   } = useQuery({
     queryKey: ['tools'],
     queryFn: toolsApi.getAll,
     refetchInterval: 30000,
   });
-  
+
   const enableMutation = useMutation({
-    mutationFn: ({ serverName, toolName }: { serverName: string; toolName: string }) => 
+    mutationFn: ({ serverName, toolName }: { serverName: string; toolName: string }) =>
       toolsApi.enableTool(serverName, toolName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tools'] });
     },
   });
-  
+
   const disableMutation = useMutation({
-    mutationFn: ({ serverName, toolName }: { serverName: string; toolName: string }) => 
+    mutationFn: ({ serverName, toolName }: { serverName: string; toolName: string }) =>
       toolsApi.disableTool(serverName, toolName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tools'] });
     },
   });
-  
+
   const handleToggleTool = (tool: { server_name: string; tool_name: string; is_enabled: boolean }) => {
     if (tool.is_enabled) {
       disableMutation.mutate({ serverName: tool.server_name, toolName: tool.tool_name });
@@ -44,18 +44,18 @@ export function ToolsPage() {
       enableMutation.mutate({ serverName: tool.server_name, toolName: tool.tool_name });
     }
   };
-  
-  const filteredTools = tools?.filter(tool => 
+
+  const filteredTools = tools?.tools?.filter(tool =>
     tool.tool_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tool.server_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Tools</h2>
-        <Button 
-          onClick={() => refetch()} 
+        <Button
+          onClick={() => refetch()}
           disabled={isRefetching}
           variant="outline"
           size="sm"
@@ -64,7 +64,7 @@ export function ToolsPage() {
           Refresh
         </Button>
       </div>
-      
+
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
         <input
@@ -75,7 +75,7 @@ export function ToolsPage() {
           className="w-full rounded-md border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-600"
         />
       </div>
-      
+
       <div className="grid gap-4">
         {isLoading ? (
           <Card>
@@ -106,8 +106,8 @@ export function ToolsPage() {
             <CardContent>
               <div className="space-y-4">
                 {filteredTools.map((tool) => (
-                  <div 
-                    key={`${tool.server_name}-${tool.tool_name}`} 
+                  <div
+                    key={`${tool.server_name}-${tool.tool_name}`}
                     className="flex items-center justify-between rounded-md border p-4"
                   >
                     <div className="space-y-1">
@@ -125,8 +125,8 @@ export function ToolsPage() {
                       <span className="mr-2 text-sm">
                         {tool.is_enabled ? 'Enabled' : 'Disabled'}
                       </span>
-                      <Switch 
-                        checked={tool.is_enabled} 
+                      <Switch
+                        checked={tool.is_enabled}
                         onCheckedChange={() => handleToggleTool(tool)}
                         disabled={enableMutation.isPending || disableMutation.isPending}
                       />
