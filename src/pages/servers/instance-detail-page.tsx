@@ -10,58 +10,58 @@ import { formatRelativeTime } from '../../lib/utils';
 
 export function InstanceDetailPage() {
   const { serverName, instanceId } = useParams<{ serverName: string; instanceId: string }>();
-  
-  const { 
-    data: instance, 
-    isLoading, 
-    refetch, 
-    isRefetching 
+
+  const {
+    data: instance,
+    isLoading,
+    refetch,
+    isRefetching
   } = useQuery({
     queryKey: ['instance', serverName, instanceId],
     queryFn: () => serversApi.getInstance(serverName || '', instanceId || ''),
     enabled: !!serverName && !!instanceId,
     refetchInterval: 10000,
   });
-  
-  const { 
-    data: health, 
-    isLoading: isLoadingHealth 
+
+  const {
+    data: health,
+    isLoading: isLoadingHealth
   } = useQuery({
     queryKey: ['instanceHealth', serverName, instanceId],
     queryFn: () => serversApi.getInstanceHealth(serverName || '', instanceId || ''),
     enabled: !!serverName && !!instanceId,
     refetchInterval: 10000,
   });
-  
+
   if (!serverName || !instanceId) {
     return <div>Server name or instance ID not provided</div>;
   }
-  
+
   const handleDisconnect = () => {
     serversApi.disconnectInstance(serverName, instanceId)
       .then(() => refetch());
   };
-  
+
   const handleForceDisconnect = () => {
     serversApi.forceDisconnectInstance(serverName, instanceId)
       .then(() => refetch());
   };
-  
+
   const handleReconnect = () => {
     serversApi.reconnectInstance(serverName, instanceId)
       .then(() => refetch());
   };
-  
+
   const handleResetAndReconnect = () => {
     serversApi.resetAndReconnectInstance(serverName, instanceId)
       .then(() => refetch());
   };
-  
+
   const handleCancel = () => {
     serversApi.cancelInstance(serverName, instanceId)
       .then(() => refetch());
   };
-  
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -75,10 +75,19 @@ export function InstanceDetailPage() {
           <h2 className="text-2xl font-bold tracking-tight truncate" title={instanceId}>
             {instanceId.substring(0, 12)}...
           </h2>
-          {!isLoading && instance && <StatusBadge status={instance.status} className="ml-3" />}
+          {!isLoading && instance && (
+            <StatusBadge
+              status={
+                typeof instance.status === 'string'
+                  ? instance.status.toLowerCase()
+                  : 'unknown'
+              }
+              className="ml-3"
+            />
+          )}
         </div>
-        <Button 
-          onClick={() => refetch()} 
+        <Button
+          onClick={() => refetch()}
           disabled={isRefetching}
           variant="outline"
           size="sm"
@@ -87,7 +96,7 @@ export function InstanceDetailPage() {
           Refresh
         </Button>
       </div>
-      
+
       {isLoading ? (
         <Card>
           <CardContent className="p-6">
@@ -113,12 +122,29 @@ export function InstanceDetailPage() {
                   </div>
                   <div className="flex justify-between">
                     <dt className="font-medium">Status:</dt>
-                    <dd><StatusBadge status={instance.status} /></dd>
+                    <dd>
+                      <StatusBadge
+                        status={
+                          typeof instance.status === 'string'
+                            ? instance.status.toLowerCase()
+                            : 'unknown'
+                        }
+                      />
+                    </dd>
                   </div>
-                  {instance.startTime && (
+                  {(instance.startTime || instance.startedAt || instance.started_at) && (
                     <div className="flex justify-between">
                       <dt className="font-medium">Started:</dt>
-                      <dd>{formatRelativeTime(instance.startTime)}</dd>
+                      <dd>
+                        {instance.startTime
+                          ? formatRelativeTime(instance.startTime)
+                          : instance.startedAt
+                            ? formatRelativeTime(instance.startedAt.toString())
+                            : instance.started_at
+                              ? formatRelativeTime(instance.started_at.toString())
+                              : 'N/A'
+                        }
+                      </dd>
                     </div>
                   )}
                   <div className="flex justify-between">
@@ -127,8 +153,8 @@ export function InstanceDetailPage() {
                       {isLoadingHealth ? (
                         <div className="h-5 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
                       ) : (
-                        <StatusBadge 
-                          status={health?.is_healthy ? 'healthy' : 'unhealthy'} 
+                        <StatusBadge
+                          status={health?.is_healthy ? 'healthy' : 'unhealthy'}
                         />
                       )}
                     </dd>
@@ -136,7 +162,7 @@ export function InstanceDetailPage() {
                 </dl>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>Instance Controls</CardTitle>
@@ -144,12 +170,12 @@ export function InstanceDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-3">
-                  {instance.status === 'initializing' ? (
+                  {(['initializing', 'Initializing'].includes(instance.status)) ? (
                     <Button variant="destructive" onClick={handleCancel}>
                       <Shield className="mr-2 h-4 w-4" />
                       Cancel Initialization
                     </Button>
-                  ) : instance.status === 'running' ? (
+                  ) : (['running', 'Running', 'ready', 'Ready'].includes(instance.status)) ? (
                     <>
                       <Button variant="secondary" onClick={handleDisconnect}>
                         <StopCircle className="mr-2 h-4 w-4" />
@@ -173,7 +199,7 @@ export function InstanceDetailPage() {
                     </>
                   )}
                 </div>
-                
+
                 {health && !health.is_healthy && health.details && (
                   <div className="mt-4">
                     <p className="text-sm font-medium text-red-500">Health issue detected:</p>
@@ -185,7 +211,7 @@ export function InstanceDetailPage() {
               </CardContent>
             </Card>
           </div>
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Instance Metrics</CardTitle>

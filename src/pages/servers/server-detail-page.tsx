@@ -92,8 +92,17 @@ export function ServerDetailPage() {
           <h2 className="text-3xl font-bold tracking-tight">{serverName}</h2>
           {!isLoading && server && (
             <StatusBadge
-              status={server.status}
-              instances={server.instances}
+              status={
+                typeof server.status === 'string'
+                  ? server.status.toLowerCase()
+                  : 'unknown'
+              }
+              instances={server.instances.map(instance => ({
+                ...instance,
+                status: typeof instance.status === 'string'
+                  ? instance.status.toLowerCase()
+                  : 'unknown'
+              }))}
               className="ml-3"
               blinkOnError={true}
             />
@@ -196,7 +205,17 @@ export function ServerDetailPage() {
                           <CardTitle className="text-sm font-medium truncate" title={instance.id}>
                             {instance.id.substring(0, 8)}...
                           </CardTitle>
-                          <StatusBadge status={instance.status} blinkOnError={instance.status === 'error'} />
+                          <StatusBadge
+                            status={
+                              typeof instance.status === 'string'
+                                ? instance.status.toLowerCase()
+                                : 'unknown'
+                            }
+                            blinkOnError={
+                              typeof instance.status === 'string' &&
+                              instance.status.toLowerCase() === 'error'
+                            }
+                          />
                         </div>
                       </CardHeader>
                       <CardContent className="p-4 pt-0">
@@ -204,14 +223,22 @@ export function ServerDetailPage() {
                           <div>
                             <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
                               <span>Created:</span>
-                              <span>{formatRelativeTime(instance.startedAt.toString())}</span>
+                              <span>
+                                {instance.startedAt
+                                  ? formatRelativeTime(instance.startedAt.toString())
+                                  : instance.started_at
+                                    ? formatRelativeTime(instance.started_at.toString())
+                                    : 'N/A'}
+                              </span>
                             </div>
                             <div className="flex justify-between text-xs text-slate-500">
                               <span>Last Response:</span>
                               <span>
                                 {instance.lastResponseAt
                                   ? formatRelativeTime(instance.lastResponseAt.toString())
-                                  : 'N/A'}
+                                  : instance.connected_at
+                                    ? formatRelativeTime(instance.connected_at.toString())
+                                    : 'N/A'}
                               </span>
                             </div>
                           </div>
@@ -221,46 +248,53 @@ export function ServerDetailPage() {
                                 <Monitor className="h-4 w-4" />
                               </Button>
                             </Link>
-                            {instance.status === 'running' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleInstanceAction('disconnect', instance.id)}
-                                disabled={instanceMutation.isPending}
-                              >
-                                <StopCircle className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {(instance.status === 'stopped' || instance.status === 'error') && (
-                              <>
+                            {(instance.status === 'running' ||
+                              instance.status === 'Running' ||
+                              instance.status === 'Ready' ||
+                              instance.status === 'ready') && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleInstanceAction('reconnect', instance.id)}
+                                  onClick={() => handleInstanceAction('disconnect', instance.id)}
                                   disabled={instanceMutation.isPending}
                                 >
-                                  <PlayCircle className="h-4 w-4" />
+                                  <StopCircle className="h-4 w-4" />
                                 </Button>
+                              )}
+                            {(instance.status === 'stopped' ||
+                              instance.status === 'Stopped' ||
+                              instance.status === 'error' ||
+                              instance.status === 'Error') && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleInstanceAction('reconnect', instance.id)}
+                                    disabled={instanceMutation.isPending}
+                                  >
+                                    <PlayCircle className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleInstanceAction('reset', instance.id)}
+                                    disabled={instanceMutation.isPending}
+                                  >
+                                    <RotateCw className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                            {(instance.status === 'initializing' ||
+                              instance.status === 'Initializing') && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleInstanceAction('reset', instance.id)}
+                                  onClick={() => handleInstanceAction('cancel', instance.id)}
                                   disabled={instanceMutation.isPending}
                                 >
-                                  <RotateCw className="h-4 w-4" />
+                                  <XCircle className="h-4 w-4" />
                                 </Button>
-                              </>
-                            )}
-                            {instance.status === 'initializing' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleInstanceAction('cancel', instance.id)}
-                                disabled={instanceMutation.isPending}
-                              >
-                                <XCircle className="h-4 w-4" />
-                              </Button>
-                            )}
+                              )}
                           </div>
                         </div>
                       </CardContent>
