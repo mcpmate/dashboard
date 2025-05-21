@@ -132,19 +132,26 @@ export function InstanceDetailPage() {
                       />
                     </dd>
                   </div>
-                  {(instance.startTime || instance.startedAt || instance.started_at) && (
+                  <div className="flex justify-between">
+                    <dt className="font-medium">Connection Attempts:</dt>
+                    <dd>{instance.details.connection_attempts}</dd>
+                  </div>
+                  {instance.details.last_connected_seconds !== undefined && (
                     <div className="flex justify-between">
-                      <dt className="font-medium">Started:</dt>
-                      <dd>
-                        {instance.startTime
-                          ? formatRelativeTime(instance.startTime)
-                          : instance.startedAt
-                            ? formatRelativeTime(instance.startedAt.toString())
-                            : instance.started_at
-                              ? formatRelativeTime(instance.started_at.toString())
-                              : 'N/A'
-                        }
-                      </dd>
+                      <dt className="font-medium">Connected For:</dt>
+                      <dd>{formatRelativeTime(Date.now() - instance.details.last_connected_seconds * 1000)}</dd>
+                    </div>
+                  )}
+                  {instance.details.tools_count !== undefined && (
+                    <div className="flex justify-between">
+                      <dt className="font-medium">Tools:</dt>
+                      <dd>{instance.details.tools_count}</dd>
+                    </div>
+                  )}
+                  {instance.details.process_id && (
+                    <div className="flex justify-between">
+                      <dt className="font-medium">Process ID:</dt>
+                      <dd>{instance.details.process_id}</dd>
                     </div>
                   )}
                   <div className="flex justify-between">
@@ -154,7 +161,7 @@ export function InstanceDetailPage() {
                         <div className="h-5 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
                       ) : (
                         <StatusBadge
-                          status={health?.is_healthy ? 'healthy' : 'unhealthy'}
+                          status={health?.healthy ? 'healthy' : 'unhealthy'}
                         />
                       )}
                     </dd>
@@ -169,42 +176,76 @@ export function InstanceDetailPage() {
                 <CardDescription>Manage the instance connection state</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-3">
-                  {(['initializing', 'Initializing'].includes(instance.status)) ? (
-                    <Button variant="destructive" onClick={handleCancel}>
-                      <Shield className="mr-2 h-4 w-4" />
-                      Cancel Initialization
-                    </Button>
-                  ) : (['running', 'Running', 'ready', 'Ready'].includes(instance.status)) ? (
-                    <>
-                      <Button variant="secondary" onClick={handleDisconnect}>
-                        <StopCircle className="mr-2 h-4 w-4" />
-                        Disconnect
+                <div className="w-full">
+                  {instance.status.toLowerCase() === 'initializing' ? (
+                    <div className="flex flex-col gap-3 w-full">
+                      <Button
+                        variant="destructive"
+                        onClick={handleCancel}
+                        className="w-full"
+                      >
+                        <Shield className="mr-2 h-4 w-4" />
+                        Cancel Initialization
                       </Button>
-                      <Button variant="destructive" onClick={handleForceDisconnect}>
+                    </div>
+                  ) : instance.status.toLowerCase() === 'ready' || instance.status.toLowerCase() === 'busy' ? (
+                    <div className="flex flex-col gap-3 w-full">
+                      <Button
+                        variant="secondary"
+                        onClick={handleDisconnect}
+                        className="w-full"
+                      >
+                        <StopCircle className="mr-2 h-4 w-4" />
+                        Disconnect Instance
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleForceDisconnect}
+                        className="w-full"
+                      >
                         <Shield className="mr-2 h-4 w-4" />
                         Force Disconnect
                       </Button>
-                    </>
+                    </div>
                   ) : (
-                    <>
-                      <Button onClick={handleReconnect}>
-                        <PlayCircle className="mr-2 h-4 w-4" />
-                        Reconnect
+                    <div className="flex flex-col gap-3 w-full">
+                      <Button
+                        size="lg"
+                        onClick={handleReconnect}
+                        className="w-full"
+                      >
+                        <PlayCircle className="mr-2 h-5 w-5" />
+                        Reconnect Instance
                       </Button>
-                      <Button variant="outline" onClick={handleResetAndReconnect}>
+                      <p className="text-xs text-center text-slate-500 mt-1">
+                        Reconnection may take a few moments to complete
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={handleResetAndReconnect}
+                        className="w-full"
+                      >
                         <RotateCw className="mr-2 h-4 w-4" />
                         Reset & Reconnect
                       </Button>
-                    </>
+                    </div>
                   )}
                 </div>
 
-                {health && !health.is_healthy && health.details && (
+                {health && !health.healthy && health.message && (
                   <div className="mt-4">
                     <p className="text-sm font-medium text-red-500">Health issue detected:</p>
                     <p className="mt-1 rounded bg-red-50 p-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-                      {health.details}
+                      {health.message}
+                    </p>
+                  </div>
+                )}
+
+                {instance.details.error_message && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-red-500">Error:</p>
+                    <p className="mt-1 rounded bg-red-50 p-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+                      {instance.details.error_message}
                     </p>
                   </div>
                 )}
@@ -212,19 +253,38 @@ export function InstanceDetailPage() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Instance Metrics</CardTitle>
-              <CardDescription>
-                Performance metrics and statistics for this instance
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-slate-500 py-6">
-                Instance metrics visualization to be implemented
-              </p>
-            </CardContent>
-          </Card>
+          {(instance.details.cpu_usage !== undefined || instance.details.memory_usage !== undefined) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Instance Metrics</CardTitle>
+                <CardDescription>
+                  Performance metrics and statistics for this instance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-2">
+                  {instance.details.cpu_usage !== undefined && (
+                    <div className="flex justify-between">
+                      <dt className="font-medium">CPU Usage:</dt>
+                      <dd>{(instance.details.cpu_usage * 100).toFixed(2)}%</dd>
+                    </div>
+                  )}
+                  {instance.details.memory_usage !== undefined && (
+                    <div className="flex justify-between">
+                      <dt className="font-medium">Memory Usage:</dt>
+                      <dd>{(instance.details.memory_usage / (1024 * 1024)).toFixed(2)} MB</dd>
+                    </div>
+                  )}
+                  {health?.connection_stability !== undefined && (
+                    <div className="flex justify-between">
+                      <dt className="font-medium">Connection Stability:</dt>
+                      <dd>{(health.connection_stability * 100).toFixed(0)}%</dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
+            </Card>
+          )}
         </>
       ) : (
         <Card>

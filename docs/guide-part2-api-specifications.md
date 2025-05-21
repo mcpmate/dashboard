@@ -202,10 +202,10 @@
   ```
 - **使用场景**: 当实例长时间卡在初始化状态时，用户可以取消该过程。
 
-### 3.2 工具管理 (`/api/mcp/tools/*`)
+### 3.2 工具管理 (`/api/mcp/specs/tools/*`)
 
 #### 3.2.1 列出所有工具
-- **端点**: `/api/mcp/tools`
+- **端点**: `/api/mcp/specs/tools`
 - **方法**: `GET`
 - **功能**: 获取所有已连接服务器聚合而来的工具列表。
 - **请求参数**: 无
@@ -226,7 +226,7 @@
 - **使用场景**: 在工具管理页面展示所有可用工具。
 
 #### 3.2.2 获取特定工具配置
-- **端点**: `/api/mcp/tools/:server_name/:tool_name`
+- **端点**: `/api/mcp/specs/tools/:server_name/:tool_name`
 - **方法**: `GET`
 - **功能**: 获取源自 `:server_name` 的名为 `:tool_name` 的特定工具的详细配置信息。
 - **请求参数**:
@@ -248,7 +248,7 @@
 - **使用场景**: 查看特定工具的详细配置。
 
 #### 3.2.3 更新特定工具配置
-- **端点**: `/api/mcp/tools/:server_name/:tool_name`
+- **端点**: `/api/mcp/specs/tools/:server_name/:tool_name`
 - **方法**: `POST` (或 `PUT`, 根据后端实现, `src/api/README.md` 标注为 POST)
 - **功能**: 更新源自 `:server_name` 的名为 `:tool_name` 的特定工具的配置。
 - **请求参数**:
@@ -276,7 +276,7 @@
 - **使用场景**: 修改工具的配置参数，例如调整工具的行为。
 
 #### 3.2.4 启用特定工具
-- **端点**: `/api/mcp/tools/:server_name/:tool_name/enable`
+- **端点**: `/api/mcp/specs/tools/:server_name/:tool_name/enable`
 - **方法**: `POST`
 - **功能**: 启用源自 `:server_name` 的名为 `:tool_name` 的特定工具。
 - **请求参数**:
@@ -293,7 +293,7 @@
 - **使用场景**: 在工具列表中启用一个之前被禁用的工具。
 
 #### 3.2.5 禁用特定工具
-- **端点**: `/api/mcp/tools/:server_name/:tool_name/disable`
+- **端点**: `/api/mcp/specs/tools/:server_name/:tool_name/disable`
 - **方法**: `POST`
 - **功能**: 禁用源自 `:server_name` 的名为 `:tool_name` 的特定工具。
 - **请求参数**:

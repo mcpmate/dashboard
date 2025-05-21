@@ -14,13 +14,13 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatBytes(bytes: number, decimals = 2) {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-  
+
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
@@ -29,13 +29,13 @@ export function formatBytes(bytes: number, decimals = 2) {
  */
 export function formatUptime(seconds: number) {
   if (seconds < 60) return `${seconds}s`;
-  
+
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
-  
+
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ${minutes % 60}m`;
-  
+
   const days = Math.floor(hours / 24);
   return `${days}d ${hours % 24}h`;
 }
@@ -56,21 +56,25 @@ export function formatRelativeTime(timestamp: string) {
  * Get a color variant based on status
  */
 export function getStatusVariant(status: string): "success" | "warning" | "destructive" | "default" {
-  switch (status.toLowerCase()) {
-    case 'connected':
-    case 'running':
-    case 'healthy':
-      return 'success';
-    case 'disconnected':
-    case 'initializing':
-      return 'warning';
-    case 'error':
-    case 'unhealthy':
-    case 'stopped':
-      return 'destructive';
-    default:
-      return 'default';
+  const statusLower = status.toLowerCase();
+
+  // Active/Ready states
+  if (['connected', 'running', 'healthy', 'ready', 'busy', 'active', 'enabled', 'thinking', 'fetch'].includes(statusLower)) {
+    return 'success';
   }
+
+  // Warning/Initializing states
+  if (['disconnected', 'initializing', 'shutdown', 'starting', 'connecting', 'pending', 'disabled'].includes(statusLower)) {
+    return 'warning';
+  }
+
+  // Error states
+  if (['error', 'unhealthy', 'stopped', 'failed', 'timeout'].includes(statusLower)) {
+    return 'destructive';
+  }
+
+  // Unknown or other states
+  return 'default';
 }
 
 /**

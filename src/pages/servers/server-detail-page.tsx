@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Monitor, PlayCircle, RefreshCw, RotateCw, StopCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Monitor, PlayCircle, RefreshCw, RotateCw, StopCircle, XCircle, ExternalLink } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { StatusBadge } from '../../components/status-badge';
 import { Button } from '../../components/ui/button';
@@ -222,79 +222,69 @@ export function ServerDetailPage() {
                         <div className="space-y-3">
                           <div>
                             <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-                              <span>Created:</span>
+                              <span>Status:</span>
                               <span>
-                                {instance.startedAt
-                                  ? formatRelativeTime(instance.startedAt.toString())
-                                  : instance.started_at
-                                    ? formatRelativeTime(instance.started_at.toString())
-                                    : 'N/A'}
+                                {instance.status}
                               </span>
                             </div>
                             <div className="flex justify-between text-xs text-slate-500">
-                              <span>Last Response:</span>
-                              <span>
-                                {instance.lastResponseAt
-                                  ? formatRelativeTime(instance.lastResponseAt.toString())
-                                  : instance.connected_at
-                                    ? formatRelativeTime(instance.connected_at.toString())
-                                    : 'N/A'}
+                              <span>ID:</span>
+                              <span className="font-mono">
+                                {instance.id.substring(0, 12)}
                               </span>
                             </div>
                           </div>
-                          <div className="flex justify-end space-x-2">
-                            <Link to={`/servers/${serverName}/instances/${instance.id}`}>
-                              <Button size="sm" variant="outline">
-                                <Monitor className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                            {(instance.status === 'running' ||
-                              instance.status === 'Running' ||
-                              instance.status === 'Ready' ||
-                              instance.status === 'ready') && (
+                          <div className="flex flex-col gap-3 mt-4">
+                            {/* Action buttons */}
+                            <div className="flex justify-between gap-2">
+                              <Link to={`/servers/${serverName}/instances/${instance.id}`} className="flex-1">
+                                <Button variant="outline" size="sm" className="w-full">
+                                  <ExternalLink className="mr-2 h-4 w-4" />
+                                  Details
+                                </Button>
+                              </Link>
+
+                              {instance.status.toLowerCase() === 'ready' || instance.status.toLowerCase() === 'busy' ? (
                                 <Button
-                                  size="sm"
                                   variant="outline"
+                                  size="sm"
                                   onClick={() => handleInstanceAction('disconnect', instance.id)}
                                   disabled={instanceMutation.isPending}
+                                  className="flex-1"
                                 >
-                                  <StopCircle className="h-4 w-4" />
+                                  <StopCircle className="mr-2 h-4 w-4" />
+                                  Disconnect
                                 </Button>
-                              )}
-                            {(instance.status === 'stopped' ||
-                              instance.status === 'Stopped' ||
-                              instance.status === 'error' ||
-                              instance.status === 'Error') && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleInstanceAction('reconnect', instance.id)}
-                                    disabled={instanceMutation.isPending}
-                                  >
-                                    <PlayCircle className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleInstanceAction('reset', instance.id)}
-                                    disabled={instanceMutation.isPending}
-                                  >
-                                    <RotateCw className="h-4 w-4" />
-                                  </Button>
-                                </>
-                              )}
-                            {(instance.status === 'initializing' ||
-                              instance.status === 'Initializing') && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleInstanceAction('cancel', instance.id)}
-                                  disabled={instanceMutation.isPending}
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              )}
+                              ) : null}
+                            </div>
+
+                            {/* Reconnect button - shown for error or shutdown states */}
+                            {instance.status.toLowerCase() === 'error' || instance.status.toLowerCase() === 'shutdown' ? (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleInstanceAction('reconnect', instance.id)}
+                                disabled={instanceMutation.isPending}
+                                className="w-full"
+                              >
+                                <PlayCircle className="mr-2 h-4 w-4" />
+                                Reconnect
+                              </Button>
+                            ) : null}
+
+                            {/* Cancel button - shown for initializing state */}
+                            {instance.status.toLowerCase() === 'initializing' ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleInstanceAction('cancel', instance.id)}
+                                disabled={instanceMutation.isPending}
+                                className="w-full"
+                              >
+                                <XCircle className="mr-2 h-4 w-4" />
+                                Cancel
+                              </Button>
+                            ) : null}
                           </div>
                         </div>
                       </CardContent>

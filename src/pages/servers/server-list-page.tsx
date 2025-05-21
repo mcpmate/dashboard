@@ -10,7 +10,43 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { useToast } from '../../components/ui/use-toast';
 import { serversApi } from '../../lib/api';
-import { MCPServerConfig, ServerDetail } from '../../lib/types';
+import { MCPServerConfig, ServerDetail, ServerListResponse, ServerSummary } from '../../lib/types';
+
+// Helper function to determine if a server is active
+function isServerActive(server: ServerSummary): boolean {
+  // Check server status first
+  const serverStatus = (server.status || '').toLowerCase();
+  if (['connected', 'running', 'ready', 'healthy', 'busy', 'active', 'thinking', 'fetch'].includes(serverStatus)) {
+    return true;
+  }
+
+  // If server has instances, check if any instance is active
+  if (server.instances && server.instances.length > 0) {
+    return server.instances.some(instance => {
+      const instanceStatus = (instance.status || '').toLowerCase();
+      return ['ready', 'busy', 'running', 'connected', 'active', 'healthy', 'thinking', 'fetch'].includes(instanceStatus);
+    });
+  }
+
+  // Otherwise, consider the server inactive
+  return false;
+}
+
+// Helper function to get the instance count for a server
+function getInstanceCount(server: ServerSummary): number {
+  // If server has instances array, use its length
+  if (server.instances && Array.isArray(server.instances)) {
+    return server.instances.length;
+  }
+
+  // If server has instance_count property, use it
+  if (typeof server.instance_count === 'number') {
+    return server.instance_count;
+  }
+
+  // Default to 0 if no instance information is available
+  return 0;
+}
 
 export function ServerListPage() {
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
@@ -25,13 +61,13 @@ export function ServerListPage() {
   const queryClient = useQueryClient();
 
   const {
-    data: servers,
+    data: serverListResponse,
     isLoading,
     refetch,
     isRefetching,
     error,
     isError
-  } = useQuery({
+  } = useQuery<ServerListResponse>({
     queryKey: ['servers'],
     queryFn: async () => {
       try {
@@ -75,11 +111,18 @@ export function ServerListPage() {
       }
     },
     onSuccess: (_, variables) => {
+      // Immediate invalidation
+      queryClient.invalidateQueries({ queryKey: ['servers'] });
+
       toast({
         title: variables.enable ? "Server Enabled" : "Server Disabled",
         description: `Server ${variables.serverName} ${variables.enable ? "has been successfully enabled" : "has been successfully disabled"}`,
       });
-      queryClient.invalidateQueries({ queryKey: ['servers'] });
+
+      // Delayed refetch to ensure we get the latest state
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['servers'] });
+      }, 1000);
     },
     onError: (error, variables) => {
       toast({
@@ -90,26 +133,7 @@ export function ServerListPage() {
     },
   });
 
-  // Reconnect server
-  const reconnectServerMutation = useMutation({
-    mutationFn: async (serverName: string) => {
-      return await serversApi.reconnectAllInstances(serverName);
-    },
-    onSuccess: (_, serverName) => {
-      toast({
-        title: "Server Reconnected",
-        description: `All instances of server ${serverName} have been successfully reconnected`,
-      });
-      queryClient.invalidateQueries({ queryKey: ['servers'] });
-    },
-    onError: (error, serverName) => {
-      toast({
-        title: "Reconnection Failed",
-        description: `Unable to reconnect server ${serverName}: ${error instanceof Error ? error.message : String(error)}`,
-        variant: "destructive",
-      });
-    },
-  });
+  // Note: Reconnect functionality is moved to instance-level pages
 
   // Create server
   const createServerMutation = useMutation({
@@ -184,6 +208,17 @@ export function ServerListPage() {
     }
   };
 
+  // Convert ServerDetail to MCPServerConfig for form
+  const convertToMCPConfig = (server: ServerDetail): Partial<MCPServerConfig> => {
+    return {
+      name: server.name,
+      kind: (server.server_type || server.kind) as "stdio" | "sse" | "streamable_http",
+      command: server.command,
+      args: server.args,
+      env: server.env
+    };
+  };
+
   // Handle delete server
   const handleDeleteServer = async () => {
     if (!deletingServer) return;
@@ -216,7 +251,7 @@ export function ServerListPage() {
         `API Base URL: ${window.location.origin}\n` +
         `Current Time: ${new Date().toISOString()}\n` +
         `Error: ${error instanceof Error ? error.message : String(error)}\n` +
-        `Servers Data: ${JSON.stringify(servers, null, 2)}`
+        `Servers Data: ${JSON.stringify(serverListResponse, null, 2)}`
       );
     }
   };
@@ -304,82 +339,85 @@ export function ServerListPage() {
               </CardContent>
             </Card>
           ))
-        ) : servers?.servers?.length ? (
-          servers.servers.map((server) => (
+        ) : serverListResponse?.servers?.length ? (
+          serverListResponse.servers.map((server) => (
             <Card key={server.name} className="overflow-hidden">
-              <CardHeader className="p-4">
-                <CardTitle className="text-xl">{server.name}</CardTitle>
-                <CardDescription>Type: {server.kind}</CardDescription>
+              <CardHeader className="p-4 flex flex-row justify-between items-start">
+                <div>
+                  <CardTitle className="text-xl">{server.name}</CardTitle>
+                  <CardDescription className="flex flex-col mt-1 space-y-1">
+                    <span>Type: {server.server_type || server.kind || 'Unknown'}</span>
+                    <span>
+                      Instances: {getInstanceCount(server)}
+                    </span>
+                    {server.enabled !== undefined && (
+                      <span>
+                        Status: {server.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    )}
+                  </CardDescription>
+                </div>
+                {/* 状态徽章放在右上角 */}
+                <StatusBadge
+                  status={server.status}
+                  instances={server.instances}
+                  blinkOnError={['error', 'unhealthy', 'stopped', 'failed'].includes((server.status || '').toLowerCase())}
+                />
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <div className="flex flex-col gap-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col">
-                      {/* Use enhanced StatusBadge component */}
-                      <StatusBadge status={server.status} blinkOnError={server.status === 'error'} />
-                      {server.instance_count > 0 && (
-                        <span className="mt-1 text-xs text-slate-500">
-                          {server.instance_count} instances
-                        </span>
-                      )}
+                  {/* 操作按钮和详情按钮布局 */}
+                  <div className="flex justify-between items-center mt-4">
+                    {/* 左侧操作按钮 */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => toggleServerMutation.mutate({
+                          serverName: server.name,
+                          enable: !isServerActive(server)
+                        })}
+                        disabled={toggleServerMutation.isPending}
+                        title={isServerActive(server) ? "Disable Server" : "Enable Server"}
+                      >
+                        {isServerActive(server) ? (
+                          <PowerOff className="h-4 w-4" />
+                        ) : (
+                          <Power className="h-4 w-4" />
+                        )}
+                      </Button>
+
+
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditServer(server.name)}
+                        title="Edit server configuration"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setDeletingServer(server.name);
+                          setIsDeleteConfirmOpen(true);
+                        }}
+                        title="Delete server"
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
                     </div>
+
+                    {/* 右侧详情按钮 */}
                     <Link to={`/servers/${server.name}`}>
                       <Button size="sm">
                         <Eye className="mr-2 h-4 w-4" />
                         Details
                       </Button>
                     </Link>
-                  </div>
-
-                  {/* Server action buttons */}
-                  <div className="flex gap-2 justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => toggleServerMutation.mutate({
-                        serverName: server.name,
-                        enable: server.status === 'disconnected' || server.status === 'error'
-                      })}
-                      disabled={toggleServerMutation.isPending}
-                      title={server.status === 'connected' ? "Disable Server" : "Enable Server"}
-                    >
-                      {server.status === 'connected' ? (
-                        <PowerOff className="h-4 w-4" />
-                      ) : (
-                        <Power className="h-4 w-4" />
-                      )}
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => reconnectServerMutation.mutate(server.name)}
-                      disabled={reconnectServerMutation.isPending}
-                      title="Reconnect all instances"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditServer(server.name)}
-                      title="Edit server configuration"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setDeletingServer(server.name);
-                        setIsDeleteConfirmOpen(true);
-                      }}
-                      title="Delete server"
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -423,7 +461,7 @@ export function ServerListPage() {
           isOpen={!!editingServer}
           onClose={() => setEditingServer(null)}
           onSubmit={handleUpdateServer}
-          initialData={editingServer}
+          initialData={convertToMCPConfig(editingServer)}
           title={`Edit Server: ${editingServer.name}`}
           submitLabel="Update"
         />

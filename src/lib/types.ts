@@ -1,17 +1,28 @@
 // API Response Types
 export interface ServerSummary {
   name: string;
-  kind: "stdio" | "sse" | "streamable_http";
-  status: "connected" | "disconnected" | "error" | "initializing";
-  instance_count: number;
+  kind?: string;
+  server_type?: string;
+  status: string;
+  enabled?: boolean;
+  globally_enabled?: boolean;
+  enabled_in_suits?: boolean;
+  instance_count?: number;
+  instances?: InstanceSummary[];
+}
+
+export interface ServerListResponse {
+  servers: ServerSummary[];
 }
 
 export interface InstanceSummary {
-  startedAt: string | number | Date;
-  lastResponseAt: any;
   id: string;
-  status: "running" | "initializing" | "error" | "stopped";
+  name: string;
+  status: string;
   startTime?: string;
+  started_at?: string;
+  startedAt?: string;
+  lastResponseAt?: any;
 }
 
 export interface ServerDetail extends ServerSummary {
@@ -22,16 +33,49 @@ export interface ServerDetail extends ServerSummary {
   instances: InstanceSummary[];
 }
 
-export interface InstanceDetail extends InstanceSummary {
+export interface ServerInstanceDetails {
+  connection_attempts: number;
+  last_connected_seconds?: number;
+  tools_count: number;
+  error_message?: string;
+  server_type: string;
+  process_id?: number;
+  cpu_usage?: number;
+  memory_usage?: number;
+  last_health_check?: string;
+}
+
+export interface InstanceDetail {
+  id: string;
+  name: string;
   server_name: string;
-  health_status: "healthy" | "unhealthy" | "unknown";
+  status: string;
+  allowed_operations: string[];
+  details: ServerInstanceDetails;
 }
 
 export interface InstanceHealth {
-  instance_id: string;
-  server_name: string;
-  is_healthy: boolean;
+  id: string;
+  name: string;
+  healthy: boolean;
+  message: string;
+  status: string;
+  checked_at: string;
+  resource_metrics?: {
+    cpu_usage?: number;
+    memory_usage?: number;
+    process_id?: number;
+  };
+  connection_stability?: number;
   details?: string;
+}
+
+export interface OperationResponse {
+  id: string;
+  name: string;
+  result: string;
+  status: string;
+  allowed_operations: string[];
 }
 
 export interface Tool {
@@ -39,6 +83,7 @@ export interface Tool {
   server_name: string;
   is_enabled: boolean;
   description?: string;
+  tool_id?: string;
 }
 
 export interface ToolDetail extends Tool {

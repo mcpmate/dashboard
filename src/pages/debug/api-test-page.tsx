@@ -55,14 +55,14 @@ export function ApiTestPage() {
       name: 'Get All Tools',
       description: 'Retrieve all tools',
       method: 'GET',
-      path: '/api/mcp/tools',
+      path: '/api/mcp/specs/tools',
       handler: () => toolsApi.getAll(),
     },
     {
       name: 'Get Tool Details',
       description: 'Get details for a specific tool',
       method: 'GET',
-      path: '/api/mcp/tools/{serverName}/{toolName}',
+      path: '/api/mcp/specs/tools/{serverName}/{toolName}',
       handler: () => toolsApi.getTool(serverName, toolName),
       requiresParams: true,
     },
@@ -113,7 +113,7 @@ export function ApiTestPage() {
   const testEndpoint = async (endpoint: ApiEndpoint) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const result = await endpoint.handler();
       setResults(JSON.stringify(result, null, 2));
@@ -134,7 +134,7 @@ export function ApiTestPage() {
         (endpoint.path.includes('{instanceId}') && !instanceId) ||
         (endpoint.path.includes('{presetId}') && !presetId)
       );
-      
+
       return (
         <div key={endpoint.name} className="mb-4 p-4 border rounded-md">
           <div className="flex justify-between items-start mb-2">
@@ -153,15 +153,15 @@ export function ApiTestPage() {
                 <code className="text-xs bg-slate-100 p-1 rounded">{endpoint.path}</code>
               </div>
             </div>
-            <Button 
-              onClick={() => testEndpoint(endpoint)} 
+            <Button
+              onClick={() => testEndpoint(endpoint)}
               disabled={isDisabled || loading}
               size="sm"
             >
               Test
             </Button>
           </div>
-          
+
           {endpoint.requiresParams && (
             <div className="mt-2 p-2 bg-slate-50 rounded-md">
               <p className="text-xs text-slate-500 mb-2">Required parameters:</p>
@@ -169,7 +169,7 @@ export function ApiTestPage() {
                 {endpoint.path.includes('{serverName}') && (
                   <div className="grid grid-cols-3 gap-2 items-center">
                     <Label htmlFor="serverName" className="text-xs">Server Name:</Label>
-                    <Input 
+                    <Input
                       id="serverName"
                       value={serverName}
                       onChange={(e) => setServerName(e.target.value)}
@@ -181,7 +181,7 @@ export function ApiTestPage() {
                 {endpoint.path.includes('{toolName}') && (
                   <div className="grid grid-cols-3 gap-2 items-center">
                     <Label htmlFor="toolName" className="text-xs">Tool Name:</Label>
-                    <Input 
+                    <Input
                       id="toolName"
                       value={toolName}
                       onChange={(e) => setToolName(e.target.value)}
@@ -193,7 +193,7 @@ export function ApiTestPage() {
                 {endpoint.path.includes('{instanceId}') && (
                   <div className="grid grid-cols-3 gap-2 items-center">
                     <Label htmlFor="instanceId" className="text-xs">Instance ID:</Label>
-                    <Input 
+                    <Input
                       id="instanceId"
                       value={instanceId}
                       onChange={(e) => setInstanceId(e.target.value)}
@@ -205,7 +205,7 @@ export function ApiTestPage() {
                 {endpoint.path.includes('{presetId}') && (
                   <div className="grid grid-cols-3 gap-2 items-center">
                     <Label htmlFor="presetId" className="text-xs">Preset ID:</Label>
-                    <Input 
+                    <Input
                       id="presetId"
                       value={presetId}
                       onChange={(e) => setPresetId(e.target.value)}
@@ -227,7 +227,7 @@ export function ApiTestPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">API Test</h2>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
           <Tabs defaultValue="servers">
@@ -237,25 +237,25 @@ export function ApiTestPage() {
               <TabsTrigger value="system">System</TabsTrigger>
               <TabsTrigger value="config">Config</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="servers" className="mt-0">
               {renderEndpointButtons(serverEndpoints)}
             </TabsContent>
-            
+
             <TabsContent value="tools" className="mt-0">
               {renderEndpointButtons(toolEndpoints)}
             </TabsContent>
-            
+
             <TabsContent value="system" className="mt-0">
               {renderEndpointButtons(systemEndpoints)}
             </TabsContent>
-            
+
             <TabsContent value="config" className="mt-0">
               {renderEndpointButtons(configEndpoints)}
             </TabsContent>
           </Tabs>
         </div>
-        
+
         <div>
           <Card>
             <CardHeader>
