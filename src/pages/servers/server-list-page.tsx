@@ -8,6 +8,8 @@ import { ServerForm } from '../../components/server-form';
 import { StatusBadge } from '../../components/status-badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Switch } from '../../components/ui/switch';
+import { Label } from '../../components/ui/label';
 import { useToast } from '../../components/ui/use-toast';
 import { serversApi } from '../../lib/api';
 import { MCPServerConfig, ServerDetail, ServerListResponse, ServerSummary } from '../../lib/types';
@@ -56,6 +58,7 @@ export function ServerListPage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [syncToAllClients, setSyncToAllClients] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -103,11 +106,11 @@ export function ServerListPage() {
 
   // Enable/disable server
   const toggleServerMutation = useMutation({
-    mutationFn: async ({ serverName, enable }: { serverName: string; enable: boolean }) => {
+    mutationFn: async ({ serverName, enable, sync }: { serverName: string; enable: boolean; sync?: boolean }) => {
       if (enable) {
-        return await serversApi.enableServer(serverName);
+        return await serversApi.enableServer(serverName, sync);
       } else {
-        return await serversApi.disableServer(serverName);
+        return await serversApi.disableServer(serverName, sync);
       }
     },
     onSuccess: (_, variables) => {
@@ -260,7 +263,7 @@ export function ServerListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Servers</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           {isError && (
             <Button
               onClick={toggleDebugInfo}
@@ -271,6 +274,19 @@ export function ServerListPage() {
               {debugInfo ? "Hide Debug" : "Debug"}
             </Button>
           )}
+
+          {/* Sync to all clients toggle */}
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="sync-toggle"
+              checked={syncToAllClients}
+              onCheckedChange={setSyncToAllClients}
+            />
+            <Label htmlFor="sync-toggle" className="text-sm font-medium">
+              Sync to all clients
+            </Label>
+          </div>
+
           <Button
             onClick={() => refetch()}
             disabled={isRefetching}
@@ -375,7 +391,8 @@ export function ServerListPage() {
                         variant="outline"
                         onClick={() => toggleServerMutation.mutate({
                           serverName: server.name,
-                          enable: !isServerActive(server)
+                          enable: !isServerActive(server),
+                          sync: syncToAllClients
                         })}
                         disabled={toggleServerMutation.isPending}
                         title={isServerActive(server) ? "Disable Server" : "Enable Server"}

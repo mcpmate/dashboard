@@ -208,9 +208,12 @@ export const serversApi = {
   // The following are new server management features (mock implementation)
 
   // Enable server
-  enableServer: async (serverName: string) => {
+  enableServer: async (serverName: string, sync?: boolean) => {
     try {
-      return await fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/enable`, {
+      const url = sync
+        ? `/api/mcp/servers/${serverName}/enable?sync=true`
+        : `/api/mcp/servers/${serverName}/enable`;
+      return await fetchApi<ApiResponse<null>>(url, {
         method: "POST"
       });
     } catch (error) {
@@ -218,15 +221,18 @@ export const serversApi = {
       // Simulate successful response
       return {
         status: "success",
-        message: `Server ${serverName} enabled successfully (mock)`
+        message: `Server ${serverName} enabled successfully (mock)${sync ? ' with sync' : ''}`
       };
     }
   },
 
   // Disable server
-  disableServer: async (serverName: string) => {
+  disableServer: async (serverName: string, sync?: boolean) => {
     try {
-      return await fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/disable`, {
+      const url = sync
+        ? `/api/mcp/servers/${serverName}/disable?sync=true`
+        : `/api/mcp/servers/${serverName}/disable`;
+      return await fetchApi<ApiResponse<null>>(url, {
         method: "POST"
       });
     } catch (error) {
@@ -234,7 +240,7 @@ export const serversApi = {
       // Simulate successful response
       return {
         status: "success",
-        message: `Server ${serverName} disabled successfully (mock)`
+        message: `Server ${serverName} disabled successfully (mock)${sync ? ' with sync' : ''}`
       };
     }
   },
