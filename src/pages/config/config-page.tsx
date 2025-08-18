@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { SuitFormDialog } from "../../components/suit-form-dialog";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -34,6 +35,7 @@ export function ConfigPage() {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [selectedSuits, setSelectedSuits] = useState<string[]>([]);
+	const [isNewSuitDialogOpen, setIsNewSuitDialogOpen] = useState(false);
 
 	const {
 		data: suitsResponse,
@@ -260,12 +262,10 @@ export function ConfigPage() {
 						/>
 						Refresh
 					</Button>
-					<Link to="/config/suits/new">
-						<Button size="sm">
-							<Plus className="mr-2 h-4 w-4" />
-							New Suit
-						</Button>
-					</Link>
+					<Button size="sm" onClick={() => setIsNewSuitDialogOpen(true)}>
+						<Plus className="mr-2 h-4 w-4" />
+						New Suit
+					</Button>
 				</div>
 			</div>
 
@@ -560,6 +560,16 @@ export function ConfigPage() {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* New Suit Dialog */}
+			<SuitFormDialog
+				open={isNewSuitDialogOpen}
+				onOpenChange={setIsNewSuitDialogOpen}
+				mode="create"
+				onSuccess={() => {
+					refetchSuits();
+				}}
+			/>
 		</div>
 	);
 }

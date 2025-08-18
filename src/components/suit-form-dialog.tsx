@@ -1,0 +1,416 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useId, useState } from "react";
+import { configSuitsApi } from "../lib/api";
+import type {
+	ConfigSuit,
+	CreateConfigSuitRequest,
+	UpdateConfigSuitRequest,
+} from "../lib/types";
+import { Button } from "./ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "./ui/select";
+import { Switch } from "./ui/switch";
+import { Textarea } from "./ui/textarea";
+import { useToast } from "./ui/use-toast";
+
+interface SuitFormDialogProps {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	mode: "create" | "edit";
+	suit?: ConfigSuit;
+	onSuccess?: () => void;
+}
+
+export function SuitFormDialog({
+	open,
+	onOpenChange,
+	mode,
+	suit,
+	onSuccess,
+}: SuitFormDialogProps) {
+	const { toast } = useToast();
+	const queryClient = useQueryClient();
+	const nameId = useId();
+	const descriptionId = useId();
+	const priorityId = useId();
+
+	// Form state - initialize with empty data for create mode
+	const [formData, setFormData] = useState({
+		name: "",
+		description: "",
+		suit_type: "scenario",
+		multi_select: false,
+		priority: 50,
+		is_active: false,
+		is_default: false,
+		clone_from_id: "",
+	});
+
+	// Reset form data when dialog opens or mode/suit changes
+	useEffect(() => {
+		if (open) {
+			if (mode === "edit" && suit) {
+				setFormData({
+					name: suit.name,
+					description: suit.description || "",
+					suit_type: suit.suit_type,
+					multi_select: suit.multi_select,
+					priority: suit.priority,
+					is_active: suit.is_active,
+					is_default: suit.is_default,
+					clone_from_id: "",
+				});
+			} else {
+				// Create mode - reset to empty form
+				setFormData({
+					name: "",
+					description: "",
+					suit_type: "scenario",
+					multi_select: false,
+					priority: 50,
+					is_active: false,
+					is_default: false,
+					clone_from_id: "none",
+				});
+			}
+		}
+	}, [open, mode, suit]);
+
+	// Fetch all suits for cloning option
+	const { data: suitsResponse } = useQuery({
+		queryKey: ["configSuits"],
+		queryFn: configSuitsApi.getAll,
+		enabled: mode === "create",
+	});
+
+	// Create mutation
+	const createMutation = useMutation({
+		mutationFn: (data: CreateConfigSuitRequest) =>
+			configSuitsApi.createSuit(data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			toast({
+				title: "Success",
+				description: "Configuration suit created successfully",
+			});
+			onOpenChange(false);
+			resetForm();
+			onSuccess?.();
+		},
+		onError: (error) => {
+			toast({
+				title: "Error",
+				description: `Failed to create configuration suit: ${error instanceof Error ? error.message : String(error)}`,
+				variant: "destructive",
+			});
+		},
+	});
+
+	// Update mutation
+	const updateMutation = useMutation({
+		mutationFn: ({ id, data }: { id: string; data: UpdateConfigSuitRequest }) =>
+			configSuitsApi.updateSuit(id, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			queryClient.invalidateQueries({ queryKey: ["configSuit", suit?.id] });
+			toast({
+				title: "Success",
+				description: "Configuration suit updated successfully",
+			});
+			onOpenChange(false);
+			onSuccess?.();
+		},
+		onError: (error) => {
+			toast({
+				title: "Error",
+				description: `Failed to update configuration suit: ${error instanceof Error ? error.message : String(error)}`,
+				variant: "destructive",
+			});
+		},
+	});
+
+	const resetForm = () => {
+		setFormData({
+			name: "",
+			description: "",
+			suit_type: "scenario",
+			multi_select: false,
+			priority: 50,
+			is_active: false,
+			is_default: false,
+			clone_from_id: "",
+		});
+	};
+
+	const handleSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+
+		if (!formData.name.trim()) {
+			toast({
+				title: "Validation Error",
+				description: "Name is required",
+				variant: "destructive",
+			});
+			return;
+		}
+
+		if (mode === "create") {
+			const createData: CreateConfigSuitRequest = {
+				name: formData.name,
+				description: formData.description || undefined,
+				suit_type: formData.suit_type,
+				multi_select: formData.multi_select,
+				priority: formData.priority,
+				is_active: formData.is_active,
+				is_default: formData.is_default,
+				clone_from_id: formData.clone_from_id && formData.clone_from_id !== "none" ? formData.clone_from_id : undefined,
+			};
+			createMutation.mutate(createData);
+		} else if (suit) {
+			const updateData: UpdateConfigSuitRequest = {
+				name: formData.name !== suit.name ? formData.name : undefined,
+				description:
+					formData.description !== (suit.description || "")
+						? formData.description
+						: undefined,
+				suit_type:
+					formData.suit_type !== suit.suit_type
+						? formData.suit_type
+						: undefined,
+				multi_select:
+					formData.multi_select !== suit.multi_select
+						? formData.multi_select
+						: undefined,
+				priority:
+					formData.priority !== suit.priority ? formData.priority : undefined,
+				is_active:
+					formData.is_active !== suit.is_active
+						? formData.is_active
+						: undefined,
+				is_default:
+					formData.is_default !== suit.is_default
+						? formData.is_default
+						: undefined,
+			};
+			updateMutation.mutate({ id: suit.id, data: updateData });
+		}
+	};
+
+	const handleOpenChange = (newOpen: boolean) => {
+		if (!newOpen) {
+			resetForm();
+		}
+		onOpenChange(newOpen);
+	};
+
+	const availableSuits =
+		suitsResponse?.suits?.filter((s) => s.id !== suit?.id) || [];
+	const isLoading = createMutation.isPending || updateMutation.isPending;
+
+	return (
+		<Dialog open={open} onOpenChange={handleOpenChange}>
+			<DialogContent className="sm:max-w-[600px]">
+				<DialogHeader>
+					<DialogTitle>
+						{mode === "create"
+							? "Create New Configuration Suit"
+							: "Edit Configuration Suit"}
+					</DialogTitle>
+					<DialogDescription>
+						{mode === "create"
+							? "Create a new configuration suit to organize your MCP servers, tools, and resources."
+							: "Update the configuration suit settings."}
+					</DialogDescription>
+				</DialogHeader>
+
+				<form onSubmit={handleSubmit} className="space-y-6">
+					<div className="grid gap-4">
+						{/* Name Field */}
+						<div className="space-y-2">
+							<Label htmlFor={nameId}>Name *</Label>
+							<Input
+								id={nameId}
+								placeholder="Enter suit name"
+								value={formData.name}
+								onChange={(e) =>
+									setFormData((prev) => ({ ...prev, name: e.target.value }))
+								}
+								required
+							/>
+						</div>
+
+						{/* Description Field */}
+						<div className="space-y-2">
+							<Label htmlFor={descriptionId}>Description</Label>
+							<Textarea
+								id={descriptionId}
+								placeholder="Enter suit description (optional)"
+								className="resize-none"
+								value={formData.description}
+								onChange={(e) =>
+									setFormData((prev) => ({
+										...prev,
+										description: e.target.value,
+									}))
+								}
+							/>
+						</div>
+
+						{/* Suit Type Field */}
+						<div className="space-y-2">
+							<Label htmlFor="suit_type">Suit Type *</Label>
+							<Select
+								value={formData.suit_type}
+								onValueChange={(value) =>
+									setFormData((prev) => ({ ...prev, suit_type: value }))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="Select a suit type" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="host_app">Host App</SelectItem>
+									<SelectItem value="scenario">Scenario</SelectItem>
+									<SelectItem value="shared">Shared</SelectItem>
+								</SelectContent>
+							</Select>
+							<p className="text-sm text-muted-foreground">
+								Choose the type that best describes this configuration suit
+							</p>
+						</div>
+
+						{/* Clone From Field (Create mode only) */}
+						{mode === "create" && availableSuits.length > 0 && (
+							<div className="space-y-2">
+								<Label htmlFor="clone_from_id">Clone From (Optional)</Label>
+								<Select
+									value={formData.clone_from_id}
+									onValueChange={(value) =>
+										setFormData((prev) => ({ ...prev, clone_from_id: value }))
+									}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder="Select a suit to clone from" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="none">None</SelectItem>
+										{availableSuits.map((s) => (
+											<SelectItem key={s.id} value={s.id}>
+												{s.name} ({s.suit_type})
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<p className="text-sm text-muted-foreground">
+									Copy servers and tools from an existing suit
+								</p>
+							</div>
+						)}
+
+						{/* Priority Field */}
+						<div className="space-y-2">
+							<Label htmlFor={priorityId}>Priority</Label>
+							<Input
+								id={priorityId}
+								type="number"
+								min="0"
+								max="100"
+								value={formData.priority}
+								onChange={(e) =>
+									setFormData((prev) => ({
+										...prev,
+										priority: parseInt(e.target.value) || 0,
+									}))
+								}
+							/>
+							<p className="text-sm text-muted-foreground">
+								Priority level (0-100, higher values have higher priority)
+							</p>
+						</div>
+
+						{/* Boolean Fields */}
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="flex flex-row items-center justify-between rounded-lg border p-3">
+								<div className="space-y-0.5">
+									<Label>Multi-select</Label>
+									<p className="text-sm text-muted-foreground">
+										Allow multiple selections
+									</p>
+								</div>
+								<Switch
+									checked={formData.multi_select}
+									onCheckedChange={(checked) =>
+										setFormData((prev) => ({ ...prev, multi_select: checked }))
+									}
+								/>
+							</div>
+
+							<div className="flex flex-row items-center justify-between rounded-lg border p-3">
+								<div className="space-y-0.5">
+									<Label>Active</Label>
+									<p className="text-sm text-muted-foreground">
+										Activate this suit immediately
+									</p>
+								</div>
+								<Switch
+									checked={formData.is_active}
+									onCheckedChange={(checked) =>
+										setFormData((prev) => ({ ...prev, is_active: checked }))
+									}
+								/>
+							</div>
+
+							<div className="flex flex-row items-center justify-between rounded-lg border p-3">
+								<div className="space-y-0.5">
+									<Label>Default</Label>
+									<p className="text-sm text-muted-foreground">
+										Set as default suit
+									</p>
+								</div>
+								<Switch
+									checked={formData.is_default}
+									onCheckedChange={(checked) =>
+										setFormData((prev) => ({ ...prev, is_default: checked }))
+									}
+								/>
+							</div>
+						</div>
+					</div>
+
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => handleOpenChange(false)}
+							disabled={isLoading}
+						>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={isLoading}>
+							{isLoading
+								? "Saving..."
+								: mode === "create"
+									? "Create Suit"
+									: "Update Suit"}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}

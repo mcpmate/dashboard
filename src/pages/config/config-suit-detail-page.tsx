@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
+import { SuitFormDialog } from "../../components/suit-form-dialog";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -50,6 +51,7 @@ export function ConfigSuitDetailPage() {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const [activeTab, setActiveTab] = useState("overview");
+	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	// Filters: servers
 	const [serverQuery, setServerQuery] = useState("");
 	const [serverStatus, setServerStatus] = useState<
@@ -422,7 +424,11 @@ export function ConfigSuitDetailPage() {
 					</Button>
 					{suit && (
 						<>
-							<Button variant="outline" size="sm">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setIsEditDialogOpen(true)}
+							>
 								<Edit3 className="mr-2 h-4 w-4" />
 								Edit
 							</Button>
@@ -1009,6 +1015,19 @@ export function ConfigSuitDetailPage() {
 						</p>
 					</CardContent>
 				</Card>
+			)}
+
+			{/* Edit Suit Dialog */}
+			{suit && (
+				<SuitFormDialog
+					open={isEditDialogOpen}
+					onOpenChange={setIsEditDialogOpen}
+					mode="edit"
+					suit={suit}
+					onSuccess={() => {
+						refetchSuit();
+					}}
+				/>
 			)}
 		</div>
 	);
