@@ -23,32 +23,17 @@ import {
 } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
 import { useToast } from "../../components/ui/use-toast";
-import { configSuitsApi, serversApi, toolsApi } from "../../lib/api";
+import { configSuitsApi, serversApi } from "../../lib/api";
 import type {
 	ConfigSuit,
 	InstanceSummary,
 	ServerSummary,
-	Tool,
 } from "../../lib/types";
 
 export function ConfigPage() {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [selectedSuits, setSelectedSuits] = useState<string[]>([]);
-
-	// Fetch servers data for statistics
-	const { data: serversResponse, isLoading: isLoadingServers } = useQuery({
-		queryKey: ["serversStats"],
-		queryFn: serversApi.getAll,
-		retry: 1,
-	});
-
-	// Fetch tools data for statistics
-	const { data: toolsResponse, isLoading: isLoadingTools } = useQuery({
-		queryKey: ["toolsStats"],
-		queryFn: toolsApi.getAll,
-		retry: 1,
-	});
 
 	const {
 		data: suitsResponse,
@@ -61,6 +46,46 @@ export function ConfigPage() {
 		retry: 1,
 		refetchInterval: 30000,
 	});
+
+	// Get the active suit for detailed statistics
+	const activeSuit = suitsResponse?.suits?.find(
+		(suit: ConfigSuit) => suit.is_active,
+	);
+
+	// Fetch servers data for the active suit
+	const {
+		data: activeSuitServersResponse,
+		isLoading: isLoadingActiveSuitServers,
+	} = useQuery({
+		queryKey: ["activeSuitServers", activeSuit?.id],
+		queryFn: () =>
+			activeSuit
+				? configSuitsApi.getServers(activeSuit.id)
+				: Promise.resolve(null),
+		enabled: !!activeSuit,
+		retry: 1,
+	});
+
+	// Fetch tools data for the active suit
+	const { data: activeSuitToolsResponse, isLoading: isLoadingActiveSuitTools } =
+		useQuery({
+			queryKey: ["activeSuitTools", activeSuit?.id],
+			queryFn: () =>
+				activeSuit
+					? configSuitsApi.getTools(activeSuit.id)
+					: Promise.resolve(null),
+			enabled: !!activeSuit,
+			retry: 1,
+		});
+
+	// Fetch all servers data for instance count
+	const { data: allServersResponse, isLoading: isLoadingAllServers } = useQuery(
+		{
+			queryKey: ["allServersStats"],
+			queryFn: serversApi.getAll,
+			retry: 1,
+		},
+	);
 
 	// Suit activation mutation
 	const activateSuitMutation = useMutation({
@@ -171,23 +196,39 @@ export function ConfigPage() {
 	const suits = suitsResponse?.suits || [];
 	const activeSuits = suits.filter((suit: ConfigSuit) => suit.is_active);
 
-	// Calculate statistics
-	const servers = serversResponse?.servers || [];
-	const tools = toolsResponse?.tools || [];
-	const enabledServers = servers.filter(
-		(server: ServerSummary) =>
-			server.status &&
-			["connected", "running", "ready", "healthy"].includes(
-				server.status.toLowerCase(),
-			),
-	);
-	const enabledTools = tools.filter((tool: Tool) => tool.is_enabled);
-	const totalInstances = servers.reduce(
-		(sum: number, server: ServerSummary) => sum + (server.instance_count || 0),
-		0,
-	);
-	const readyInstances = servers.reduce(
-		(sum: number, server: ServerSummary) => {
+	// Calculate statistics based on active suit
+	const activeSuitServers = activeSuitServersResponse?.servers || [];
+	const activeSuitTools = activeSuitToolsResponse?.tools || [];
+	const allServers = allServersResponse?.servers || [];
+
+	// Servers statistics: count enabled servers in active suit
+	const enabledServersCount = activeSuitServers.filter(
+		(server) => server.enabled,
+	).length;
+	const totalServersInSuit = activeSuitServers.length;
+
+	// Tools statistics: count enabled tools in active suit
+	const enabledToolsCount = activeSuitTools.filter(
+		(tool) => tool.enabled,
+	).length;
+	const totalToolsInSuit = activeSuitTools.length;
+
+	// Instances statistics: count instances from all enabled servers in active suit
+	const enabledServerNames = activeSuitServers
+		.filter((server) => server.enabled)
+		.map((server) => server.name);
+
+	const totalInstances = allServers
+		.filter((server) => enabledServerNames.includes(server.name))
+		.reduce(
+			(sum: number, server: ServerSummary) =>
+				sum + (server.instances?.length || 0),
+			0,
+		);
+
+	const readyInstances = allServers
+		.filter((server) => enabledServerNames.includes(server.name))
+		.reduce((sum: number, server: ServerSummary) => {
 			if (server.instances) {
 				return (
 					sum +
@@ -201,9 +242,7 @@ export function ConfigPage() {
 				);
 			}
 			return sum;
-		},
-		0,
-	);
+		}, 0);
 
 	return (
 		<div className="space-y-6">
@@ -271,7 +310,7 @@ export function ConfigPage() {
 								</div>
 							</CardHeader>
 							<CardContent>
-								{isLoadingServers ? (
+								{isLoadingActiveSuitServers || isLoadingSuits ? (
 									<div className="animate-pulse">
 										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
 										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
@@ -279,7 +318,7 @@ export function ConfigPage() {
 								) : (
 									<>
 										<div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-											{enabledServers.length}/{servers.length}
+											{enabledServersCount}/{totalServersInSuit}
 										</div>
 										<p className="text-xs text-muted-foreground">running</p>
 									</>
@@ -296,7 +335,7 @@ export function ConfigPage() {
 								</div>
 							</CardHeader>
 							<CardContent>
-								{isLoadingTools ? (
+								{isLoadingActiveSuitTools || isLoadingSuits ? (
 									<div className="animate-pulse">
 										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
 										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
@@ -304,7 +343,7 @@ export function ConfigPage() {
 								) : (
 									<>
 										<div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-											{enabledTools.length}/{tools.length}
+											{enabledToolsCount}/{totalToolsInSuit}
 										</div>
 										<p className="text-xs text-muted-foreground">enabled</p>
 									</>
@@ -323,7 +362,9 @@ export function ConfigPage() {
 								</div>
 							</CardHeader>
 							<CardContent>
-								{isLoadingServers ? (
+								{isLoadingAllServers ||
+								isLoadingActiveSuitServers ||
+								isLoadingSuits ? (
 									<div className="animate-pulse">
 										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
 										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
@@ -384,9 +425,9 @@ export function ConfigPage() {
 					<CardContent>
 						{isLoadingSuits ? (
 							<div className="space-y-4">
-								{Array.from({ length: 3 }).map((_, i) => (
+								{["s1", "s2", "s3"].map((id) => (
 									<div
-										key={`loading-suit-${i}`}
+										key={`loading-suit-${id}`}
 										className="flex items-center justify-between rounded-lg border p-4"
 									>
 										<div className="space-y-1">
