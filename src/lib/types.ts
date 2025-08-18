@@ -1,5 +1,6 @@
 // API Response Types
 export interface ServerSummary {
+  id: string;
   name: string;
   kind?: string;
   server_type?: string;

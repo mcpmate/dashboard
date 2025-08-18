@@ -36,8 +36,8 @@ function App() {
             <Route path="config" element={<ConfigPage />} />
             <Route path="config/presets/:presetId" element={<ConfigPresetPage />} />
             <Route path="servers" element={<ServerListPage />} />
-            <Route path="servers/:serverName" element={<ServerDetailPage />} />
-            <Route path="servers/:serverName/instances/:instanceId" element={<InstanceDetailPage />} />
+            <Route path="servers/:serverId" element={<ServerDetailPage />} />
+            <Route path="servers/:serverId/instances/:instanceId" element={<InstanceDetailPage />} />
             <Route path="tools" element={<ToolsPage />} />
             <Route path="system" element={<SystemPage />} />
             <Route path="settings" element={<SettingsPage />} />

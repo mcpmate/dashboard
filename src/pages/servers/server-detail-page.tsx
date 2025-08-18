@@ -9,14 +9,14 @@ import { serversApi } from '../../lib/api';
 import { formatRelativeTime } from '../../lib/utils';
 
 export function ServerDetailPage() {
-  const { serverName } = useParams<{ serverName: string }>();
+  const { serverId } = useParams<{ serverId: string }>();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: server, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['server', serverName],
-    queryFn: () => serversApi.getServer(serverName || ''),
-    enabled: !!serverName,
+    queryKey: ['server', serverId],
+    queryFn: () => serversApi.getServer(serverId || ''),
+    enabled: !!serverId,
     refetchInterval: 15000,
   });
 
@@ -29,17 +29,17 @@ export function ServerDetailPage() {
       action: 'disconnect' | 'reconnect' | 'reset' | 'cancel';
       instanceId: string;
     }) => {
-      if (!serverName) throw new Error('Server name is required');
+      if (!serverId) throw new Error('Server ID is required');
 
       switch (action) {
         case 'disconnect':
-          return await serversApi.disconnectInstance(serverName, instanceId);
+          return await serversApi.disconnectInstance(serverId, instanceId);
         case 'reconnect':
-          return await serversApi.reconnectInstance(serverName, instanceId);
+          return await serversApi.reconnectInstance(serverId, instanceId);
         case 'reset':
-          return await serversApi.resetAndReconnectInstance(serverName, instanceId);
+          return await serversApi.resetAndReconnectInstance(serverId, instanceId);
         case 'cancel':
-          return await serversApi.cancelInstance(serverName, instanceId);
+          return await serversApi.cancelInstance(serverId, instanceId);
         default:
           throw new Error(`Unknown action: ${action}`);
       }
@@ -57,7 +57,7 @@ export function ServerDetailPage() {
         description: `Instance ${variables.instanceId.substring(0, 8)}... was ${actionMap[variables.action].toLowerCase()} successfully`,
       });
 
-      queryClient.invalidateQueries({ queryKey: ['server', serverName] });
+      queryClient.invalidateQueries({ queryKey: ['server', serverId] });
     },
     onError: (error, variables) => {
       toast({
@@ -75,8 +75,8 @@ export function ServerDetailPage() {
     instanceMutation.mutate({ action, instanceId });
   };
 
-  if (!serverName) {
-    return <div>No server name provided</div>;
+  if (!serverId) {
+    return <div>No server ID provided</div>;
   }
 
   return (
@@ -89,7 +89,7 @@ export function ServerDetailPage() {
               Back to Server List
             </Button>
           </Link>
-          <h2 className="text-3xl font-bold tracking-tight">{serverName}</h2>
+          <h2 className="text-3xl font-bold tracking-tight">{server?.name || serverId}</h2>
           {!isLoading && server && (
             <StatusBadge
               status={
@@ -237,7 +237,7 @@ export function ServerDetailPage() {
                           <div className="flex flex-col gap-3 mt-4">
                             {/* Action buttons */}
                             <div className="flex justify-between gap-2">
-                              <Link to={`/servers/${serverName}/instances/${instance.id}`} className="flex-1">
+                              <Link to={`/servers/${serverId}/instances/${instance.id}`} className="flex-1">
                                 <Button variant="outline" size="sm" className="w-full">
                                   <ExternalLink className="mr-2 h-4 w-4" />
                                   Details

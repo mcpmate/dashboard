@@ -72,6 +72,7 @@ export const serversApi = {
       // 确保所有服务器对象都有有效的状态值和其他必要字段
       const normalizedServers = response.servers.map(server => ({
         ...server,
+        id: server.id || server.name || `server-${Math.random().toString(36).substring(2, 9)}`,
         name: server.name || `server-${Math.random().toString(36).substring(2, 9)}`,
         status: server.status || 'unknown',
         kind: server.kind || server.server_type || 'unknown',
@@ -87,14 +88,14 @@ export const serversApi = {
           try {
             // 获取服务器详情以获取实例
             if (server.instance_count && server.instance_count > 0) {
-              console.log(`Fetching instances for server ${server.name}`);
-              const serverDetail = await fetchApi<ServerDetail>(`/api/mcp/servers/${server.name}`);
+              console.log(`Fetching instances for server ${server.name} (ID: ${server.id})`);
+              const serverDetail = await fetchApi<ServerDetail>(`/api/mcp/servers/${server.id}`);
               if (serverDetail.instances && serverDetail.instances.length > 0) {
                 normalizedServers[i].instances = serverDetail.instances;
               }
             }
           } catch (err) {
-            console.warn(`Failed to fetch instances for server ${server.name}:`, err);
+            console.warn(`Failed to fetch instances for server ${server.name} (ID: ${server.id}):`, err);
           }
         }
       }
@@ -108,9 +109,9 @@ export const serversApi = {
   },
 
   // Get server details
-  getServer: async (name: string): Promise<ServerDetail> => {
+  getServer: async (id: string): Promise<ServerDetail> => {
     try {
-      const response = await fetchApi<ServerDetail>(`/api/mcp/servers/${name}`);
+      const response = await fetchApi<ServerDetail>(`/api/mcp/servers/${id}`);
 
       // 确保 instances 数组存在
       if (!response.instances) {
@@ -119,10 +120,11 @@ export const serversApi = {
 
       return response;
     } catch (error) {
-      console.error(`Error fetching server details for ${name}:`, error);
+      console.error(`Error fetching server details for ${id}:`, error);
       // 返回一个基本的空服务器详情对象而不是抛出错误
       return {
-        name,
+        id,
+        name: id,
         status: "error",
         kind: "unknown",
         instances: []
@@ -131,19 +133,19 @@ export const serversApi = {
   },
 
   // Get all instances for a server
-  getInstances: (serverName: string) =>
-    fetchApi<InstanceSummary[]>(`/api/mcp/servers/${serverName}/instances`),
+  getInstances: (serverId: string) =>
+    fetchApi<InstanceSummary[]>(`/api/mcp/servers/${serverId}/instances`),
 
   // Get instance details
-  getInstance: async (serverName: string, instanceId: string): Promise<InstanceDetail> => {
+  getInstance: async (serverId: string, instanceId: string): Promise<InstanceDetail> => {
     try {
-      const response = await fetchApi<InstanceDetail>(`/api/mcp/servers/${serverName}/instances/${instanceId}`);
+      const response = await fetchApi<InstanceDetail>(`/api/mcp/servers/${serverId}/instances/${instanceId}`);
 
       // 确保响应包含必要的字段
       return {
         id: response.id || instanceId,
         name: response.name || instanceId,
-        server_name: response.server_name || serverName,
+        server_name: response.server_name || serverId,
         status: response.status || 'unknown',
         allowed_operations: response.allowed_operations || [],
         details: response.details || {
@@ -153,12 +155,12 @@ export const serversApi = {
         }
       };
     } catch (error) {
-      console.error(`Error fetching instance details for ${serverName}/${instanceId}:`, error);
+      console.error(`Error fetching instance details for ${serverId}/${instanceId}:`, error);
       // 返回一个基本的实例详情对象而不是抛出错误
       return {
         id: instanceId,
         name: instanceId,
-        server_name: serverName,
+        server_name: serverId,
         status: 'error',
         allowed_operations: [],
         details: {
@@ -172,47 +174,47 @@ export const serversApi = {
   },
 
   // Check instance health
-  getInstanceHealth: (serverName: string, instanceId: string) =>
-    fetchApi<InstanceHealth>(`/api/mcp/servers/${serverName}/instances/${instanceId}/health`),
+  getInstanceHealth: (serverId: string, instanceId: string) =>
+    fetchApi<InstanceHealth>(`/api/mcp/servers/${serverId}/instances/${instanceId}/health`),
 
   // Disconnect instance
-  disconnectInstance: (serverName: string, instanceId: string) =>
-    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/instances/${instanceId}/disconnect`, {
+  disconnectInstance: (serverId: string, instanceId: string) =>
+    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}/instances/${instanceId}/disconnect`, {
       method: "POST"
     }),
 
   // Force disconnect instance
-  forceDisconnectInstance: (serverName: string, instanceId: string) =>
-    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/instances/${instanceId}/disconnect/force`, {
+  forceDisconnectInstance: (serverId: string, instanceId: string) =>
+    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}/instances/${instanceId}/disconnect/force`, {
       method: "POST"
     }),
 
   // Reconnect instance
-  reconnectInstance: (serverName: string, instanceId: string) =>
-    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/instances/${instanceId}/reconnect`, {
+  reconnectInstance: (serverId: string, instanceId: string) =>
+    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}/instances/${instanceId}/reconnect`, {
       method: "POST"
     }),
 
   // Reset and reconnect instance
-  resetAndReconnectInstance: (serverName: string, instanceId: string) =>
-    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/instances/${instanceId}/reconnect/reset`, {
+  resetAndReconnectInstance: (serverId: string, instanceId: string) =>
+    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}/instances/${instanceId}/reconnect/reset`, {
       method: "POST"
     }),
 
   // Cancel initializing instance
-  cancelInstance: (serverName: string, instanceId: string) =>
-    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/instances/${instanceId}/cancel`, {
+  cancelInstance: (serverId: string, instanceId: string) =>
+    fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}/instances/${instanceId}/cancel`, {
       method: "POST"
     }),
 
   // The following are new server management features (mock implementation)
 
   // Enable server
-  enableServer: async (serverName: string, sync?: boolean) => {
+  enableServer: async (serverId: string, sync?: boolean) => {
     try {
       const url = sync
-        ? `/api/mcp/servers/${serverName}/enable?sync=true`
-        : `/api/mcp/servers/${serverName}/enable`;
+        ? `/api/mcp/servers/${serverId}/enable?sync=true`
+        : `/api/mcp/servers/${serverId}/enable`;
       return await fetchApi<ApiResponse<null>>(url, {
         method: "POST"
       });
@@ -221,17 +223,17 @@ export const serversApi = {
       // Simulate successful response
       return {
         status: "success",
-        message: `Server ${serverName} enabled successfully (mock)${sync ? ' with sync' : ''}`
+        message: `Server ${serverId} enabled successfully (mock)${sync ? ' with sync' : ''}`
       };
     }
   },
 
   // Disable server
-  disableServer: async (serverName: string, sync?: boolean) => {
+  disableServer: async (serverId: string, sync?: boolean) => {
     try {
       const url = sync
-        ? `/api/mcp/servers/${serverName}/disable?sync=true`
-        : `/api/mcp/servers/${serverName}/disable`;
+        ? `/api/mcp/servers/${serverId}/disable?sync=true`
+        : `/api/mcp/servers/${serverId}/disable`;
       return await fetchApi<ApiResponse<null>>(url, {
         method: "POST"
       });
@@ -240,15 +242,15 @@ export const serversApi = {
       // Simulate successful response
       return {
         status: "success",
-        message: `Server ${serverName} disabled successfully (mock)${sync ? ' with sync' : ''}`
+        message: `Server ${serverId} disabled successfully (mock)${sync ? ' with sync' : ''}`
       };
     }
   },
 
   // Reconnect all instances of a server
-  reconnectAllInstances: async (serverName: string) => {
+  reconnectAllInstances: async (serverId: string) => {
     try {
-      return await fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}/reconnect`, {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}/reconnect`, {
         method: "POST"
       });
     } catch (error) {
@@ -256,7 +258,7 @@ export const serversApi = {
       // Simulate successful response
       return {
         status: "success",
-        message: `All instances of server ${serverName} reconnected successfully (mock)`
+        message: `All instances of server ${serverId} reconnected successfully (mock)`
       };
     }
   },
@@ -272,6 +274,7 @@ export const serversApi = {
       console.warn("API not available, using mock implementation:", error);
       // Simulate successful response
       const mockServer: ServerSummary = {
+        id: `server-${Date.now()}`,
         name: serverConfig.name || `server-${Date.now()}`,
         kind: serverConfig.kind || "stdio",
         status: "initializing",
@@ -286,9 +289,9 @@ export const serversApi = {
   },
 
   // Update server configuration
-  updateServer: async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
+  updateServer: async (serverId: string, serverConfig: Partial<MCPServerConfig>) => {
     try {
-      return await fetchApi<ApiResponse<ServerSummary>>(`/api/mcp/servers/${serverName}`, {
+      return await fetchApi<ApiResponse<ServerSummary>>(`/api/mcp/servers/${serverId}`, {
         method: "PUT",
         body: JSON.stringify(serverConfig)
       });
@@ -297,9 +300,10 @@ export const serversApi = {
       // Simulate successful response
       return {
         status: "success",
-        message: `Server ${serverName} updated successfully (mock)`,
+        message: `Server ${serverId} updated successfully (mock)`,
         data: {
-          name: serverName,
+          id: serverId,
+          name: serverConfig.name || serverId,
           kind: serverConfig.kind || "stdio",
           status: "connected",
           instance_count: 1
@@ -309,9 +313,9 @@ export const serversApi = {
   },
 
   // Delete server
-  deleteServer: async (serverName: string) => {
+  deleteServer: async (serverId: string) => {
     try {
-      return await fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverName}`, {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}`, {
         method: "DELETE"
       });
     } catch (error) {
@@ -319,7 +323,7 @@ export const serversApi = {
       // Simulate successful response
       return {
         status: "success",
-        message: `Server ${serverName} deleted successfully (mock)`
+        message: `Server ${serverId} deleted successfully (mock)`
       };
     }
   }
@@ -436,12 +440,12 @@ export const toolsApi = {
   },
 
   // Get tool details
-  getTool: (serverName: string, toolName: string) =>
-    fetchApi<ToolDetail>(`/api/mcp/specs/tools/${serverName}/${toolName}`),
+  getTool: (serverId: string, toolName: string) =>
+    fetchApi<ToolDetail>(`/api/mcp/specs/tools/${serverId}/${toolName}`),
 
   // Update tool configuration
-  updateTool: (serverName: string, toolName: string, config: Partial<ToolDetail>) =>
-    fetchApi<ApiResponse<ToolDetail>>(`/api/mcp/specs/tools/${serverName}/${toolName}`, {
+  updateTool: (serverId: string, toolName: string, config: Partial<ToolDetail>) =>
+    fetchApi<ApiResponse<ToolDetail>>(`/api/mcp/specs/tools/${serverId}/${toolName}`, {
       method: "POST",
       body: JSON.stringify(config),
     }),

@@ -95,22 +95,22 @@ export function ServerListPage() {
   });
 
   // Server details query
-  const getServerDetails = async (serverName: string) => {
+  const getServerDetails = async (serverId: string) => {
     try {
-      return await serversApi.getServer(serverName);
+      return await serversApi.getServer(serverId);
     } catch (error) {
-      console.error(`Error fetching server details for ${serverName}:`, error);
+      console.error(`Error fetching server details for ${serverId}:`, error);
       return null;
     }
   };
 
   // Enable/disable server
   const toggleServerMutation = useMutation({
-    mutationFn: async ({ serverName, enable, sync }: { serverName: string; enable: boolean; sync?: boolean }) => {
+    mutationFn: async ({ serverId, enable, sync }: { serverId: string; enable: boolean; sync?: boolean }) => {
       if (enable) {
-        return await serversApi.enableServer(serverName, sync);
+        return await serversApi.enableServer(serverId, sync);
       } else {
-        return await serversApi.disableServer(serverName, sync);
+        return await serversApi.disableServer(serverId, sync);
       }
     },
     onSuccess: (_, variables) => {
@@ -119,7 +119,7 @@ export function ServerListPage() {
 
       toast({
         title: variables.enable ? "Server Enabled" : "Server Disabled",
-        description: `Server ${variables.serverName} ${variables.enable ? "has been successfully enabled" : "has been successfully disabled"}`,
+        description: `Server ${variables.serverId} ${variables.enable ? "has been successfully enabled" : "has been successfully disabled"}`,
       });
 
       // Delayed refetch to ensure we get the latest state
@@ -161,20 +161,20 @@ export function ServerListPage() {
 
   // Update server
   const updateServerMutation = useMutation({
-    mutationFn: async ({ serverName, config }: { serverName: string; config: Partial<MCPServerConfig> }) => {
-      return await serversApi.updateServer(serverName, config);
+    mutationFn: async ({ serverId, config }: { serverId: string; config: Partial<MCPServerConfig> }) => {
+      return await serversApi.updateServer(serverId, config);
     },
     onSuccess: (_, variables) => {
       toast({
         title: "Server Updated",
-        description: `Server ${variables.serverName} has been successfully updated`,
+        description: `Server ${variables.serverId} has been successfully updated`,
       });
       queryClient.invalidateQueries({ queryKey: ['servers'] });
     },
     onError: (error, variables) => {
       toast({
         title: "Update Failed",
-        description: `Unable to update server ${variables.serverName}: ${error instanceof Error ? error.message : String(error)}`,
+        description: `Unable to update server ${variables.serverId}: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
     },
@@ -187,14 +187,14 @@ export function ServerListPage() {
   };
 
   // Handle edit server
-  const handleEditServer = async (serverName: string) => {
-    const serverDetails = await getServerDetails(serverName);
+  const handleEditServer = async (serverId: string) => {
+    const serverDetails = await getServerDetails(serverId);
     if (serverDetails) {
       setEditingServer(serverDetails);
     } else {
       toast({
         title: "Failed to get server details",
-        description: `Unable to get details for server ${serverName}`,
+        description: `Unable to get details for server ${serverId}`,
         variant: "destructive",
       });
     }
@@ -204,7 +204,7 @@ export function ServerListPage() {
   const handleUpdateServer = async (config: Partial<MCPServerConfig>) => {
     if (editingServer) {
       await updateServerMutation.mutateAsync({
-        serverName: editingServer.name,
+        serverId: editingServer.id,
         config,
       });
       setEditingServer(null);
@@ -357,7 +357,7 @@ export function ServerListPage() {
           ))
         ) : serverListResponse?.servers?.length ? (
           serverListResponse.servers.map((server) => (
-            <Card key={server.name} className="overflow-hidden">
+            <Card key={server.id} className="overflow-hidden">
               <CardHeader className="p-4 flex flex-row justify-between items-start">
                 <div>
                   <CardTitle className="text-xl">{server.name}</CardTitle>
@@ -390,7 +390,7 @@ export function ServerListPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => toggleServerMutation.mutate({
-                          serverName: server.name,
+                          serverId: server.id,
                           enable: !isServerActive(server),
                           sync: syncToAllClients
                         })}
@@ -409,7 +409,7 @@ export function ServerListPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleEditServer(server.name)}
+                        onClick={() => handleEditServer(server.id)}
                         title="Edit server configuration"
                       >
                         <Edit className="h-4 w-4" />
@@ -419,7 +419,7 @@ export function ServerListPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => {
-                          setDeletingServer(server.name);
+                          setDeletingServer(server.id);
                           setIsDeleteConfirmOpen(true);
                         }}
                         title="Delete server"
@@ -429,7 +429,7 @@ export function ServerListPage() {
                     </div>
 
                     {/* 右侧详情按钮 */}
-                    <Link to={`/servers/${server.name}`}>
+                    <Link to={`/servers/${server.id}`}>
                       <Button size="sm">
                         <Eye className="mr-2 h-4 w-4" />
                         Details

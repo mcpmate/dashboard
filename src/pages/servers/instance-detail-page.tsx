@@ -9,7 +9,7 @@ import { StatusBadge } from '../../components/status-badge';
 import { formatRelativeTime } from '../../lib/utils';
 
 export function InstanceDetailPage() {
-  const { serverName, instanceId } = useParams<{ serverName: string; instanceId: string }>();
+  const { serverId, instanceId } = useParams<{ serverId: string; instanceId: string }>();
 
   const {
     data: instance,
@@ -17,9 +17,9 @@ export function InstanceDetailPage() {
     refetch,
     isRefetching
   } = useQuery({
-    queryKey: ['instance', serverName, instanceId],
-    queryFn: () => serversApi.getInstance(serverName || '', instanceId || ''),
-    enabled: !!serverName && !!instanceId,
+    queryKey: ['instance', serverId, instanceId],
+    queryFn: () => serversApi.getInstance(serverId || '', instanceId || ''),
+    enabled: !!serverId && !!instanceId,
     refetchInterval: 10000,
   });
 
@@ -27,38 +27,38 @@ export function InstanceDetailPage() {
     data: health,
     isLoading: isLoadingHealth
   } = useQuery({
-    queryKey: ['instanceHealth', serverName, instanceId],
-    queryFn: () => serversApi.getInstanceHealth(serverName || '', instanceId || ''),
-    enabled: !!serverName && !!instanceId,
+    queryKey: ['instanceHealth', serverId, instanceId],
+    queryFn: () => serversApi.getInstanceHealth(serverId || '', instanceId || ''),
+    enabled: !!serverId && !!instanceId,
     refetchInterval: 10000,
   });
 
-  if (!serverName || !instanceId) {
-    return <div>Server name or instance ID not provided</div>;
+  if (!serverId || !instanceId) {
+    return <div>Server ID or instance ID not provided</div>;
   }
 
   const handleDisconnect = () => {
-    serversApi.disconnectInstance(serverName, instanceId)
+    serversApi.disconnectInstance(serverId, instanceId)
       .then(() => refetch());
   };
 
   const handleForceDisconnect = () => {
-    serversApi.forceDisconnectInstance(serverName, instanceId)
+    serversApi.forceDisconnectInstance(serverId, instanceId)
       .then(() => refetch());
   };
 
   const handleReconnect = () => {
-    serversApi.reconnectInstance(serverName, instanceId)
+    serversApi.reconnectInstance(serverId, instanceId)
       .then(() => refetch());
   };
 
   const handleResetAndReconnect = () => {
-    serversApi.resetAndReconnectInstance(serverName, instanceId)
+    serversApi.resetAndReconnectInstance(serverId, instanceId)
       .then(() => refetch());
   };
 
   const handleCancel = () => {
-    serversApi.cancelInstance(serverName, instanceId)
+    serversApi.cancelInstance(serverId, instanceId)
       .then(() => refetch());
   };
 
@@ -66,7 +66,7 @@ export function InstanceDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <Link to={`/servers/${serverName}`}>
+          <Link to={`/servers/${serverId}`}>
             <Button variant="ghost" size="sm" className="mr-4">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Server
