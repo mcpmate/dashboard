@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { SuitFormDialog } from "../../components/suit-form-dialog";
+import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -561,12 +561,13 @@ export function ConfigPage() {
 				</Card>
 			</div>
 
-			{/* New Suit Dialog */}
-			<SuitFormDialog
+			{/* New Suit Drawer */}
+			<SuitFormDrawer
 				open={isNewSuitDialogOpen}
 				onOpenChange={setIsNewSuitDialogOpen}
 				mode="create"
 				onSuccess={() => {
+					setIsNewSuitDialogOpen(false);
 					refetchSuits();
 				}}
 			/>

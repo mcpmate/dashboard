@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { SuitFormDialog } from "../../components/suit-form-dialog";
+import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -1017,18 +1017,17 @@ export function ConfigSuitDetailPage() {
 				</Card>
 			)}
 
-			{/* Edit Suit Dialog */}
-			{suit && (
-				<SuitFormDialog
-					open={isEditDialogOpen}
-					onOpenChange={setIsEditDialogOpen}
-					mode="edit"
-					suit={suit}
-					onSuccess={() => {
-						refetchSuit();
-					}}
-				/>
-			)}
+			{/* Edit Suit Drawer */}
+			<SuitFormDrawer
+				open={isEditDialogOpen}
+				onOpenChange={setIsEditDialogOpen}
+				mode="edit"
+				suit={suit}
+				onSuccess={() => {
+					setIsEditDialogOpen(false);
+					refetchSuit();
+				}}
+			/>
 		</div>
 	);
 }

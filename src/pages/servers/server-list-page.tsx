@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { ErrorDisplay } from "../../components/error-display";
-import { ServerForm } from "../../components/server-form";
+import { ServerFormDrawer } from "../../components/server-form-drawer";
 import { StatusBadge } from "../../components/status-badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -525,24 +525,22 @@ export function ServerListPage() {
 				)}
 			</div>
 
-			{/* Add server form */}
-			<ServerForm
+			{/* Add server drawer */}
+			<ServerFormDrawer
 				isOpen={isAddServerOpen}
 				onClose={() => setIsAddServerOpen(false)}
 				onSubmit={handleAddServer}
-				title="Add Server"
-				submitLabel="Create"
+				title="Add New Server"
 			/>
 
-			{/* Edit server form */}
+			{/* Edit server drawer */}
 			{editingServer && (
-				<ServerForm
+				<ServerFormDrawer
 					isOpen={!!editingServer}
 					onClose={() => setEditingServer(null)}
 					onSubmit={handleUpdateServer}
 					initialData={convertToMCPConfig(editingServer)}
 					title={`Edit Server: ${editingServer.name}`}
-					submitLabel="Update"
 				/>
 			)}
 
