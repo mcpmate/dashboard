@@ -83,12 +83,6 @@ export function ServerDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <Link to="/servers">
-            <Button variant="ghost" size="sm" className="mr-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Server List
-            </Button>
-          </Link>
           <h2 className="text-3xl font-bold tracking-tight">{server?.name || serverId}</h2>
           {!isLoading && server && (
             <StatusBadge

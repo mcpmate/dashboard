@@ -264,17 +264,6 @@ export function ServerListPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Servers</h2>
         <div className="flex gap-2 items-center">
-          {isError && (
-            <Button
-              onClick={toggleDebugInfo}
-              variant="outline"
-              size="sm"
-            >
-              <AlertCircle className="mr-2 h-4 w-4" />
-              {debugInfo ? "Hide Debug" : "Debug"}
-            </Button>
-          )}
-
           {/* Sync to all clients toggle */}
           <div className="flex items-center space-x-2">
             <Switch
@@ -286,6 +275,17 @@ export function ServerListPage() {
               Sync to all clients
             </Label>
           </div>
+
+          {isError && (
+            <Button
+              onClick={toggleDebugInfo}
+              variant="outline"
+              size="sm"
+            >
+              <AlertCircle className="mr-2 h-4 w-4" />
+              {debugInfo ? "Hide Debug" : "Debug"}
+            </Button>
+          )}
 
           <Button
             onClick={() => refetch()}

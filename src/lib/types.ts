@@ -178,3 +178,110 @@ export interface RetryPolicy {
   max_delay_ms: number;
   backoff_multiplier: number;
 }
+
+// Config Suits Types
+export interface ConfigSuit {
+  id: string;
+  name: string;
+  description?: string;
+  suit_type: string;
+  multi_select: boolean;
+  priority: number;
+  is_active: boolean;
+  is_default: boolean;
+  allowed_operations: string[];
+}
+
+export interface ConfigSuitListResponse {
+  suits: ConfigSuit[];
+}
+
+export interface CreateConfigSuitRequest {
+  name: string;
+  description?: string;
+  suit_type: string;
+  multi_select?: boolean;
+  priority?: number;
+  is_active?: boolean;
+  is_default?: boolean;
+  clone_from_id?: string;
+}
+
+export interface UpdateConfigSuitRequest {
+  name?: string;
+  description?: string;
+  suit_type?: string;
+  multi_select?: boolean;
+  priority?: number;
+  is_active?: boolean;
+  is_default?: boolean;
+}
+
+export interface ConfigSuitServer {
+  id: string;
+  name: string;
+  enabled: boolean;
+  allowed_operations: string[];
+}
+
+export interface ConfigSuitServersResponse {
+  suit_id: string;
+  suit_name: string;
+  servers: ConfigSuitServer[];
+}
+
+export interface ConfigSuitTool {
+  id: string;
+  server_id: string;
+  server_name: string;
+  tool_name: string;
+  unique_name?: string;
+  enabled: boolean;
+  allowed_operations: string[];
+}
+
+export interface ConfigSuitToolsResponse {
+  suit_id: string;
+  suit_name: string;
+  tools: ConfigSuitTool[];
+}
+
+export interface ConfigSuitResource {
+  id: string;
+  server_id: string;
+  server_name: string;
+  resource_uri: string;
+  enabled: boolean;
+  allowed_operations: string[];
+}
+
+export interface ConfigSuitResourcesResponse {
+  suit_id: string;
+  suit_name: string;
+  resources: ConfigSuitResource[];
+}
+
+export interface ConfigSuitPrompt {
+  id: string;
+  server_id: string;
+  server_name: string;
+  prompt_name: string;
+  enabled: boolean;
+  allowed_operations: string[];
+}
+
+export interface ConfigSuitPromptsResponse {
+  suit_id: string;
+  suit_name: string;
+  prompts: ConfigSuitPrompt[];
+}
+
+export interface BatchOperationRequest {
+  ids: string[];
+}
+
+export interface BatchOperationResponse {
+  success_count: number;
+  successful_ids: string[];
+  failed_ids: Record<string, string>;
+}

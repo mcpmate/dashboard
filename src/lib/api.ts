@@ -1,4 +1,4 @@
-import { ApiResponse, ConfigPreset, InstanceDetail, InstanceHealth, MCPConfig, ServerDetail, ServerListResponse, ServerSummary, SystemMetrics, SystemStatus, Tool, ToolDetail } from "./types";
+import { ApiResponse, ConfigPreset, InstanceDetail, InstanceHealth, MCPConfig, ServerDetail, ServerListResponse, ServerSummary, SystemMetrics, SystemStatus, Tool, ToolDetail, ConfigSuit, ConfigSuitListResponse, CreateConfigSuitRequest, UpdateConfigSuitRequest, ConfigSuitServersResponse, ConfigSuitToolsResponse, ConfigSuitResourcesResponse, ConfigSuitPromptsResponse, BatchOperationRequest, BatchOperationResponse } from "./types";
 
 // Base API URL - in a real app, this would be in an environment variable
 // Using relative path so frontend and backend can work under the same domain, avoiding CORS issues
@@ -727,6 +727,253 @@ export const configApi = {
         status: "success",
         message: "Preset applied (mock)",
       };
+    }
+  },
+};
+
+// Config Suits Management API
+export const configSuitsApi = {
+  // Get all config suits
+  getAll: async (): Promise<ConfigSuitListResponse> => {
+    try {
+      return await fetchApi<ConfigSuitListResponse>("/api/mcp/suits");
+    } catch (error) {
+      console.error("Failed to fetch config suits:", error);
+      return { suits: [] };
+    }
+  },
+
+  // Get specific config suit
+  getSuit: async (id: string): Promise<ConfigSuit> => {
+    try {
+      return await fetchApi<ConfigSuit>(`/api/mcp/suits/${id}`);
+    } catch (error) {
+      console.error(`Failed to fetch config suit ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Create new config suit
+  createSuit: async (data: CreateConfigSuitRequest): Promise<ApiResponse<ConfigSuit>> => {
+    try {
+      return await fetchApi<ApiResponse<ConfigSuit>>("/api/mcp/suits", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      console.error("Failed to create config suit:", error);
+      throw error;
+    }
+  },
+
+  // Update config suit
+  updateSuit: async (id: string, data: UpdateConfigSuitRequest): Promise<ApiResponse<ConfigSuit>> => {
+    try {
+      return await fetchApi<ApiResponse<ConfigSuit>>(`/api/mcp/suits/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      console.error(`Failed to update config suit ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Delete config suit
+  deleteSuit: async (id: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${id}`, {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error(`Failed to delete config suit ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Activate config suit
+  activateSuit: async (id: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${id}/activate`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to activate config suit ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Deactivate config suit
+  deactivateSuit: async (id: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${id}/deactivate`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to deactivate config suit ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Batch activate config suits
+  batchActivate: async (ids: string[]): Promise<BatchOperationResponse> => {
+    try {
+      return await fetchApi<BatchOperationResponse>("/api/mcp/suits/batch/activate", {
+        method: "POST",
+        body: JSON.stringify({ ids }),
+      });
+    } catch (error) {
+      console.error("Failed to batch activate config suits:", error);
+      throw error;
+    }
+  },
+
+  // Batch deactivate config suits
+  batchDeactivate: async (ids: string[]): Promise<BatchOperationResponse> => {
+    try {
+      return await fetchApi<BatchOperationResponse>("/api/mcp/suits/batch/deactivate", {
+        method: "POST",
+        body: JSON.stringify({ ids }),
+      });
+    } catch (error) {
+      console.error("Failed to batch deactivate config suits:", error);
+      throw error;
+    }
+  },
+
+  // Get servers in config suit
+  getServers: async (suitId: string): Promise<ConfigSuitServersResponse> => {
+    try {
+      return await fetchApi<ConfigSuitServersResponse>(`/api/mcp/suits/${suitId}/servers`);
+    } catch (error) {
+      console.error(`Failed to fetch servers for config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get tools in config suit
+  getTools: async (suitId: string): Promise<ConfigSuitToolsResponse> => {
+    try {
+      return await fetchApi<ConfigSuitToolsResponse>(`/api/mcp/suits/${suitId}/tools`);
+    } catch (error) {
+      console.error(`Failed to fetch tools for config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get resources in config suit
+  getResources: async (suitId: string): Promise<ConfigSuitResourcesResponse> => {
+    try {
+      return await fetchApi<ConfigSuitResourcesResponse>(`/api/mcp/suits/${suitId}/resources`);
+    } catch (error) {
+      console.error(`Failed to fetch resources for config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get prompts in config suit
+  getPrompts: async (suitId: string): Promise<ConfigSuitPromptsResponse> => {
+    try {
+      return await fetchApi<ConfigSuitPromptsResponse>(`/api/mcp/suits/${suitId}/prompts`);
+    } catch (error) {
+      console.error(`Failed to fetch prompts for config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Enable server in config suit
+  enableServer: async (suitId: string, serverId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/servers/${serverId}/enable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to enable server ${serverId} in config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Disable server in config suit
+  disableServer: async (suitId: string, serverId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/servers/${serverId}/disable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to disable server ${serverId} in config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Enable tool in config suit
+  enableTool: async (suitId: string, toolId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/tools/${toolId}/enable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to enable tool ${toolId} in config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Disable tool in config suit
+  disableTool: async (suitId: string, toolId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/tools/${toolId}/disable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to disable tool ${toolId} in config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Enable resource in config suit
+  enableResource: async (suitId: string, resourceId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/resources/${resourceId}/enable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to enable resource ${resourceId} in config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Disable resource in config suit
+  disableResource: async (suitId: string, resourceId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/resources/${resourceId}/disable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to disable resource ${resourceId} in config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Enable prompt in config suit
+  enablePrompt: async (suitId: string, promptId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/prompts/${promptId}/enable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to enable prompt ${promptId} in config suit ${suitId}:`, error);
+      throw error;
+    }
+  },
+
+  // Disable prompt in config suit
+  disablePrompt: async (suitId: string, promptId: string): Promise<ApiResponse<null>> => {
+    try {
+      return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${suitId}/prompts/${promptId}/disable`, {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error(`Failed to disable prompt ${promptId} in config suit ${suitId}:`, error);
+      throw error;
     }
   },
 };

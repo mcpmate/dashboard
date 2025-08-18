@@ -53,12 +53,6 @@ export function ConfigPresetPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <Link to="/config">
-            <Button variant="ghost" size="sm" className="mr-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Configuration
-            </Button>
-          </Link>
           <h2 className="text-2xl font-bold tracking-tight">
             {isNew ? 'New Configuration Preset' : preset?.name}
           </h2>

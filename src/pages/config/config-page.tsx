@@ -1,210 +1,524 @@
-import React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { configApi } from '../../lib/api';
-import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { RefreshCw, Plus, Save, Clock, Check } from 'lucide-react';
-import { formatRelativeTime } from '../../lib/utils';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	Activity,
+	Check,
+	Play,
+	Plus,
+	RefreshCw,
+	Server,
+	Settings,
+	Square,
+	Wrench,
+} from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "../../components/ui/card";
+import { Switch } from "../../components/ui/switch";
+import { useToast } from "../../components/ui/use-toast";
+import { configSuitsApi, serversApi, toolsApi } from "../../lib/api";
+import type {
+	ConfigSuit,
+	InstanceSummary,
+	ServerSummary,
+	Tool,
+} from "../../lib/types";
 
 export function ConfigPage() {
-  const queryClient = useQueryClient();
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
+	const [selectedSuits, setSelectedSuits] = useState<string[]>([]);
 
-  const {
-    data: currentConfig,
-    isLoading: isLoadingConfig,
-    refetch,
-    isRefetching,
-    isError: isConfigError
-  } = useQuery({
-    queryKey: ['currentConfig'],
-    queryFn: configApi.getCurrentConfig,
-    retry: 1,
-    useErrorBoundary: false,
-  });
+	// Fetch servers data for statistics
+	const { data: serversResponse, isLoading: isLoadingServers } = useQuery({
+		queryKey: ["serversStats"],
+		queryFn: serversApi.getAll,
+		retry: 1,
+	});
 
-  const {
-    data: presets,
-    isLoading: isLoadingPresets,
-    isError: isPresetsError
-  } = useQuery({
-    queryKey: ['configPresets'],
-    queryFn: configApi.getPresets,
-    retry: 1,
-    useErrorBoundary: false,
-  });
+	// Fetch tools data for statistics
+	const { data: toolsResponse, isLoading: isLoadingTools } = useQuery({
+		queryKey: ["toolsStats"],
+		queryFn: toolsApi.getAll,
+		retry: 1,
+	});
 
-  const updateMutation = useMutation({
-    mutationFn: configApi.updateConfig,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentConfig'] });
-    },
-  });
+	const {
+		data: suitsResponse,
+		isLoading: isLoadingSuits,
+		refetch: refetchSuits,
+		isRefetching: isRefetchingSuits,
+	} = useQuery({
+		queryKey: ["configSuits"],
+		queryFn: configSuitsApi.getAll,
+		retry: 1,
+		refetchInterval: 30000,
+	});
 
-  const applyPresetMutation = useMutation({
-    mutationFn: configApi.applyPreset,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentConfig', 'configPresets'] });
-    },
-  });
+	// Suit activation mutation
+	const activateSuitMutation = useMutation({
+		mutationFn: configSuitsApi.activateSuit,
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			toast({
+				title: "Config Suit Activated",
+				description: "Configuration suit has been successfully activated",
+			});
+		},
+		onError: (error) => {
+			toast({
+				title: "Activation Failed",
+				description: `Failed to activate config suit: ${error instanceof Error ? error.message : String(error)}`,
+				variant: "destructive",
+			});
+		},
+	});
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Configuration</h2>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => refetch()}
-            disabled={isRefetching}
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Link to="/config/presets/new">
-            <Button size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              New Preset
-            </Button>
-          </Link>
-        </div>
-      </div>
+	// Suit deactivation mutation
+	const deactivateSuitMutation = useMutation({
+		mutationFn: configSuitsApi.deactivateSuit,
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			toast({
+				title: "Config Suit Deactivated",
+				description: "Configuration suit has been successfully deactivated",
+			});
+		},
+		onError: (error) => {
+			toast({
+				title: "Deactivation Failed",
+				description: `Failed to deactivate config suit: ${error instanceof Error ? error.message : String(error)}`,
+				variant: "destructive",
+			});
+		},
+	});
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Current Configuration</CardTitle>
-            <CardDescription>
-              Active configuration settings for MCPMate
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingConfig ? (
-              <div className="space-y-4">
-                <div className="h-8 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-                <div className="h-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-              </div>
-            ) : currentConfig ? (
-              <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  <div>
-                    <h3 className="mb-2 text-sm font-medium text-slate-500">Global Settings</h3>
-                    <dl className="space-y-1">
-                      <div className="flex justify-between">
-                        <dt className="text-sm">Max Connections:</dt>
-                        <dd className="font-medium">{currentConfig.global_settings.max_concurrent_connections}</dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-sm">Request Timeout:</dt>
-                        <dd className="font-medium">{currentConfig.global_settings.request_timeout_ms}ms</dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-sm">Metrics Enabled:</dt>
-                        <dd className="font-medium">{currentConfig.global_settings.enable_metrics ? 'Yes' : 'No'}</dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-sm">Log Level:</dt>
-                        <dd className="font-medium">{currentConfig.global_settings.log_level}</dd>
-                      </div>
-                    </dl>
-                  </div>
+	// Batch operations
+	const batchActivateMutation = useMutation({
+		mutationFn: configSuitsApi.batchActivate,
+		onSuccess: (response) => {
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			toast({
+				title: "Batch Activation Complete",
+				description: `Successfully activated ${response.success_count} config suits`,
+			});
+			setSelectedSuits([]);
+		},
+		onError: (error) => {
+			toast({
+				title: "Batch Activation Failed",
+				description: `Failed to activate config suits: ${error instanceof Error ? error.message : String(error)}`,
+				variant: "destructive",
+			});
+		},
+	});
 
-                  <div>
-                    <h3 className="mb-2 text-sm font-medium text-slate-500">Servers</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
-                      {currentConfig.servers.length} configured server{currentConfig.servers.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
+	const batchDeactivateMutation = useMutation({
+		mutationFn: configSuitsApi.batchDeactivate,
+		onSuccess: (response) => {
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			toast({
+				title: "Batch Deactivation Complete",
+				description: `Successfully deactivated ${response.success_count} config suits`,
+			});
+			setSelectedSuits([]);
+		},
+		onError: (error) => {
+			toast({
+				title: "Batch Deactivation Failed",
+				description: `Failed to deactivate config suits: ${error instanceof Error ? error.message : String(error)}`,
+				variant: "destructive",
+			});
+		},
+	});
 
-                  <div>
-                    <h3 className="mb-2 text-sm font-medium text-slate-500">Tools</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
-                      {currentConfig.tools.length} configured tool{currentConfig.tools.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </div>
+	// Handle individual suit toggle
+	const handleSuitToggle = (suit: ConfigSuit) => {
+		if (suit.is_active) {
+			deactivateSuitMutation.mutate(suit.id);
+		} else {
+			activateSuitMutation.mutate(suit.id);
+		}
+	};
 
-                <div className="flex justify-end">
-                  <Button
-                    onClick={() => {/* Open edit modal */ }}
-                    disabled={updateMutation.isPending}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Edit Configuration
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-center text-slate-500">Error loading current configuration</p>
-            )}
-          </CardContent>
-        </Card>
+	// Handle suit selection for batch operations
+	const handleSuitSelection = (suitId: string, selected: boolean) => {
+		if (selected) {
+			setSelectedSuits((prev) => [...prev, suitId]);
+		} else {
+			setSelectedSuits((prev) => prev.filter((id) => id !== suitId));
+		}
+	};
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuration Presets</CardTitle>
-            <CardDescription>
-              Saved configuration presets that can be quickly applied
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingPresets ? (
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-1">
-                      <div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-                      <div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-                    </div>
-                    <div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-                  </div>
-                ))}
-              </div>
-            ) : presets?.length ? (
-              <div className="space-y-4">
-                {presets.map((preset) => (
-                  <div key={preset.id} className="flex items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium">{preset.name}</h3>
-                        {preset.is_active && (
-                          <span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-                            <Check className="mr-1 h-3 w-3" />
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      {preset.description && (
-                        <p className="text-sm text-slate-500">{preset.description}</p>
-                      )}
-                      <p className="text-xs text-slate-400">
-                        <Clock className="mr-1 inline-block h-3 w-3" />
-                        Last updated {formatRelativeTime(preset.updated_at)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Link to={`/config/presets/${preset.id}`}>
-                        <Button variant="outline" size="sm">View</Button>
-                      </Link>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={preset.is_active || applyPresetMutation.isPending}
-                        onClick={() => applyPresetMutation.mutate(preset.id)}
-                      >
-                        Apply
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-slate-500">No configuration presets available</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+	// Handle select all / deselect all
+	const handleSelectAll = () => {
+		if (selectedSuits.length === suitsResponse?.suits.length) {
+			setSelectedSuits([]);
+		} else {
+			setSelectedSuits(
+				suitsResponse?.suits.map((suit: ConfigSuit) => suit.id) || [],
+			);
+		}
+	};
+
+	const suits = suitsResponse?.suits || [];
+	const activeSuits = suits.filter((suit: ConfigSuit) => suit.is_active);
+
+	// Calculate statistics
+	const servers = serversResponse?.servers || [];
+	const tools = toolsResponse?.tools || [];
+	const enabledServers = servers.filter(
+		(server: ServerSummary) =>
+			server.status &&
+			["connected", "running", "ready", "healthy"].includes(
+				server.status.toLowerCase(),
+			),
+	);
+	const enabledTools = tools.filter((tool: Tool) => tool.is_enabled);
+	const totalInstances = servers.reduce(
+		(sum: number, server: ServerSummary) => sum + (server.instance_count || 0),
+		0,
+	);
+	const readyInstances = servers.reduce(
+		(sum: number, server: ServerSummary) => {
+			if (server.instances) {
+				return (
+					sum +
+					server.instances.filter(
+						(instance: InstanceSummary) =>
+							instance.status &&
+							["ready", "busy", "running"].includes(
+								instance.status.toLowerCase(),
+							),
+					).length
+				);
+			}
+			return sum;
+		},
+		0,
+	);
+
+	return (
+		<div className="space-y-6">
+			<div className="flex items-center justify-between">
+				<h2 className="text-3xl font-bold tracking-tight">Config Suits</h2>
+				<div className="flex gap-2">
+					<Button
+						onClick={() => refetchSuits()}
+						disabled={isRefetchingSuits}
+						variant="outline"
+						size="sm"
+					>
+						<RefreshCw
+							className={`mr-2 h-4 w-4 ${isRefetchingSuits ? "animate-spin" : ""}`}
+						/>
+						Refresh
+					</Button>
+					<Link to="/config/suits/new">
+						<Button size="sm">
+							<Plus className="mr-2 h-4 w-4" />
+							New Suit
+						</Button>
+					</Link>
+				</div>
+			</div>
+
+			<div className="grid gap-6">
+				<div>
+					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+						{/* Active Config Suits */}
+						<Card>
+							<CardHeader className="pb-2">
+								<div className="flex items-center justify-between">
+									<CardTitle className="text-sm font-medium">
+										Config Suits
+									</CardTitle>
+									<Settings className="h-4 w-4 text-emerald-600" />
+								</div>
+							</CardHeader>
+							<CardContent>
+								{isLoadingSuits ? (
+									<div className="animate-pulse">
+										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
+										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+									</div>
+								) : (
+									<>
+										<div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+											{activeSuits.length}/{suits.length}
+										</div>
+										<p className="text-xs text-muted-foreground">
+											active suits
+										</p>
+									</>
+								)}
+							</CardContent>
+						</Card>
+
+						{/* Servers Status */}
+						<Card>
+							<CardHeader className="pb-2">
+								<div className="flex items-center justify-between">
+									<CardTitle className="text-sm font-medium">Servers</CardTitle>
+									<Server className="h-4 w-4 text-blue-600" />
+								</div>
+							</CardHeader>
+							<CardContent>
+								{isLoadingServers ? (
+									<div className="animate-pulse">
+										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
+										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+									</div>
+								) : (
+									<>
+										<div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+											{enabledServers.length}/{servers.length}
+										</div>
+										<p className="text-xs text-muted-foreground">running</p>
+									</>
+								)}
+							</CardContent>
+						</Card>
+
+						{/* Tools Status */}
+						<Card>
+							<CardHeader className="pb-2">
+								<div className="flex items-center justify-between">
+									<CardTitle className="text-sm font-medium">Tools</CardTitle>
+									<Wrench className="h-4 w-4 text-purple-600" />
+								</div>
+							</CardHeader>
+							<CardContent>
+								{isLoadingTools ? (
+									<div className="animate-pulse">
+										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
+										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+									</div>
+								) : (
+									<>
+										<div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+											{enabledTools.length}/{tools.length}
+										</div>
+										<p className="text-xs text-muted-foreground">enabled</p>
+									</>
+								)}
+							</CardContent>
+						</Card>
+
+						{/* Instances Status */}
+						<Card>
+							<CardHeader className="pb-2">
+								<div className="flex items-center justify-between">
+									<CardTitle className="text-sm font-medium">
+										Instances
+									</CardTitle>
+									<Activity className="h-4 w-4 text-orange-600" />
+								</div>
+							</CardHeader>
+							<CardContent>
+								{isLoadingServers ? (
+									<div className="animate-pulse">
+										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
+										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+									</div>
+								) : (
+									<>
+										<div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+											{readyInstances}/{totalInstances}
+										</div>
+										<p className="text-xs text-muted-foreground">ready</p>
+									</>
+								)}
+							</CardContent>
+						</Card>
+					</div>
+				</div>
+
+				<Card>
+					<CardHeader>
+						<div className="flex items-center justify-between">
+							<div>
+								<CardTitle>Configuration Suits</CardTitle>
+								<CardDescription>
+									Manage configuration suits for different scenarios and
+									applications
+								</CardDescription>
+							</div>
+							<div className="flex gap-2">
+								{selectedSuits.length > 0 && (
+									<>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() =>
+												batchActivateMutation.mutate(selectedSuits)
+											}
+											disabled={batchActivateMutation.isPending}
+										>
+											<Play className="mr-2 h-4 w-4" />
+											Activate Selected
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() =>
+												batchDeactivateMutation.mutate(selectedSuits)
+											}
+											disabled={batchDeactivateMutation.isPending}
+										>
+											<Square className="mr-2 h-4 w-4" />
+											Deactivate Selected
+										</Button>
+									</>
+								)}
+							</div>
+						</div>
+					</CardHeader>
+					<CardContent>
+						{isLoadingSuits ? (
+							<div className="space-y-4">
+								{Array.from({ length: 3 }).map((_, i) => (
+									<div
+										key={`loading-suit-${i}`}
+										className="flex items-center justify-between rounded-lg border p-4"
+									>
+										<div className="space-y-1">
+											<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+											<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+										</div>
+										<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+									</div>
+								))}
+							</div>
+						) : suits.length > 0 ? (
+							<div className="space-y-6">
+								{/* Batch controls */}
+								<div className="flex items-center justify-between border-b pb-4">
+									<div className="flex items-center gap-2">
+										<input
+											type="checkbox"
+											checked={
+												selectedSuits.length === suits.length &&
+												suits.length > 0
+											}
+											onChange={handleSelectAll}
+											className="rounded"
+										/>
+										<span className="text-sm text-slate-600">
+											{selectedSuits.length > 0
+												? `${selectedSuits.length} selected`
+												: "Select all"}
+										</span>
+									</div>
+									{selectedSuits.length > 0 && (
+										<Button
+											size="sm"
+											variant="ghost"
+											onClick={() => setSelectedSuits([])}
+										>
+											Clear selection
+										</Button>
+									)}
+								</div>
+
+								{/* Suits list */}
+								<div className="space-y-4">
+									{suits.map((suit: ConfigSuit) => (
+										<div
+											key={suit.id}
+											className="flex items-center justify-between rounded-lg border p-4"
+										>
+											<div className="flex items-center gap-3">
+												<input
+													type="checkbox"
+													checked={selectedSuits.includes(suit.id)}
+													onChange={(e) =>
+														handleSuitSelection(suit.id, e.target.checked)
+													}
+													className="rounded"
+												/>
+												<div className="space-y-1">
+													<div className="flex items-center gap-2">
+														<h3 className="font-medium text-sm">
+															{suit.name
+																.split(" ")
+																.map(
+																	(word: string) =>
+																		word.charAt(0).toUpperCase() +
+																		word.slice(1).toLowerCase(),
+																)
+																.join(" ")}
+														</h3>
+														<Badge
+															variant={suit.is_active ? "default" : "secondary"}
+														>
+															{suit.suit_type}
+														</Badge>
+														{suit.is_active && (
+															<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+																<Check className="mr-1 h-3 w-3" />
+																Active
+															</span>
+														)}
+														{suit.is_default && (
+															<Badge variant="outline">Default</Badge>
+														)}
+													</div>
+													{suit.description && (
+														<p className="text-sm text-slate-500">
+															{suit.description}
+														</p>
+													)}
+													<div className="flex items-center gap-4 text-xs text-slate-400">
+														<span>Priority: {suit.priority}</span>
+														<span>
+															Multi-select: {suit.multi_select ? "Yes" : "No"}
+														</span>
+													</div>
+												</div>
+											</div>
+											<div className="flex items-center gap-2">
+												<Switch
+													checked={suit.is_active}
+													onCheckedChange={() => handleSuitToggle(suit)}
+													disabled={
+														activateSuitMutation.isPending ||
+														deactivateSuitMutation.isPending
+													}
+												/>
+												<Link to={`/config/suits/${suit.id}`}>
+													<Button variant="outline" size="sm">
+														<Settings className="mr-2 h-4 w-4" />
+														Configure
+													</Button>
+												</Link>
+											</div>
+										</div>
+									))}
+								</div>
+							</div>
+						) : (
+							<div className="text-center py-8">
+								<Settings className="mx-auto h-12 w-12 text-slate-400 mb-4" />
+								<p className="text-slate-500 mb-2">
+									No configuration suits found
+								</p>
+								<p className="text-sm text-slate-400">
+									Configuration suits help organize and manage your MCP servers,
+									tools, and resources
+								</p>
+							</div>
+						)}
+					</CardContent>
+				</Card>
+			</div>
+		</div>
+	);
 }

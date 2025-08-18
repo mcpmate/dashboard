@@ -66,12 +66,6 @@ export function InstanceDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <Link to={`/servers/${serverId}`}>
-            <Button variant="ghost" size="sm" className="mr-4">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Server
-            </Button>
-          </Link>
           <h2 className="text-2xl font-bold tracking-tight truncate" title={instanceId}>
             {instanceId.substring(0, 12)}...
           </h2>
