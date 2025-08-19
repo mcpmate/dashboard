@@ -103,8 +103,8 @@ export function Sidebar() {
 					{sidebarOpen && "Tools"}
 				</SidebarLink>
 
-				<SidebarLink to="/system" icon={<Activity size={20} />}>
-					{sidebarOpen && "System"}
+				<SidebarLink to="/runtime" icon={<Activity size={20} />}>
+					{sidebarOpen && "Runtime"}
 				</SidebarLink>
 
 				<div className="mt-auto">

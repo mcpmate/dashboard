@@ -285,3 +285,98 @@ export interface BatchOperationResponse {
   successful_ids: string[];
   failed_ids: Record<string, string>;
 }
+
+// Runtime Types
+export interface RuntimeStatusItem {
+  runtime_type: string;
+  available: boolean;
+  path?: string | null;
+  version?: string | null;
+  message: string;
+}
+
+export interface RuntimeStatusResponse {
+  uv: RuntimeStatusItem;
+  bun: RuntimeStatusItem;
+}
+
+export interface RuntimeCacheItem {
+  path: string;
+  size_bytes: number;
+  package_count: number;
+  last_modified?: string | null;
+}
+
+export interface RuntimeCacheSummaryInfo {
+  total_size_bytes: number;
+  last_cleanup?: string | null;
+}
+
+export interface RuntimeCacheResponse {
+  summary: RuntimeCacheSummaryInfo;
+  uv: RuntimeCacheItem;
+  bun: RuntimeCacheItem;
+}
+
+export interface InstallRuntimeRequest {
+  runtime_type: string; // "uv" | "bun"
+  version?: string;
+  timeout?: number;
+  max_retries?: number;
+  verbose?: boolean;
+  interactive?: boolean;
+}
+
+export interface InstallResponse {
+  success: boolean;
+  message: string;
+  runtime_type: string;
+}
+
+export interface ClearCacheResponse {
+  success: boolean;
+}
+
+// Capabilities Cache Types
+export interface CapabilitiesStorageTables {
+  servers: number;
+  tools: number;
+  resources: number;
+  prompts: number;
+  resourceTemplates: number;
+}
+
+export interface CapabilitiesStorageStats {
+  db_path: string;
+  cache_size_bytes: number;
+  tables: CapabilitiesStorageTables;
+  last_cleanup?: string | null;
+}
+
+export interface CapabilitiesMetricsStats {
+  totalQueries: number;
+  cacheHits: number;
+  cacheMisses: number;
+  hitRatio: number;
+  readOperations: number;
+  writeOperations: number;
+  cacheInvalidations: number;
+}
+
+export interface CapabilitiesStatsResponse {
+  storage: CapabilitiesStorageStats;
+  metrics: CapabilitiesMetricsStats;
+  generatedAt: string;
+}
+
+export interface CapabilitiesKeyItem {
+  key: string;
+  serverId: string;
+  approxValueSizeBytes: number;
+  cachedAt?: string;
+}
+
+export interface CapabilitiesKeysResponse {
+  keys: CapabilitiesKeyItem[];
+  total: number;
+}

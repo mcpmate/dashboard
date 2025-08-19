@@ -8,11 +8,11 @@ import { ConfigSuitDetailPage } from "./pages/config/config-suit-detail-page";
 import { DashboardPage } from "./pages/dashboard/dashboard-page";
 import { ApiTestPage } from "./pages/debug/api-test-page";
 import { NotFoundPage } from "./pages/not-found-page";
+import { RuntimePage } from "./pages/runtime/runtime-page";
 import { InstanceDetailPage } from "./pages/servers/instance-detail-page";
 import { ServerDetailPage } from "./pages/servers/server-detail-page";
 import { ServerListPage } from "./pages/servers/server-list-page";
 import { SettingsPage } from "./pages/settings/settings-page";
-import { SystemPage } from "./pages/system/system-page";
 import { ToolsPage } from "./pages/tools/tools-page";
 
 // Initialize the query client
@@ -49,7 +49,7 @@ function App() {
 							element={<InstanceDetailPage />}
 						/>
 						<Route path="tools" element={<ToolsPage />} />
-						<Route path="system" element={<SystemPage />} />
+						<Route path="runtime" element={<RuntimePage />} />
 						<Route path="settings" element={<SettingsPage />} />
 						<Route path="debug/api-test" element={<ApiTestPage />} />
 						<Route path="404" element={<NotFoundPage />} />

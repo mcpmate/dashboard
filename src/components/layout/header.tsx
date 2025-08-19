@@ -9,6 +9,7 @@ const ROUTE_TITLES: Record<string, string> = {
 	"/config": "Config Suits",
 	"/servers": "Servers",
 	"/tools": "Tools",
+	"/runtime": "Runtime",
 	"/system": "System",
 	"/settings": "Settings",
 };
@@ -18,6 +19,7 @@ const MAIN_ROUTES = [
 	"/config",
 	"/servers",
 	"/tools",
+	"/runtime",
 	"/system",
 	"/settings",
 ];
