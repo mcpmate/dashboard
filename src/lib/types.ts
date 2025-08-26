@@ -23,7 +23,7 @@ export interface InstanceSummary {
   startTime?: string;
   started_at?: string;
   startedAt?: string;
-  lastResponseAt?: any;
+  lastResponseAt?: unknown;
 }
 
 export interface ServerDetail extends ServerSummary {
@@ -88,7 +88,7 @@ export interface Tool {
 }
 
 export interface ToolDetail extends Tool {
-  configuration: Record<string, any>;
+  configuration: Record<string, unknown>;
 }
 
 export interface SystemStatus {
@@ -162,7 +162,7 @@ export interface MCPToolConfig {
   name: string;
   server_name: string;
   is_enabled: boolean; // Keep this field name for consistency with API
-  settings?: Record<string, any>;
+  settings?: Record<string, unknown>;
 }
 
 export interface GlobalSettings {
@@ -379,4 +379,44 @@ export interface CapabilitiesKeyItem {
 export interface CapabilitiesKeysResponse {
   keys: CapabilitiesKeyItem[];
   total: number;
+}
+
+// --------------------
+// OpenAPI Wrapped Responses (RPC-style)
+// --------------------
+
+export interface ServerListResp {
+  data?: { servers: ServerDetail[] } | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface ServerDetailsResp {
+  data?: ServerDetail | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface InstanceListResp {
+  data?: { name: string; instances: InstanceSummary[] } | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface InstanceDetailsResp {
+  data?: InstanceDetail | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface InstanceHealthResp {
+  data?: InstanceHealth | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface OperationResponseResp {
+  data?: OperationResponse | null;
+  error?: unknown | null;
+  success: boolean;
 }

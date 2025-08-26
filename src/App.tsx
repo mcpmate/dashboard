@@ -6,7 +6,7 @@ import { ConfigPage } from "./pages/config/config-page";
 import { ConfigPresetPage } from "./pages/config/config-preset-page";
 import { ConfigSuitDetailPage } from "./pages/config/config-suit-detail-page";
 import { DashboardPage } from "./pages/dashboard/dashboard-page";
-import { ApiTestPage } from "./pages/debug/api-test-page";
+
 import { NotFoundPage } from "./pages/not-found-page";
 import { RuntimePage } from "./pages/runtime/runtime-page";
 import { InstanceDetailPage } from "./pages/servers/instance-detail-page";
@@ -51,7 +51,7 @@ function App() {
 						<Route path="tools" element={<ToolsPage />} />
 						<Route path="runtime" element={<RuntimePage />} />
 						<Route path="settings" element={<SettingsPage />} />
-						<Route path="debug/api-test" element={<ApiTestPage />} />
+
 						<Route path="404" element={<NotFoundPage />} />
 						<Route path="*" element={<Navigate to="/404" replace />} />
 					</Route>

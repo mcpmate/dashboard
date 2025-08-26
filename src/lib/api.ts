@@ -1,5 +1,6 @@
 import type {
-	ApiResponse, BatchOperationResponse,
+	ApiResponse,
+	BatchOperationResponse,
 	CapabilitiesKeysResponse,
 	CapabilitiesStatsResponse,
 	ClearCacheResponse,
@@ -14,18 +15,25 @@ import type {
 	InstallResponse,
 	InstallRuntimeRequest,
 	InstanceDetail,
+	InstanceDetailsResp,
 	InstanceHealth,
+	InstanceHealthResp,
+	InstanceListResp,
 	InstanceSummary,
 	MCPConfig,
 	MCPServerConfig,
+	OperationResponseResp,
 	RuntimeCacheResponse,
 	RuntimeStatusResponse,
 	ServerDetail,
+	ServerDetailsResp,
+	// OpenAPI wrapped response types
+	ServerListResp,
 	ServerListResponse,
-	ServerSummary,
 	SystemMetrics,
-	SystemStatus, ToolDetail,
-	UpdateConfigSuitRequest
+	SystemStatus,
+	ToolDetail,
+	UpdateConfigSuitRequest,
 } from "./types";
 
 // Base API URL - in a real app, this would be in an environment variable
@@ -53,21 +61,42 @@ async function fetchApi<T>(
 		if (!response.ok) {
 			// Try to parse error response
 			const errorText = await response.text();
-			let errorObj: any = {};
+			let parsed: unknown;
 
 			try {
-				errorObj = JSON.parse(errorText);
-				console.error(`API Error (${response.status}):`, errorObj);
+				parsed = JSON.parse(errorText);
+				console.error(`API Error (${response.status}):`, parsed);
 			} catch (_e) {
 				// If not JSON, use the original text
 				console.error(`API Error (${response.status}):`, errorText);
 			}
 
-			throw new Error(
-				errorObj.message ||
-					errorObj.error?.message ||
-					`API Error: ${response.status} ${response.statusText}`,
-			);
+			const message = (() => {
+				if (
+					parsed &&
+					typeof parsed === "object" &&
+					"message" in (parsed as Record<string, unknown>) &&
+					typeof (parsed as Record<string, unknown>).message === "string"
+				) {
+					return (parsed as Record<string, unknown>).message as string;
+				}
+				if (
+					parsed &&
+					typeof parsed === "object" &&
+					"error" in (parsed as Record<string, unknown>) &&
+					typeof (parsed as { error?: { message?: unknown } }).error
+						?.message === "string"
+				) {
+					const err = parsed as { error?: { message?: unknown } };
+					return (
+						(err.error?.message as string) ??
+						`API Error: ${response.status} ${response.statusText}`
+					);
+				}
+				return `API Error: ${response.status} ${response.statusText}`;
+			})();
+
+			throw new Error(message);
 		}
 
 		const data = await response.json();
@@ -84,111 +113,14 @@ export const serversApi = {
 	// Get all servers
 	getAll: async (): Promise<ServerListResponse> => {
 		try {
-			const response = await fetchApi<ServerListResponse>("/api/mcp/servers");
-
-			// 确保响应数据结构匹配 ServerListResponse
-			if (!response || !response.servers) {
-				// 如果不匹配，构造一个符合预期的响应格式
-				console.warn(
-					"API response doesn't match expected format, normalizing:",
-					response,
-				);
-				return {
-					servers: Array.isArray(response)
-						? (response as any[]).map((obj) => ({
-								id:
-									obj.id ??
-									obj.name ??
-									`server-${Math.random().toString(36).slice(2, 9)}`,
-								name: obj.name ?? "unknown",
-								status: obj.status ?? "unknown",
-								kind: obj.kind ?? obj.server_type ?? "unknown",
-								instance_count:
-									obj.instance_count ??
-									(Array.isArray(obj.instances) ? obj.instances.length : 0),
-								instances: Array.isArray(obj.instances) ? obj.instances : [],
-								enabled: obj.enabled,
-								globally_enabled: obj.globally_enabled,
-								enabled_in_suits: obj.enabled_in_suits,
-							}))
-						: response &&
-								typeof response === "object" &&
-								Object.keys(response).length
-							? [
-									{
-										id:
-											(response as any).id ??
-											(response as any).name ??
-											`server-${Math.random().toString(36).slice(2, 9)}`,
-										name: (response as any).name ?? "unknown",
-										status: (response as any).status ?? "unknown",
-										kind:
-											(response as any).kind ??
-											(response as any).server_type ??
-											"unknown",
-										instance_count:
-											(response as any).instance_count ??
-											(Array.isArray((response as any).instances)
-												? (response as any).instances.length
-												: 0),
-										instances: Array.isArray((response as any).instances)
-											? (response as any).instances
-											: [],
-										enabled: (response as any).enabled,
-										globally_enabled: (response as any).globally_enabled,
-										enabled_in_suits: (response as any).enabled_in_suits,
-									},
-								]
-							: [],
-				};
-			}
-
-			// 确保所有服务器对象都有有效的状态值和其他必要字段
-			const normalizedServers = response.servers.map((server) => ({
-				...server,
-				id:
-					server.id ||
-					server.name ||
-					`server-${Math.random().toString(36).substring(2, 9)}`,
-				name:
-					server.name || `server-${Math.random().toString(36).substring(2, 9)}`,
-				status: server.status || "unknown",
-				kind: server.kind || server.server_type || "unknown",
-				instance_count: server.instance_count || 0,
-				// 确保 instances 数组存在并包含实例状态
-				instances: server.instances || [],
-			}));
-
-			// 尝试为没有实例数据的服务器获取实例
-			for (let i = 0; i < normalizedServers.length; i++) {
-				const server = normalizedServers[i];
-				if (!server.instances || server.instances.length === 0) {
-					try {
-						// 获取服务器详情以获取实例
-						if (server.instance_count && server.instance_count > 0) {
-							console.log(
-								`Fetching instances for server ${server.name} (ID: ${server.id})`,
-							);
-							const serverDetail = await fetchApi<ServerDetail>(
-								`/api/mcp/servers/${server.id}`,
-							);
-							if (serverDetail.instances && serverDetail.instances.length > 0) {
-								normalizedServers[i].instances = serverDetail.instances;
-							}
-						}
-					} catch (err) {
-						console.warn(
-							`Failed to fetch instances for server ${server.name} (ID: ${server.id}):`,
-							err,
-						);
-					}
-				}
-			}
-
-			return { servers: normalizedServers };
+			// RPC style endpoint: GET /mcp/servers/list
+			const resp = await fetchApi<ServerListResp>("/api/mcp/servers/list");
+			const servers = Array.isArray(resp?.data?.servers)
+				? resp.data.servers
+				: [];
+			return { servers };
 		} catch (error) {
 			console.error("Failed to fetch servers:", error);
-			// 返回一个空的响应结构而不是抛出错误，这样UI不会崩溃
 			return { servers: [] };
 		}
 	},
@@ -196,30 +128,39 @@ export const serversApi = {
 	// Get server details
 	getServer: async (id: string): Promise<ServerDetail> => {
 		try {
-			const response = await fetchApi<ServerDetail>(`/api/mcp/servers/${id}`);
-
-			// 确保 instances 数组存在
-			if (!response.instances) {
-				response.instances = [];
-			}
-
-			return response;
+			// RPC style endpoint: GET /mcp/servers/details?id=
+			const q = new URLSearchParams({ id });
+			const resp = await fetchApi<ServerDetailsResp>(
+				`/api/mcp/servers/details?${q.toString()}`,
+			);
+			const data = resp?.data;
+			const instances: InstanceSummary[] = Array.isArray(data?.instances)
+				? data?.instances
+				: [];
+			return {
+				id: data?.id ?? id,
+				name: data?.name ?? id,
+				status: data?.status ?? "unknown",
+				kind: data?.kind ?? data?.server_type ?? "unknown",
+				instances,
+				command: data?.command ?? undefined,
+				args: data?.args ?? undefined,
+				env: data?.env ?? undefined,
+			};
 		} catch (error) {
 			console.error(`Error fetching server details for ${id}:`, error);
-			// 返回一个基本的空服务器详情对象而不是抛出错误
-			return {
-				id,
-				name: id,
-				status: "error",
-				kind: "unknown",
-				instances: [],
-			};
+			return { id, name: id, status: "error", kind: "unknown", instances: [] };
 		}
 	},
 
 	// Get all instances for a server
-	getInstances: (serverId: string) =>
-		fetchApi<InstanceSummary[]>(`/api/mcp/servers/${serverId}/instances`),
+	getInstances: async (serverId: string) => {
+		const q = new URLSearchParams({ id: serverId });
+		const resp = await fetchApi<InstanceListResp>(
+			`/api/mcp/servers/instances/list?${q.toString()}`,
+		);
+		return (resp?.data?.instances as InstanceSummary[]) ?? [];
+	},
 
 	// Get instance details
 	getInstance: async (
@@ -227,18 +168,19 @@ export const serversApi = {
 		instanceId: string,
 	): Promise<InstanceDetail> => {
 		try {
-			const response = await fetchApi<InstanceDetail>(
-				`/api/mcp/servers/${serverId}/instances/${instanceId}`,
+			// RPC style: GET /mcp/servers/instances/details?server=&instance=
+			const q = new URLSearchParams({ server: serverId, instance: instanceId });
+			const resp = await fetchApi<InstanceDetailsResp>(
+				`/api/mcp/servers/instances/details?${q.toString()}`,
 			);
-
-			// 确保响应包含必要的字段
+			const data = resp?.data;
 			return {
-				id: response.id || instanceId,
-				name: response.name || instanceId,
-				server_name: response.server_name || serverId,
-				status: response.status || "unknown",
-				allowed_operations: response.allowed_operations || [],
-				details: response.details || {
+				id: data?.id ?? instanceId,
+				name: data?.name ?? instanceId,
+				server_name: data?.server_name ?? serverId,
+				status: data?.status ?? "unknown",
+				allowed_operations: data?.allowed_operations ?? [],
+				details: data?.details ?? {
 					connection_attempts: 0,
 					tools_count: 0,
 					server_type: "unknown",
@@ -249,7 +191,6 @@ export const serversApi = {
 				`Error fetching instance details for ${serverId}/${instanceId}:`,
 				error,
 			);
-			// 返回一个基本的实例详情对象而不是抛出错误
 			return {
 				id: instanceId,
 				name: instanceId,
@@ -260,73 +201,80 @@ export const serversApi = {
 					connection_attempts: 0,
 					tools_count: 0,
 					server_type: "unknown",
-					error_message: error instanceof Error ? error.message : String(error),
+					error_message:
+						error instanceof Error ? (error as Error).message : String(error),
 				},
 			};
 		}
 	},
 
 	// Check instance health
-	getInstanceHealth: (serverId: string, instanceId: string) =>
-		fetchApi<InstanceHealth>(
-			`/api/mcp/servers/${serverId}/instances/${instanceId}/health`,
-		),
+	getInstanceHealth: async (serverId: string, instanceId: string) => {
+		const q = new URLSearchParams({ server: serverId, instance: instanceId });
+		const resp = await fetchApi<InstanceHealthResp>(
+			`/api/mcp/servers/instances/health?${q.toString()}`,
+		);
+		return (
+			(resp?.data as InstanceHealth) ?? {
+				id: instanceId,
+				name: instanceId,
+				healthy: false,
+				message: "No data",
+				status: "unknown",
+				checked_at: new Date().toISOString(),
+			}
+		);
+	},
+
+	// Internal helper to manage instance via RPC manage endpoint
+	_manageInstance: (
+		serverId: string,
+		instanceId: string,
+		action:
+			| "Disconnect"
+			| "ForceDisconnect"
+			| "Reconnect"
+			| "ResetReconnect"
+			| "Recover"
+			| "Cancel",
+	) =>
+		fetchApi<OperationResponseResp>(`/api/mcp/servers/instances/manage`, {
+			method: "POST",
+			body: JSON.stringify({ server: serverId, instance: instanceId, action }),
+		}),
 
 	// Disconnect instance
 	disconnectInstance: (serverId: string, instanceId: string) =>
-		fetchApi<ApiResponse<null>>(
-			`/api/mcp/servers/${serverId}/instances/${instanceId}/disconnect`,
-			{
-				method: "POST",
-			},
-		),
+		serversApi._manageInstance(serverId, instanceId, "Disconnect"),
 
 	// Force disconnect instance
 	forceDisconnectInstance: (serverId: string, instanceId: string) =>
-		fetchApi<ApiResponse<null>>(
-			`/api/mcp/servers/${serverId}/instances/${instanceId}/disconnect/force`,
-			{
-				method: "POST",
-			},
-		),
+		serversApi._manageInstance(serverId, instanceId, "ForceDisconnect"),
 
 	// Reconnect instance
 	reconnectInstance: (serverId: string, instanceId: string) =>
-		fetchApi<ApiResponse<null>>(
-			`/api/mcp/servers/${serverId}/instances/${instanceId}/reconnect`,
-			{
-				method: "POST",
-			},
-		),
+		serversApi._manageInstance(serverId, instanceId, "Reconnect"),
 
 	// Reset and reconnect instance
 	resetAndReconnectInstance: (serverId: string, instanceId: string) =>
-		fetchApi<ApiResponse<null>>(
-			`/api/mcp/servers/${serverId}/instances/${instanceId}/reconnect/reset`,
-			{
-				method: "POST",
-			},
-		),
+		serversApi._manageInstance(serverId, instanceId, "ResetReconnect"),
 
 	// Cancel initializing instance
 	cancelInstance: (serverId: string, instanceId: string) =>
-		fetchApi<ApiResponse<null>>(
-			`/api/mcp/servers/${serverId}/instances/${instanceId}/cancel`,
-			{
-				method: "POST",
-			},
-		),
+		serversApi._manageInstance(serverId, instanceId, "Cancel"),
 
 	// The following are new server management features (mock implementation)
 
 	// Enable server
 	enableServer: async (serverId: string, sync?: boolean) => {
 		try {
-			const url = sync
-				? `/api/mcp/servers/${serverId}/enable?sync=true`
-				: `/api/mcp/servers/${serverId}/enable`;
-			return await fetchApi<ApiResponse<null>>(url, {
+			return await fetchApi<ApiResponse<null>>("/api/mcp/servers/manage", {
 				method: "POST",
+				body: JSON.stringify({
+					id: serverId,
+					action: "Enable",
+					sync: sync || false
+				}),
 			});
 		} catch (error) {
 			console.warn("API not available, using mock implementation:", error);
@@ -341,11 +289,13 @@ export const serversApi = {
 	// Disable server
 	disableServer: async (serverId: string, sync?: boolean) => {
 		try {
-			const url = sync
-				? `/api/mcp/servers/${serverId}/disable?sync=true`
-				: `/api/mcp/servers/${serverId}/disable`;
-			return await fetchApi<ApiResponse<null>>(url, {
+			return await fetchApi<ApiResponse<null>>("/api/mcp/servers/manage", {
 				method: "POST",
+				body: JSON.stringify({
+					id: serverId,
+					action: "Disable",
+					sync: sync || false
+				}),
 			});
 		} catch (error) {
 			console.warn("API not available, using mock implementation:", error);
@@ -360,12 +310,13 @@ export const serversApi = {
 	// Reconnect all instances of a server
 	reconnectAllInstances: async (serverId: string) => {
 		try {
-			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/servers/${serverId}/reconnect`,
-				{
-					method: "POST",
-				},
-			);
+			return await fetchApi<ApiResponse<null>>("/api/mcp/servers/manage", {
+				method: "POST",
+				body: JSON.stringify({
+					id: serverId,
+					action: "Reconnect"
+				}),
+			});
 		} catch (error) {
 			console.warn("API not available, using mock implementation:", error);
 			// Simulate successful response
@@ -376,74 +327,69 @@ export const serversApi = {
 		}
 	},
 
-	// Create new server
+	// Create new server (RPC: POST /mcp/servers/create)
 	createServer: async (serverConfig: Partial<MCPServerConfig>) => {
 		try {
-			return await fetchApi<ApiResponse<ServerSummary>>(`/api/mcp/servers`, {
+			const sc = serverConfig as { url?: string; enabled?: boolean };
+			const body: Record<string, unknown> = {
+				name: serverConfig.name,
+				kind: serverConfig.kind,
+				command: serverConfig.command ?? null,
+				args: serverConfig.args ?? null,
+				env: serverConfig.env ?? null,
+				url: sc.url ?? null,
+				enabled: sc.enabled ?? null,
+			};
+			return await fetchApi<ServerDetailsResp>(`/api/mcp/servers/create`, {
 				method: "POST",
-				body: JSON.stringify(serverConfig),
+				body: JSON.stringify(body),
 			});
 		} catch (error) {
-			console.warn("API not available, using mock implementation:", error);
-			// Simulate successful response
-			const mockServer: ServerSummary = {
-				id: `server-${Date.now()}`,
-				name: serverConfig.name || `server-${Date.now()}`,
-				kind: serverConfig.kind || "stdio",
-				status: "initializing",
-				instance_count: 0,
-			};
-			return {
-				status: "success",
-				message: `Server ${mockServer.name} created successfully (mock)`,
-				data: mockServer,
-			};
+			console.warn("Create server failed:", error);
+			throw error;
 		}
 	},
 
-	// Update server configuration
+	// Update server configuration (RPC: POST /mcp/servers/update)
 	updateServer: async (
 		serverId: string,
 		serverConfig: Partial<MCPServerConfig>,
 	) => {
 		try {
-			return await fetchApi<ApiResponse<ServerSummary>>(
-				`/api/mcp/servers/${serverId}`,
-				{
-					method: "PUT",
-					body: JSON.stringify(serverConfig),
-				},
-			);
-		} catch (error) {
-			console.warn("API not available, using mock implementation:", error);
-			// Simulate successful response
-			return {
-				status: "success",
-				message: `Server ${serverId} updated successfully (mock)`,
-				data: {
-					id: serverId,
-					name: serverConfig.name || serverId,
-					kind: serverConfig.kind || "stdio",
-					status: "connected",
-					instance_count: 1,
-				},
+			const sc = serverConfig as { url?: string; enabled?: boolean };
+			const body: Record<string, unknown> = {
+				id: serverId,
+				// Note: name field is not supported in update operation
+				kind: serverConfig.kind ?? null,
+				command: serverConfig.command ?? null,
+				args: serverConfig.args ?? null,
+				env: serverConfig.env ?? null,
+				url: sc.url ?? null,
+				enabled: sc.enabled ?? null,
 			};
+			console.log("Sending update request:", body);
+			const result = await fetchApi<ServerDetailsResp>(`/api/mcp/servers/update`, {
+				method: "POST",
+				body: JSON.stringify(body),
+			});
+			console.log("Update response:", result);
+			return result;
+		} catch (error) {
+			console.warn(`Update server failed for ${serverId}:`, error);
+			throw error;
 		}
 	},
 
-	// Delete server
+	// Delete server (RPC: DELETE /mcp/servers/delete with JSON body)
 	deleteServer: async (serverId: string) => {
 		try {
-			return await fetchApi<ApiResponse<null>>(`/api/mcp/servers/${serverId}`, {
+			return await fetchApi<ServerDetailsResp>(`/api/mcp/servers/delete`, {
 				method: "DELETE",
+				body: JSON.stringify({ id: serverId }),
 			});
 		} catch (error) {
-			console.warn("API not available, using mock implementation:", error);
-			// Simulate successful response
-			return {
-				status: "success",
-				message: `Server ${serverId} deleted successfully (mock)`,
-			};
+			console.warn(`Delete server failed for ${serverId}:`, error);
+			throw error;
 		}
 	},
 };
@@ -470,8 +416,9 @@ export const toolsApi = {
 				const activeSuitId = suitsResponse.suits[0].id;
 				try {
 					// 获取配置套件中的工具列表
+					const q = new URLSearchParams({ suit_id: activeSuitId });
 					const suitToolsResponse = await fetchApi<{ tools: SuitTool[] }>(
-						`/api/mcp/suits/${activeSuitId}/tools`,
+						`/api/mcp/suits/tools/list?${q.toString()}`,
 					);
 					if (suitToolsResponse?.tools) {
 						// 将后端返回的工具数组转换为前端期望的格式
@@ -521,11 +468,11 @@ export const toolsApi = {
 			// 将后端返回的数组转换为前端期望的格式
 			const tools = response.map((tool) => {
 				// 确定服务器名称
-				let serverName = tool.server_name || "";
+				let serverName = tool.server_name;
 
 				// 如果没有直接的 server_name，尝试从描述中提取
-				if (!serverName && tool.description) {
-					serverName = tool.description.includes("server '")
+				if (!serverName && tool.description?.includes("server '")) {
+					serverName = tool.description
 						? tool.description.split("server '")[1].split("'")[0]
 						: "";
 				}
@@ -557,7 +504,7 @@ export const toolsApi = {
 	getSuits: async () => {
 		try {
 			return await fetchApi<{ suits: { id: string; name: string }[] }>(
-				"/api/mcp/suits",
+				"/api/mcp/suits/list",
 			);
 		} catch (error) {
 			console.error("Failed to fetch suits:", error);
@@ -569,7 +516,7 @@ export const toolsApi = {
 	getSuitTools: async (suitId: string) => {
 		try {
 			return await fetchApi<{ tools: SuitTool[] }>(
-				`/api/mcp/suits/${suitId}/tools`,
+				`/api/mcp/suits/tools/list?suit_id=${suitId}`,
 			);
 		} catch (error) {
 			console.error(`Failed to fetch tools for suit ${suitId}:`, error);
@@ -598,11 +545,16 @@ export const toolsApi = {
 	// Enable tool
 	enableTool: async (suitId: string, suitToolId: string) => {
 		try {
-			// 使用正确的 API 端点
+			// 使用新的 API 端点
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/tools/${suitToolId}/enable`,
+				"/api/mcp/suits/tools/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						tool_id: suitToolId,
+						action: "Enable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -621,11 +573,16 @@ export const toolsApi = {
 	// Disable tool
 	disableTool: async (suitId: string, suitToolId: string) => {
 		try {
-			// 使用正确的 API 端点
+			// 使用新的 API 端点
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/tools/${suitToolId}/disable`,
+				"/api/mcp/suits/tools/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						tool_id: suitToolId,
+						action: "Disable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -678,30 +635,30 @@ export const runtimeApi = {
 
 // Capabilities Cache API
 export const capabilitiesApi = {
-  // Get capabilities cache stats view
-  getStats: () =>
-    fetchApi<CapabilitiesStatsResponse>(
-      "/api/cache/capabilities/details?view=stats",
-    ),
+	// Get capabilities cache stats view
+	getStats: () =>
+		fetchApi<CapabilitiesStatsResponse>(
+			"/api/cache/capabilities/details?view=stats",
+		),
 
-  // Get capabilities cache keys view
-  getKeys: (params?: { limit?: number; offset?: number; search?: string }) => {
-    const q = new URLSearchParams();
-    q.set("view", "keys");
-    if (params?.limit != null) q.set("limit", String(params.limit));
-    if (params?.offset != null) q.set("offset", String(params.offset));
-    if (params?.search) q.set("search", params.search);
-    const qs = q.toString();
-    return fetchApi<CapabilitiesKeysResponse>(
-      `/api/cache/capabilities/details${qs ? `?${qs}` : ""}`,
-    );
-  },
+	// Get capabilities cache keys view
+	getKeys: (params?: { limit?: number; offset?: number; search?: string }) => {
+		const q = new URLSearchParams();
+		q.set("view", "keys");
+		if (params?.limit != null) q.set("limit", String(params.limit));
+		if (params?.offset != null) q.set("offset", String(params.offset));
+		if (params?.search) q.set("search", params.search);
+		const qs = q.toString();
+		return fetchApi<CapabilitiesKeysResponse>(
+			`/api/cache/capabilities/details${qs ? `?${qs}` : ""}`,
+		);
+	},
 
-  // Reset capabilities cache
-  reset: () =>
-    fetchApi<ClearCacheResponse>("/api/cache/capabilities/reset", {
-      method: "POST",
-    }),
+	// Reset capabilities cache
+	reset: () =>
+		fetchApi<ClearCacheResponse>("/api/cache/capabilities/reset", {
+			method: "POST",
+		}),
 };
 
 // 导入全局设置类型
@@ -749,11 +706,7 @@ export const configApi = {
 			// Try to fetch servers
 			try {
 				const serversResponse = await serversApi.getAll();
-				if (
-					serversResponse &&
-					serversResponse.servers &&
-					Array.isArray(serversResponse.servers)
-				) {
+				if (Array.isArray(serversResponse?.servers)) {
 					// 创建符合 MCPServerConfig 类型的服务器配置
 					config.servers = serversResponse.servers.map((server) => {
 						// 确保 kind 是有效的枚举值
@@ -787,14 +740,10 @@ export const configApi = {
 			// Try to fetch tools
 			try {
 				const toolsResponse = await toolsApi.getAll();
-				if (
-					toolsResponse &&
-					toolsResponse.tools &&
-					Array.isArray(toolsResponse.tools)
-				) {
+				if (Array.isArray(toolsResponse?.tools)) {
 					config.tools = toolsResponse.tools.map((tool) => ({
 						name: tool.tool_name,
-						server_name: tool.server_name,
+						server_name: tool.server_name ?? "",
 						is_enabled: tool.is_enabled,
 						settings: {},
 					}));
@@ -963,7 +912,7 @@ export const configSuitsApi = {
 	// Get all config suits
 	getAll: async (): Promise<ConfigSuitListResponse> => {
 		try {
-			return await fetchApi<ConfigSuitListResponse>("/api/mcp/suits");
+			return await fetchApi<ConfigSuitListResponse>("/api/mcp/suits/list");
 		} catch (error) {
 			console.error("Failed to fetch config suits:", error);
 			return { suits: [] };
@@ -973,7 +922,8 @@ export const configSuitsApi = {
 	// Get specific config suit
 	getSuit: async (id: string): Promise<ConfigSuit> => {
 		try {
-			return await fetchApi<ConfigSuit>(`/api/mcp/suits/${id}`);
+			const q = new URLSearchParams({ id });
+			return await fetchApi<ConfigSuit>(`/api/mcp/suits/details?${q.toString()}`);
 		} catch (error) {
 			console.error(`Failed to fetch config suit ${id}:`, error);
 			throw error;
@@ -985,7 +935,7 @@ export const configSuitsApi = {
 		data: CreateConfigSuitRequest,
 	): Promise<ApiResponse<ConfigSuit>> => {
 		try {
-			return await fetchApi<ApiResponse<ConfigSuit>>("/api/mcp/suits", {
+			return await fetchApi<ApiResponse<ConfigSuit>>("/api/mcp/suits/create", {
 				method: "POST",
 				body: JSON.stringify(data),
 			});
@@ -1001,9 +951,9 @@ export const configSuitsApi = {
 		data: UpdateConfigSuitRequest,
 	): Promise<ApiResponse<ConfigSuit>> => {
 		try {
-			return await fetchApi<ApiResponse<ConfigSuit>>(`/api/mcp/suits/${id}`, {
-				method: "PUT",
-				body: JSON.stringify(data),
+			return await fetchApi<ApiResponse<ConfigSuit>>("/api/mcp/suits/update", {
+				method: "POST",
+				body: JSON.stringify({ id, ...data }),
 			});
 		} catch (error) {
 			console.error(`Failed to update config suit ${id}:`, error);
@@ -1014,8 +964,9 @@ export const configSuitsApi = {
 	// Delete config suit
 	deleteSuit: async (id: string): Promise<ApiResponse<null>> => {
 		try {
-			return await fetchApi<ApiResponse<null>>(`/api/mcp/suits/${id}`, {
+			return await fetchApi<ApiResponse<null>>("/api/mcp/suits/delete", {
 				method: "DELETE",
+				body: JSON.stringify({ id }),
 			});
 		} catch (error) {
 			console.error(`Failed to delete config suit ${id}:`, error);
@@ -1026,12 +977,10 @@ export const configSuitsApi = {
 	// Activate config suit
 	activateSuit: async (id: string): Promise<ApiResponse<null>> => {
 		try {
-			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${id}/activate`,
-				{
-					method: "POST",
-				},
-			);
+			return await fetchApi<ApiResponse<null>>("/api/mcp/suits/manage", {
+				method: "POST",
+				body: JSON.stringify({ id, action: "Activate" }),
+			});
 		} catch (error) {
 			console.error(`Failed to activate config suit ${id}:`, error);
 			throw error;
@@ -1041,12 +990,10 @@ export const configSuitsApi = {
 	// Deactivate config suit
 	deactivateSuit: async (id: string): Promise<ApiResponse<null>> => {
 		try {
-			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${id}/deactivate`,
-				{
-					method: "POST",
-				},
-			);
+			return await fetchApi<ApiResponse<null>>("/api/mcp/suits/manage", {
+				method: "POST",
+				body: JSON.stringify({ id, action: "Deactivate" }),
+			});
 		} catch (error) {
 			console.error(`Failed to deactivate config suit ${id}:`, error);
 			throw error;
@@ -1056,13 +1003,20 @@ export const configSuitsApi = {
 	// Batch activate config suits
 	batchActivate: async (ids: string[]): Promise<BatchOperationResponse> => {
 		try {
-			return await fetchApi<BatchOperationResponse>(
-				"/api/mcp/suits/batch/activate",
-				{
-					method: "POST",
-					body: JSON.stringify({ ids }),
-				},
+			// Note: This might need to be implemented as individual calls
+			// since the new API uses single suit management
+			const results = await Promise.allSettled(
+				ids.map(id => configSuitsApi.activateSuit(id))
 			);
+			const successful = results.filter(r => r.status === 'fulfilled').length;
+			const failed = results.filter(r => r.status === 'rejected').length;
+			return {
+				success_count: successful,
+				successful_ids: ids.slice(0, successful),
+				failed_ids: Object.fromEntries(
+					ids.slice(successful).map((id, i) => [id, `Batch operation failed`])
+				)
+			};
 		} catch (error) {
 			console.error("Failed to batch activate config suits:", error);
 			throw error;
@@ -1072,13 +1026,20 @@ export const configSuitsApi = {
 	// Batch deactivate config suits
 	batchDeactivate: async (ids: string[]): Promise<BatchOperationResponse> => {
 		try {
-			return await fetchApi<BatchOperationResponse>(
-				"/api/mcp/suits/batch/deactivate",
-				{
-					method: "POST",
-					body: JSON.stringify({ ids }),
-				},
+			// Note: This might need to be implemented as individual calls
+			// since the new API uses single suit management
+			const results = await Promise.allSettled(
+				ids.map(id => configSuitsApi.deactivateSuit(id))
 			);
+			const successful = results.filter(r => r.status === 'fulfilled').length;
+			const failed = results.filter(r => r.status === 'rejected').length;
+			return {
+				success_count: successful,
+				successful_ids: ids.slice(0, successful),
+				failed_ids: Object.fromEntries(
+					ids.slice(successful).map((id, i) => [id, `Batch operation failed`])
+				)
+			};
 		} catch (error) {
 			console.error("Failed to batch deactivate config suits:", error);
 			throw error;
@@ -1088,8 +1049,9 @@ export const configSuitsApi = {
 	// Get servers in config suit
 	getServers: async (suitId: string): Promise<ConfigSuitServersResponse> => {
 		try {
+			const q = new URLSearchParams({ suit_id: suitId });
 			return await fetchApi<ConfigSuitServersResponse>(
-				`/api/mcp/suits/${suitId}/servers`,
+				`/api/mcp/suits/servers/list?${q.toString()}`,
 			);
 		} catch (error) {
 			console.error(
@@ -1103,8 +1065,9 @@ export const configSuitsApi = {
 	// Get tools in config suit
 	getTools: async (suitId: string): Promise<ConfigSuitToolsResponse> => {
 		try {
+			const q = new URLSearchParams({ suit_id: suitId });
 			return await fetchApi<ConfigSuitToolsResponse>(
-				`/api/mcp/suits/${suitId}/tools`,
+				`/api/mcp/suits/tools/list?${q.toString()}`,
 			);
 		} catch (error) {
 			console.error(`Failed to fetch tools for config suit ${suitId}:`, error);
@@ -1117,8 +1080,10 @@ export const configSuitsApi = {
 		suitId: string,
 	): Promise<ConfigSuitResourcesResponse> => {
 		try {
+			// Note: Resources endpoint might not be available in new API
+			// This might need to be removed or updated based on actual API
 			return await fetchApi<ConfigSuitResourcesResponse>(
-				`/api/mcp/suits/${suitId}/resources`,
+				`/api/mcp/suits/resources/list?suit_id=${suitId}`,
 			);
 		} catch (error) {
 			console.error(
@@ -1132,8 +1097,10 @@ export const configSuitsApi = {
 	// Get prompts in config suit
 	getPrompts: async (suitId: string): Promise<ConfigSuitPromptsResponse> => {
 		try {
+			// Note: Prompts endpoint might not be available in new API
+			// This might need to be removed or updated based on actual API
 			return await fetchApi<ConfigSuitPromptsResponse>(
-				`/api/mcp/suits/${suitId}/prompts`,
+				`/api/mcp/suits/prompts/list?suit_id=${suitId}`,
 			);
 		} catch (error) {
 			console.error(
@@ -1151,9 +1118,14 @@ export const configSuitsApi = {
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/servers/${serverId}/enable`,
+				"/api/mcp/suits/servers/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						server_id: serverId,
+						action: "Enable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -1172,9 +1144,14 @@ export const configSuitsApi = {
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/servers/${serverId}/disable`,
+				"/api/mcp/suits/servers/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						server_id: serverId,
+						action: "Disable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -1193,9 +1170,14 @@ export const configSuitsApi = {
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/tools/${toolId}/enable`,
+				"/api/mcp/suits/tools/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						tool_id: toolId,
+						action: "Enable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -1214,9 +1196,14 @@ export const configSuitsApi = {
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/tools/${toolId}/disable`,
+				"/api/mcp/suits/tools/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						tool_id: toolId,
+						action: "Disable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -1229,15 +1216,21 @@ export const configSuitsApi = {
 	},
 
 	// Enable resource in config suit
+	// Note: Resource management might not be available in new API
 	enableResource: async (
 		suitId: string,
 		resourceId: string,
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/resources/${resourceId}/enable`,
+				"/api/mcp/suits/resources/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						resource_id: resourceId,
+						action: "Enable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -1250,15 +1243,21 @@ export const configSuitsApi = {
 	},
 
 	// Disable resource in config suit
+	// Note: Resource management might not be available in new API
 	disableResource: async (
 		suitId: string,
 		resourceId: string,
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/resources/${resourceId}/disable`,
+				"/api/mcp/suits/resources/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						resource_id: resourceId,
+						action: "Disable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -1271,15 +1270,21 @@ export const configSuitsApi = {
 	},
 
 	// Enable prompt in config suit
+	// Note: Prompt management might not be available in new API
 	enablePrompt: async (
 		suitId: string,
 		promptId: string,
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/prompts/${promptId}/enable`,
+				"/api/mcp/suits/prompts/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						prompt_id: promptId,
+						action: "Enable"
+					}),
 				},
 			);
 		} catch (error) {
@@ -1292,15 +1297,21 @@ export const configSuitsApi = {
 	},
 
 	// Disable prompt in config suit
+	// Note: Prompt management might not be available in new API
 	disablePrompt: async (
 		suitId: string,
 		promptId: string,
 	): Promise<ApiResponse<null>> => {
 		try {
 			return await fetchApi<ApiResponse<null>>(
-				`/api/mcp/suits/${suitId}/prompts/${promptId}/disable`,
+				"/api/mcp/suits/prompts/manage",
 				{
 					method: "POST",
+					body: JSON.stringify({
+						suit_id: suitId,
+						prompt_id: promptId,
+						action: "Disable"
+					}),
 				},
 			);
 		} catch (error) {

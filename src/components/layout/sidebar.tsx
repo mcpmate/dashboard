@@ -21,6 +21,12 @@ interface SidebarLinkProps {
 	children: React.ReactNode;
 }
 
+interface ExternalSidebarLinkProps {
+	href: string;
+	icon: React.ReactNode;
+	children: React.ReactNode;
+}
+
 function SidebarLink({ to, icon, children }: SidebarLinkProps) {
 	return (
 		<NavLink
@@ -38,6 +44,24 @@ function SidebarLink({ to, icon, children }: SidebarLinkProps) {
 			<span className="mr-3 h-5 w-5">{icon}</span>
 			<span>{children}</span>
 		</NavLink>
+	);
+}
+
+function ExternalSidebarLink({ href, icon, children }: ExternalSidebarLinkProps) {
+	return (
+		<a
+			href={href}
+			target="_blank"
+			rel="noopener noreferrer"
+			className={cn(
+				"flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+				"hover:bg-slate-200 dark:hover:bg-slate-800",
+				"text-slate-700 dark:text-slate-400",
+			)}
+		>
+			<span className="mr-3 h-5 w-5">{icon}</span>
+			<span>{children}</span>
+		</a>
 	);
 }
 
@@ -108,9 +132,9 @@ export function Sidebar() {
 				</SidebarLink>
 
 				<div className="mt-auto">
-					<SidebarLink to="/debug/api-test" icon={<Bug size={20} />}>
+					<ExternalSidebarLink href="http://127.0.0.1:8080/docs" icon={<Bug size={20} />}>
 						{sidebarOpen && "API Test"}
-					</SidebarLink>
+					</ExternalSidebarLink>
 
 					<SidebarLink to="/settings" icon={<Settings size={20} />}>
 						{sidebarOpen && "Settings"}

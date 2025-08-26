@@ -255,11 +255,18 @@ export function ServerListPage() {
 	// Handle update server
 	const handleUpdateServer = async (config: Partial<MCPServerConfig>) => {
 		if (editingServer) {
-			await updateServerMutation.mutateAsync({
-				serverId: editingServer.id,
-				config,
-			});
-			setEditingServer(null);
+			console.log("Updating server:", editingServer.id, "with config:", config);
+			try {
+				await updateServerMutation.mutateAsync({
+					serverId: editingServer.id,
+					config,
+				});
+				console.log("Server update successful");
+				setEditingServer(null);
+			} catch (error) {
+				console.error("Server update failed:", error);
+				throw error; // Re-throw to let the mutation handle it
+			}
 		}
 	};
 
@@ -541,6 +548,7 @@ export function ServerListPage() {
 					onSubmit={handleUpdateServer}
 					initialData={convertToMCPConfig(editingServer)}
 					title={`Edit Server: ${editingServer.name}`}
+					isEditing={true}
 				/>
 			)}
 

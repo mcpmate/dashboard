@@ -50,6 +50,7 @@ interface ServerFormDrawerProps {
 	initialData?: Partial<MCPServerConfig>;
 	title?: string;
 	submitLabel?: string;
+	isEditing?: boolean; // Add flag to indicate if this is an edit operation
 }
 
 export function ServerFormDrawer({
@@ -59,6 +60,7 @@ export function ServerFormDrawer({
 	initialData,
 	title = "Add Server",
 	submitLabel = "Save",
+	isEditing = false,
 }: ServerFormDrawerProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -101,7 +103,8 @@ export function ServerFormDrawer({
 		try {
 			// Convert form data to server configuration
 			const serverConfig: Partial<MCPServerConfig> = {
-				name: data.name,
+				// Only include name for new servers, not for updates
+				...(isEditing ? {} : { name: data.name }),
 				kind: data.kind,
 				command: data.command || undefined,
 				command_path: data.command_path || undefined,
@@ -121,6 +124,7 @@ export function ServerFormDrawer({
 				max_instances: data.max_instances || undefined,
 			};
 
+			console.log("Submitting server config:", serverConfig);
 			await onSubmit(serverConfig);
 			reset();
 			onClose();
@@ -166,9 +170,15 @@ export function ServerFormDrawer({
 									id="name"
 									{...register("name")}
 									placeholder="e.g., my-server"
+									disabled={isEditing} // Disable name editing for existing servers
 								/>
 								{errors.name && (
 									<p className="text-xs text-red-500">{errors.name.message}</p>
+								)}
+								{isEditing && (
+									<p className="text-xs text-gray-500">
+										Server name cannot be changed after creation
+									</p>
 								)}
 							</div>
 
