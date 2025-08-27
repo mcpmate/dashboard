@@ -2,12 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	Activity,
 	Check,
-	Play,
 	Plus,
 	RefreshCw,
 	Server,
 	Settings,
-	Square,
 	Wrench,
 } from "lucide-react";
 import { useState } from "react";
@@ -34,7 +32,6 @@ import type {
 export function ConfigPage() {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
-	const [selectedSuits, setSelectedSuits] = useState<string[]>([]);
 	const [isNewSuitDialogOpen, setIsNewSuitDialogOpen] = useState(false);
 
 	const {
@@ -133,44 +130,6 @@ export function ConfigPage() {
 		},
 	});
 
-	// Batch operations
-	const batchActivateMutation = useMutation({
-		mutationFn: configSuitsApi.batchActivate,
-		onSuccess: (response) => {
-			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Batch Activation Complete",
-				description: `Successfully activated ${response.success_count} config suits`,
-			});
-			setSelectedSuits([]);
-		},
-		onError: (error) => {
-			toast({
-				title: "Batch Activation Failed",
-				description: `Failed to activate config suits: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
-	});
-
-	const batchDeactivateMutation = useMutation({
-		mutationFn: configSuitsApi.batchDeactivate,
-		onSuccess: (response) => {
-			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Batch Deactivation Complete",
-				description: `Successfully deactivated ${response.success_count} config suits`,
-			});
-			setSelectedSuits([]);
-		},
-		onError: (error) => {
-			toast({
-				title: "Batch Deactivation Failed",
-				description: `Failed to deactivate config suits: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
-	});
 
 	// Handle individual suit toggle
 	const handleSuitToggle = (suit: ConfigSuit) => {
@@ -181,25 +140,6 @@ export function ConfigPage() {
 		}
 	};
 
-	// Handle suit selection for batch operations
-	const handleSuitSelection = (suitId: string, selected: boolean) => {
-		if (selected) {
-			setSelectedSuits((prev) => [...prev, suitId]);
-		} else {
-			setSelectedSuits((prev) => prev.filter((id) => id !== suitId));
-		}
-	};
-
-	// Handle select all / deselect all
-	const handleSelectAll = () => {
-		if (selectedSuits.length === suitsResponse?.suits.length) {
-			setSelectedSuits([]);
-		} else {
-			setSelectedSuits(
-				suitsResponse?.suits.map((suit: ConfigSuit) => suit.id) || [],
-			);
-		}
-	};
 
 	const suits = suitsResponse?.suits || [];
 	const activeSuits = suits.filter((suit: ConfigSuit) => suit.is_active);
@@ -406,34 +346,6 @@ export function ConfigPage() {
 									applications
 								</CardDescription>
 							</div>
-							<div className="flex gap-2">
-								{selectedSuits.length > 0 && (
-									<>
-										<Button
-											size="sm"
-											variant="outline"
-											onClick={() =>
-												batchActivateMutation.mutate(selectedSuits)
-											}
-											disabled={batchActivateMutation.isPending}
-										>
-											<Play className="mr-2 h-4 w-4" />
-											Activate Selected
-										</Button>
-										<Button
-											size="sm"
-											variant="outline"
-											onClick={() =>
-												batchDeactivateMutation.mutate(selectedSuits)
-											}
-											disabled={batchDeactivateMutation.isPending}
-										>
-											<Square className="mr-2 h-4 w-4" />
-											Deactivate Selected
-										</Button>
-									</>
-								)}
-							</div>
 						</div>
 					</CardHeader>
 					<CardContent>
@@ -453,112 +365,70 @@ export function ConfigPage() {
 								))}
 							</div>
 						) : suits.length > 0 ? (
-							<div className="space-y-6">
-								{/* Batch controls */}
-								<div className="flex items-center justify-between border-b pb-4">
-									<div className="flex items-center gap-2">
-										<input
-											type="checkbox"
-											checked={
-												selectedSuits.length === suits.length &&
-												suits.length > 0
-											}
-											onChange={handleSelectAll}
-											className="rounded"
-										/>
-										<span className="text-sm text-slate-600">
-											{selectedSuits.length > 0
-												? `${selectedSuits.length} selected`
-												: "Select all"}
+				<div className="space-y-4">
+					{suits.map((suit: ConfigSuit) => (
+						<div
+							key={suit.id}
+							className="flex items-center justify-between rounded-lg border p-4"
+						>
+							<div className="space-y-1">
+								<div className="flex items-center gap-2">
+									<h3 className="font-medium text-sm">
+										{suit.name
+											.split(" ")
+											.map(
+												(word: string) =>
+													word.charAt(0).toUpperCase() +
+													word.slice(1).toLowerCase(),
+											)
+											.join(" ")}
+									</h3>
+									<Badge
+										variant={suit.is_active ? "default" : "secondary"}
+									>
+										{suit.suit_type}
+									</Badge>
+									{suit.is_active && (
+										<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+											<Check className="mr-1 h-3 w-3" />
+											Active
 										</span>
-									</div>
-									{selectedSuits.length > 0 && (
-										<Button
-											size="sm"
-											variant="ghost"
-											onClick={() => setSelectedSuits([])}
-										>
-											Clear selection
-										</Button>
+									)}
+									{suit.is_default && (
+										<Badge variant="outline">Default</Badge>
 									)}
 								</div>
-
-								{/* Suits list */}
-								<div className="space-y-4">
-									{suits.map((suit: ConfigSuit) => (
-										<div
-											key={suit.id}
-											className="flex items-center justify-between rounded-lg border p-4"
-										>
-											<div className="flex items-center gap-3">
-												<input
-													type="checkbox"
-													checked={selectedSuits.includes(suit.id)}
-													onChange={(e) =>
-														handleSuitSelection(suit.id, e.target.checked)
-													}
-													className="rounded"
-												/>
-												<div className="space-y-1">
-													<div className="flex items-center gap-2">
-														<h3 className="font-medium text-sm">
-															{suit.name
-																.split(" ")
-																.map(
-																	(word: string) =>
-																		word.charAt(0).toUpperCase() +
-																		word.slice(1).toLowerCase(),
-																)
-																.join(" ")}
-														</h3>
-														<Badge
-															variant={suit.is_active ? "default" : "secondary"}
-														>
-															{suit.suit_type}
-														</Badge>
-														{suit.is_active && (
-															<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-																<Check className="mr-1 h-3 w-3" />
-																Active
-															</span>
-														)}
-														{suit.is_default && (
-															<Badge variant="outline">Default</Badge>
-														)}
-													</div>
-													{suit.description && (
-														<p className="text-sm text-slate-500">
-															{suit.description}
-														</p>
-													)}
-													<div className="flex items-center gap-4 text-xs text-slate-400">
-														<span>Priority: {suit.priority}</span>
-														<span>
-															Multi-select: {suit.multi_select ? "Yes" : "No"}
-														</span>
-													</div>
-												</div>
-											</div>
-											<div className="flex items-center gap-2">
-												<Switch
-													checked={suit.is_active}
-													onCheckedChange={() => handleSuitToggle(suit)}
-													disabled={
-														activateSuitMutation.isPending ||
-														deactivateSuitMutation.isPending
-													}
-												/>
-												<Link to={`/config/suits/${suit.id}`}>
-													<Button variant="outline" size="sm">
-														<Settings className="mr-2 h-4 w-4" />
-														Configure
-													</Button>
-												</Link>
-											</div>
-										</div>
-									))}
+								{suit.description && (
+									<p className="text-sm text-slate-500">
+										{suit.description}
+									</p>
+								)}
+								<div className="flex items-center gap-4 text-xs text-slate-400">
+									<span>Priority: {suit.priority}</span>
+									<span>
+										Multi-select: {suit.multi_select ? "Yes" : "No"}
+									</span>
 								</div>
 							</div>
+							<div className="flex items-center gap-2">
+								<Switch
+									checked={suit.is_active}
+									onCheckedChange={() => handleSuitToggle(suit)}
+									disabled={
+										activateSuitMutation.isPending ||
+										deactivateSuitMutation.isPending
+									}
+								/>
+								<Link to={`/config/suits/${suit.id}`}>
+									<Button variant="outline" size="sm">
+										<Settings className="mr-2 h-4 w-4" />
+										Configure
+									</Button>
+								</Link>
+							</div>
+						</div>
+					))}
+				</div>
 						) : (
 							<div className="text-center py-8">
 								<Settings className="mx-auto h-12 w-12 text-slate-400 mb-4" />
