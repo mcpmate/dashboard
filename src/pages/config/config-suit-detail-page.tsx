@@ -3,16 +3,28 @@ import {
 	Check,
 	Edit3,
 	FileText,
+	MoreHorizontal,
 	Play,
 	RefreshCw,
 	Server,
 	Square,
+	Trash2,
 	Wrench,
 	Zap,
 } from "lucide-react";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -22,6 +34,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import { Input } from "../../components/ui/input";
 import {
 	Select,
@@ -50,8 +69,10 @@ export function ConfigSuitDetailPage() {
 	const { suitId } = useParams<{ suitId: string }>();
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState("overview");
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	// Filters: servers
 	const [serverQuery, setServerQuery] = useState("");
 	const [serverStatus, setServerStatus] = useState<
@@ -189,6 +210,28 @@ export function ConfigSuitDetailPage() {
 			toast({
 				title: "Deactivation Failed",
 				description: `Failed to deactivate config suit: ${error instanceof Error ? error.message : String(error)}`,
+				variant: "destructive",
+			});
+		},
+	});
+
+	// Delete suit mutation
+	const deleteSuitMutation = useMutation({
+		mutationFn: () => {
+			if (!suitId) return Promise.reject("No suit ID");
+			return configSuitsApi.deleteSuit(suitId);
+		},
+		onSuccess: () => {
+			toast({
+				title: "Config Suit Deleted",
+				description: "Configuration suit has been successfully deleted",
+			});
+			navigate("/config");
+		},
+		onError: (error) => {
+			toast({
+				title: "Delete Failed",
+				description: `Failed to delete suit: ${error instanceof Error ? error.message : String(error)}`,
 				variant: "destructive",
 			});
 		},
@@ -422,52 +465,59 @@ export function ConfigSuitDetailPage() {
 						</div>
 					)}
 				</div>
-				<div className="flex gap-2">
-					<Button
-						onClick={handleRefreshAll}
-						disabled={isRefetchingSuit}
-						variant="outline"
-						size="sm"
-					>
-						<RefreshCw
-							className={`mr-2 h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`}
-						/>
-						Refresh
-					</Button>
-					{suit && (
-						<>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => setIsEditDialogOpen(true)}
-							>
-								<Edit3 className="mr-2 h-4 w-4" />
-								Edit
-							</Button>
-							<Button
-								onClick={handleSuitToggle}
-								disabled={
-									activateSuitMutation.isPending ||
-									deactivateSuitMutation.isPending
-								}
-								variant={suit.is_active ? "destructive" : "default"}
-								size="sm"
-							>
-								{suit.is_active ? (
-									<>
-										<Square className="mr-2 h-4 w-4" />
-										Deactivate
-									</>
-								) : (
-									<>
-										<Play className="mr-2 h-4 w-4" />
-										Activate
-									</>
-								)}
-							</Button>
-						</>
-					)}
-				</div>
+		<div className="flex gap-2">
+			{suit && (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="outline" size="sm">
+							<MoreHorizontal className="h-4 w-4" />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem
+							onClick={handleRefreshAll}
+							disabled={isRefetchingSuit}
+						>
+							<RefreshCw
+								className={`mr-2 h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`}
+							/>
+							Refresh
+						</DropdownMenuItem>
+						<DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
+							<Edit3 className="mr-2 h-4 w-4" />
+							Edit
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={handleSuitToggle}
+							disabled={
+								activateSuitMutation.isPending ||
+								deactivateSuitMutation.isPending
+							}
+						>
+							{suit.is_active ? (
+								<>
+									<Square className="mr-2 h-4 w-4" />
+									Deactivate
+								</>
+							) : (
+								<>
+									<Play className="mr-2 h-4 w-4" />
+									Activate
+								</>
+							)}
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							onClick={() => setIsDeleteDialogOpen(true)}
+							className="text-destructive focus:text-destructive"
+						>
+							<Trash2 className="mr-2 h-4 w-4" />
+							Delete
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
+		</div>
 			</div>
 
 			{!suitId ? (
@@ -1040,6 +1090,32 @@ export function ConfigSuitDetailPage() {
 					refetchSuit();
 				}}
 			/>
+
+			{/* Delete Confirmation Dialog */}
+			<AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Configuration Suit</AlertDialogTitle>
+						<AlertDialogDescription>
+							Are you sure you want to delete "{suit?.name}"? This action cannot be undone.
+							All associated configurations will be permanently removed.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								deleteSuitMutation.mutate();
+								setIsDeleteDialogOpen(false);
+							}}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							disabled={deleteSuitMutation.isPending}
+						>
+							{deleteSuitMutation.isPending ? "Deleting..." : "Delete"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

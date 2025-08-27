@@ -147,14 +147,42 @@ export interface MCPConfig {
   global_settings: GlobalSettings;
 }
 
+/**
+ * MCP服务器配置接口
+ *
+ * 服务器类型必须严格使用以下标准格式：
+ * - "stdio": 标准输入输出服务器
+ * - "sse": 服务器发送事件服务器
+ * - "streamable_http": 流式HTTP服务器
+ */
 export interface MCPServerConfig {
+  /** 服务器名称 */
   name: string;
+
+  /**
+   * 服务器类型
+   *
+   * 严格格式要求：只接受 "stdio" | "sse" | "streamable_http"
+   * 不接受任何变体格式
+   */
   kind: "stdio" | "sse" | "streamable_http";
+
+  /** 启动命令（stdio类型必填） */
   command?: string;
+
+  /** 命令路径 */
   command_path?: string;
+
+  /** 命令参数 */
   args?: string[];
+
+  /** 环境变量 */
   env?: Record<string, string>;
+
+  /** 最大实例数 */
   max_instances?: number;
+
+  /** 重试策略 */
   retry_policy?: RetryPolicy;
 }
 
@@ -177,6 +205,34 @@ export interface RetryPolicy {
   initial_delay_ms: number;
   max_delay_ms: number;
   backoff_multiplier: number;
+}
+
+/**
+ * 验证服务器类型格式
+ *
+ * @param kind 服务器类型字符串
+ * @returns 是否为有效的标准格式
+ */
+export function validateServerType(kind: string): kind is "stdio" | "sse" | "streamable_http" {
+  const validTypes = ["stdio", "sse", "streamable_http"] as const;
+  return validTypes.includes(kind as any);
+}
+
+/**
+ * 获取服务器类型格式错误提示
+ *
+ * @param invalidKind 无效的服务器类型
+ * @returns 详细的错误提示信息
+ */
+export function getServerTypeErrorMessage(invalidKind: string): string {
+  return `无效的服务器类型 '${invalidKind}'。
+
+正确的格式要求：
+- 使用 "stdio" (不是 "Stdio" 或其他变体)
+- 使用 "sse" (不是 "SSE" 或其他变体)
+- 使用 "streamable_http" (不是 "http"、"streamable-http" 或 "streamableHttp")
+
+请检查您的输入并使用正确的标准格式。`;
 }
 
 // Config Suits Types

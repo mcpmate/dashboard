@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import type { MCPServerConfig } from "../lib/types";
@@ -64,6 +64,21 @@ export function ServerFormDrawer({
 }: ServerFormDrawerProps) {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+
+	// Force cleanup when drawer closes
+	useEffect(() => {
+		if (!isOpen) {
+			// Clear any lingering overlays
+			const overlays = document.querySelectorAll(
+				"[data-radix-popper-content-wrapper]",
+			);
+			overlays.forEach((overlay) => overlay.remove());
+
+			// Reset form state
+			setError(null);
+			setIsSubmitting(false);
+		}
+	}, [isOpen]);
 
 	// Convert initial data to form values
 	const defaultValues: Partial<ServerFormValues> = {
@@ -140,7 +155,7 @@ export function ServerFormDrawer({
 	};
 
 	return (
-		<Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
+		<Drawer open={isOpen} onOpenChange={onClose}>
 			<DrawerContent className="max-h-[96vh]">
 				<DrawerHeader>
 					<DrawerTitle>{title}</DrawerTitle>
