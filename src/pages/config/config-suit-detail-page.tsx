@@ -84,10 +84,16 @@ export function ConfigSuitDetailPage() {
 		isLoading: isLoadingSuit,
 		refetch: refetchSuit,
 		isRefetching: isRefetchingSuit,
+		error: suitError,
 	} = useQuery({
 		queryKey: ["configSuit", suitId],
-		queryFn: () =>
-			suitId ? configSuitsApi.getSuit(suitId) : Promise.resolve(undefined),
+		queryFn: async () => {
+			if (!suitId) return undefined;
+			console.log("Fetching config suit details for:", suitId);
+			const result = await configSuitsApi.getSuit(suitId);
+			console.log("Config suit details response:", result);
+			return result;
+		},
 		enabled: !!suitId,
 		retry: 1,
 	});
@@ -97,10 +103,16 @@ export function ConfigSuitDetailPage() {
 		data: serversResponse,
 		isLoading: isLoadingServers,
 		refetch: refetchServers,
+		error: serversError,
 	} = useQuery({
 		queryKey: ["configSuitServers", suitId],
-		queryFn: () =>
-			suitId ? configSuitsApi.getServers(suitId) : Promise.resolve(undefined),
+		queryFn: async () => {
+			if (!suitId) return undefined;
+			console.log("Fetching servers for config suit:", suitId);
+			const result = await configSuitsApi.getServers(suitId);
+			console.log("Config suit servers response:", result);
+			return result;
+		},
 		enabled: !!suitId,
 		retry: 1,
 	});

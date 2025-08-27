@@ -42,9 +42,15 @@ export function ConfigPage() {
 		isLoading: isLoadingSuits,
 		refetch: refetchSuits,
 		isRefetching: isRefetchingSuits,
+		error: suitsError,
 	} = useQuery({
 		queryKey: ["configSuits"],
-		queryFn: configSuitsApi.getAll,
+		queryFn: async () => {
+			console.log("Fetching config suits...");
+			const result = await configSuitsApi.getAll();
+			console.log("Config suits response:", result);
+			return result;
+		},
 		retry: 1,
 		refetchInterval: 30000,
 	});
@@ -248,6 +254,14 @@ export function ConfigPage() {
 
 	return (
 		<div className="space-y-6">
+			{/* Debug Error Display */}
+			{suitsError && (
+				<div className="bg-red-50 border border-red-200 rounded-md p-4">
+					<h3 className="text-red-800 font-medium">Error loading config suits:</h3>
+					<p className="text-red-600 text-sm mt-1">{String(suitsError)}</p>
+				</div>
+			)}
+
 			<div className="flex items-center justify-between">
 				<h2 className="text-3xl font-bold tracking-tight">Config Suits</h2>
 				<div className="flex gap-2">

@@ -271,9 +271,9 @@ export function RuntimePage() {
 									<span className="text-slate-500">DB Path</span>
 									<span
 										className="truncate max-w-[60%]"
-										title={capStats.storage.db_path}
+										title={capStats?.storage?.db_path || ""}
 									>
-										{capStats.storage.db_path}
+										{capStats?.storage?.db_path || "—"}
 									</span>
 								</div>
 								<div className="flex items-center justify-between">
