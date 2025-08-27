@@ -12,7 +12,7 @@ import {
 	Wrench,
 	Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import {
@@ -96,6 +96,38 @@ export function ConfigSuitDetailPage() {
 		"all" | "enabled" | "disabled"
 	>("all");
 	const [promptServer, setPromptServer] = useState<string>("all");
+
+	// Force cleanup when drawer closes to prevent overlay issues
+	useEffect(() => {
+		if (!isEditDialogOpen) {
+			// 使用 requestAnimationFrame 确保在正确时机清理
+			requestAnimationFrame(() => {
+				setTimeout(() => {
+					// 清理所有可能的遮罩层和覆盖元素
+					const overlays = document.querySelectorAll(
+						"[data-radix-popper-content-wrapper], [data-radix-dialog-overlay], [data-vaul-overlay], [data-vaul-drawer-wrapper], .fixed.inset-0, [data-vaul-drawer]",
+					);
+					overlays.forEach((overlay) => {
+						const element = overlay as HTMLElement;
+						if (
+							element.getAttribute("data-state") === "closed" ||
+							!element.closest('[data-state="open"]') ||
+							element.style.pointerEvents === "none"
+						) {
+							element.remove();
+						}
+					});
+
+					// 确保 body 样式被正确重置
+					document.body.style.removeProperty("pointer-events");
+					document.body.style.removeProperty("overflow");
+					document.body.removeAttribute("data-scroll-locked");
+					document.body.removeAttribute("aria-hidden");
+					document.body.removeAttribute("data-vaul-drawer-wrapper");
+				}, 50);
+			});
+		}
+	}, [isEditDialogOpen]);
 
 	// Do not early-return before hooks; guard queries with `enabled`
 
@@ -363,6 +395,49 @@ export function ConfigSuitDetailPage() {
 		refetchPrompts();
 	};
 
+	const handleEditDrawerClose = (open: boolean) => {
+		setIsEditDialogOpen(open);
+		if (!open) {
+			// 使用 requestAnimationFrame 确保在正确的时机执行清理
+			requestAnimationFrame(() => {
+				setTimeout(() => {
+					// 全面清理 body 的样式和属性
+					document.body.style.removeProperty("pointer-events");
+					document.body.style.removeProperty("overflow");
+					document.body.style.removeProperty("padding-right");
+					document.body.removeAttribute("data-scroll-locked");
+					document.body.removeAttribute("aria-hidden");
+					document.body.removeAttribute("data-vaul-drawer-wrapper");
+					document.documentElement.removeAttribute("aria-hidden");
+
+					// 清理可能的遮罩层和覆盖元素
+					const overlays = document.querySelectorAll(
+						"[data-radix-popper-content-wrapper], [data-radix-dialog-overlay], [data-vaul-overlay], [data-vaul-drawer-wrapper], .fixed.inset-0",
+					);
+					overlays.forEach((overlay) => {
+						const element = overlay as HTMLElement;
+						if (
+							element.getAttribute("data-state") === "closed" ||
+							!element.closest('[data-state="open"]') ||
+							element.style.pointerEvents === "none"
+						) {
+							element.remove();
+						}
+					});
+
+					// 强制重置焦点和交互能力
+					document.body.focus();
+
+					// 确保页面可以正常交互
+					document.body.style.pointerEvents = "";
+
+					// 触发重新渲染以确保状态正确
+					document.body.offsetHeight;
+				}, 100);
+			});
+		}
+	};
+
 	const servers = (serversResponse?.servers ?? []) as ConfigSuitServer[];
 	const tools = (toolsResponse?.tools ?? []) as ConfigSuitTool[];
 	const resources = (resourcesResponse?.resources ??
@@ -465,59 +540,59 @@ export function ConfigSuitDetailPage() {
 						</div>
 					)}
 				</div>
-		<div className="flex gap-2">
-			{suit && (
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button variant="outline" size="sm">
-							<MoreHorizontal className="h-4 w-4" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem
-							onClick={handleRefreshAll}
-							disabled={isRefetchingSuit}
-						>
-							<RefreshCw
-								className={`mr-2 h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`}
-							/>
-							Refresh
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
-							<Edit3 className="mr-2 h-4 w-4" />
-							Edit
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onClick={handleSuitToggle}
-							disabled={
-								activateSuitMutation.isPending ||
-								deactivateSuitMutation.isPending
-							}
-						>
-							{suit.is_active ? (
-								<>
-									<Square className="mr-2 h-4 w-4" />
-									Deactivate
-								</>
-							) : (
-								<>
-									<Play className="mr-2 h-4 w-4" />
-									Activate
-								</>
-							)}
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							onClick={() => setIsDeleteDialogOpen(true)}
-							className="text-destructive focus:text-destructive"
-						>
-							<Trash2 className="mr-2 h-4 w-4" />
-							Delete
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			)}
-		</div>
+				<div className="flex gap-2">
+					{suit && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="outline" size="sm">
+									<MoreHorizontal className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={handleRefreshAll}
+									disabled={isRefetchingSuit}
+								>
+									<RefreshCw
+										className={`mr-2 h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`}
+									/>
+									Refresh
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
+									<Edit3 className="mr-2 h-4 w-4" />
+									Edit
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={handleSuitToggle}
+									disabled={
+										activateSuitMutation.isPending ||
+										deactivateSuitMutation.isPending
+									}
+								>
+									{suit.is_active ? (
+										<>
+											<Square className="mr-2 h-4 w-4" />
+											Deactivate
+										</>
+									) : (
+										<>
+											<Play className="mr-2 h-4 w-4" />
+											Activate
+										</>
+									)}
+								</DropdownMenuItem>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => setIsDeleteDialogOpen(true)}
+									className="text-destructive focus:text-destructive"
+								>
+									<Trash2 className="mr-2 h-4 w-4" />
+									Delete
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
+				</div>
 			</div>
 
 			{!suitId ? (
@@ -1082,23 +1157,27 @@ export function ConfigSuitDetailPage() {
 			{/* Edit Suit Drawer */}
 			<SuitFormDrawer
 				open={isEditDialogOpen}
-				onOpenChange={setIsEditDialogOpen}
+				onOpenChange={handleEditDrawerClose}
 				mode="edit"
 				suit={suit}
 				onSuccess={() => {
-					setIsEditDialogOpen(false);
+					handleEditDrawerClose(false);
 					refetchSuit();
 				}}
 			/>
 
 			{/* Delete Confirmation Dialog */}
-			<AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+			<AlertDialog
+				open={isDeleteDialogOpen}
+				onOpenChange={setIsDeleteDialogOpen}
+			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete Configuration Suit</AlertDialogTitle>
 						<AlertDialogDescription>
-							Are you sure you want to delete "{suit?.name}"? This action cannot be undone.
-							All associated configurations will be permanently removed.
+							Are you sure you want to delete "{suit?.name}"? This action cannot
+							be undone. All associated configurations will be permanently
+							removed.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
