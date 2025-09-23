@@ -1,42 +1,54 @@
 import type {
-	ApiResponse,
-	BatchOperationResponse,
-	CapabilitiesKeysResponse,
-	CapabilitiesMetricsStats,
-	CapabilitiesStatsResponse,
-	CapabilitiesStorageStats,
-	ClearCacheResponse,
-	ConfigPreset,
-	ConfigSuit,
-	ConfigSuitListResponse,
-	ConfigSuitPromptsResponse,
-	ConfigSuitResourcesResponse,
-	ConfigSuitServer,
-	ConfigSuitServersResponse,
-	ConfigSuitTool,
-	ConfigSuitToolsResponse,
-	CreateConfigSuitRequest,
-	InstallResponse,
-	InstallRuntimeRequest,
-	InstanceDetail,
-	InstanceDetailsResp,
-	InstanceHealth,
-	InstanceHealthResp,
-	InstanceListResp,
-	InstanceSummary,
-	MCPConfig,
-	MCPServerConfig,
-	OperationResponseResp,
-	RuntimeCacheResponse,
-	RuntimeStatusResponse,
-	ServerDetail,
-	ServerDetailsResp,
-	ServerListResp,
-	ServerListResponse,
-	SystemMetrics,
-	SystemStatus,
-	ToolDetail,
-	UpdateConfigSuitRequest,
+  ApiResponse,
+  BatchOperationResponse,
+  CapabilitiesKeysResponse,
+  CapabilitiesMetricsStats,
+  CapabilitiesStatsResponse,
+  CapabilitiesStorageStats,
+  ClearCacheResponse,
+  ConfigPreset,
+  ConfigSuit,
+  ConfigSuitListResponse,
+  ConfigSuitPromptsResponse,
+  ConfigSuitResourcesResponse,
+  ConfigSuitServer,
+  ConfigSuitServersResponse,
+  ConfigSuitTool,
+  ConfigSuitToolsResponse,
+  CreateConfigSuitRequest,
+  InstallResponse,
+  InstallRuntimeRequest,
+  InstanceDetail,
+  InstanceDetailsResp,
+  InstanceHealth,
+  InstanceHealthResp,
+  InstanceListResp,
+  InstanceSummary,
+  MCPConfig,
+  MCPServerConfig,
+  OperationResponseResp,
+  RuntimeCacheResponse,
+  RuntimeStatusResponse,
+  ServerDetail,
+  ServerDetailsResp,
+  ServerListResp,
+  ServerListResponse,
+  ServerCapabilityResp,
+  SystemMetrics,
+  SystemStatus,
+  ToolDetail,
+  UpdateConfigSuitRequest,
+  ClientCheckResp,
+  ClientManageResp,
+  ClientManageAction,
+  ClientConfigResp,
+  ClientConfigUpdateReq,
+  ClientConfigUpdateResp,
+  ClientConfigRestoreReq,
+  ClientBackupListResp,
+  ClientBackupActionResp,
+  ClientBackupPolicyResp,
+  ClientBackupPolicySetReq,
 } from "./types";
 
 // Base API configuration
@@ -353,33 +365,34 @@ export const serversApi = {
 
 // Tools Management API
 export const toolsApi = {
-	getAll: async () => {
-		try {
-			// Try to get tools from config suits first
-			const suitsResponse = await toolsApi.getSuits();
-			if (suitsResponse?.suits?.length > 0) {
-				const activeSuitId = suitsResponse.suits[0].id;
-				try {
-					const q = new URLSearchParams({ suit_id: activeSuitId });
-					const suitToolsResponse = await fetchApi<{ tools: SuitTool[] }>(
-						`/api/mcp/suits/tools/list?${q}`,
-					);
-					if (suitToolsResponse?.tools) {
-						const tools = suitToolsResponse.tools.map((tool) => ({
-							tool_name: tool.tool_name || tool.name || "",
-							server_name: tool.server_name || "",
-							is_enabled: tool.is_enabled ?? tool.enabled ?? true,
-							description: tool.description || "",
-							tool_id: tool.id || "",
-						}));
-						return { tools };
-					}
-				} catch (suitToolsError) {
-					console.error("Failed to fetch suit tools:", suitToolsError);
-				}
-			}
+  getAll: async () => {
+    try {
+      // Try to get tools from active profile first
+      const suitsResponse = await configSuitsApi.getAll();
+      const active = suitsResponse?.suits?.find((s) => s.is_active);
+      if (active) {
+        try {
+          const q = new URLSearchParams({ profile_id: active.id });
+          const resp = await fetchApi<
+            ApiWrapper<{ profile_id: string; profile_name: string; tools: SuitTool[] }>
+          >(`/api/mcp/profile/tools/list?${q}`);
+          const data = extractApiData(resp);
+          if (data?.tools) {
+            const tools = data.tools.map((tool) => ({
+              tool_name: tool.tool_name || tool.name || "",
+              server_name: tool.server_name || "",
+              is_enabled: (tool as any).is_enabled ?? (tool as any).enabled ?? true,
+              description: (tool as any).description || "",
+              tool_id: (tool as any).id || "",
+            }));
+            return { tools };
+          }
+        } catch (e) {
+          console.error("Failed to fetch profile tools:", e);
+        }
+      }
 
-			// Fallback to specs endpoint
+      // Fallback to specs endpoint
 			const response = await fetchApi<
 				Array<{
 					name: string;
@@ -414,27 +427,7 @@ export const toolsApi = {
 		}
 	},
 
-	getSuits: async () => {
-		try {
-			return await fetchApi<{ suits: { id: string; name: string }[] }>(
-				"/api/mcp/suits/list",
-			);
-		} catch (error) {
-			console.error("Failed to fetch suits:", error);
-			return { suits: [] };
-		}
-	},
-
-	getSuitTools: async (suitId: string) => {
-		try {
-			return await fetchApi<{ tools: SuitTool[] }>(
-				`/api/mcp/suits/tools/list?suit_id=${suitId}`,
-			);
-		} catch (error) {
-			console.error(`Failed to fetch tools for suit ${suitId}:`, error);
-			return { tools: [] };
-		}
-	},
+  // Deprecated helpers removed; use configSuitsApi instead
 
 	getTool: (serverId: string, toolName: string) =>
 		fetchApi<ToolDetail>(`/api/mcp/specs/tools/${serverId}/${toolName}`),
@@ -453,29 +446,17 @@ export const toolsApi = {
 		),
 
 	// Tool management operations
-	_manageTool: async (suitId: string, suitToolId: string, action: string) => {
-		try {
-			return await fetchApi<ApiResponse<null>>("/api/mcp/suits/tools/manage", {
-				method: "POST",
-				body: JSON.stringify({ suit_id: suitId, tool_id: suitToolId, action }),
-			});
-		} catch (error) {
-			console.warn(
-				`${action} tool API not available, using mock implementation:`,
-				error,
-			);
-			return {
-				status: "success",
-				message: `Tool ${suitToolId} ${action.toLowerCase()}d successfully (mock)`,
-			};
-		}
-	},
+  _manageTool: async (profileId: string, toolId: string, action: "enable" | "disable") =>
+    fetchApi<ApiResponse<null>>("/api/mcp/profile/tools/manage", {
+      method: "POST",
+      body: JSON.stringify({ profile_id: profileId, component_ids: [toolId], action }),
+    }),
 
-	enableTool: (suitId: string, suitToolId: string) =>
-		toolsApi._manageTool(suitId, suitToolId, "Enable"),
+  enableTool: (profileId: string, toolId: string) =>
+    toolsApi._manageTool(profileId, toolId, "enable"),
 
-	disableTool: (suitId: string, suitToolId: string) =>
-		toolsApi._manageTool(suitId, suitToolId, "Disable"),
+  disableTool: (profileId: string, toolId: string) =>
+    toolsApi._manageTool(profileId, toolId, "disable"),
 };
 
 // System Management API
@@ -690,93 +671,179 @@ export const configApi = {
 
 // Config Suits Management API
 export const configSuitsApi = {
-	getAll: async (): Promise<ConfigSuitListResponse> => {
-		try {
-			const response = await fetchApi<
-				ApiWrapper<{ suits: ConfigSuit[]; total: number; timestamp: string }>
-			>("/api/mcp/suits/list");
-			const data = extractApiData(response);
-			return { suits: data.suits };
-		} catch (error) {
-			console.error("Failed to fetch config suits:", error);
-			return { suits: [] };
-		}
-	},
+  getAll: async (): Promise<ConfigSuitListResponse> => {
+    try {
+      const response = await fetchApi<
+        ApiWrapper<{ profile: any[]; total: number; timestamp: string }>
+      >("/api/mcp/profile/list");
+      const data = extractApiData(response);
+      const suits: ConfigSuit[] = (data.profile || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description ?? undefined,
+        suit_type: p.profile_type,
+        multi_select: p.multi_select,
+        priority: p.priority,
+        is_active: p.is_active,
+        is_default: p.is_default,
+        allowed_operations: p.allowed_operations || [],
+      }));
+      return { suits };
+    } catch (error) {
+      console.error("Failed to fetch config suits:", error);
+      return { suits: [] };
+    }
+  },
+  // Server capabilities
+  listTools: async (serverId: string, refresh?: "auto" | "force" | "cache") => {
+    const q = new URLSearchParams({ id: serverId });
+    if (refresh) q.set("refresh", refresh);
+    const resp = await fetchApi<ServerCapabilityResp>(`/api/mcp/servers/tools?${q}`);
+    return extractApiData(resp);
+  },
+  listResources: async (serverId: string, refresh?: "auto" | "force" | "cache") => {
+    const q = new URLSearchParams({ id: serverId });
+    if (refresh) q.set("refresh", refresh);
+    const resp = await fetchApi<ServerCapabilityResp>(`/api/mcp/servers/resources?${q}`);
+    return extractApiData(resp);
+  },
+  listPrompts: async (serverId: string, refresh?: "auto" | "force" | "cache") => {
+    const q = new URLSearchParams({ id: serverId });
+    if (refresh) q.set("refresh", refresh);
+    const resp = await fetchApi<ServerCapabilityResp>(`/api/mcp/servers/prompts?${q}`);
+    return extractApiData(resp);
+  },
+  listResourceTemplates: async (
+    serverId: string,
+    refresh?: "auto" | "force" | "cache",
+  ) => {
+    const q = new URLSearchParams({ id: serverId });
+    if (refresh) q.set("refresh", refresh);
+    const resp = await fetchApi<ServerCapabilityResp>(
+      `/api/mcp/servers/resources/templates?${q}`,
+    );
+    return extractApiData(resp);
+  },
 
-	getSuit: async (id: string): Promise<ConfigSuit> => {
-		const q = new URLSearchParams({ id });
-		const response = await fetchApi<ApiWrapper<{ suit: ConfigSuit }>>(
-			`/api/mcp/suits/details?${q}`,
-		);
-		const data = extractApiData(response);
-		return data.suit;
-	},
+  getSuit: async (id: string): Promise<ConfigSuit> => {
+    const q = new URLSearchParams({ id });
+    const response = await fetchApi<ApiWrapper<{ profile: any }>>(
+      `/api/mcp/profile/details?${q}`,
+    );
+    const data = extractApiData(response);
+    const p = (data as any).profile;
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description ?? undefined,
+      suit_type: p.profile_type,
+      multi_select: p.multi_select,
+      priority: p.priority,
+      is_active: p.is_active,
+      is_default: p.is_default,
+      allowed_operations: p.allowed_operations || [],
+    } as ConfigSuit;
+  },
 
-	createSuit: async (
-		data: CreateConfigSuitRequest,
-	): Promise<ApiResponse<ConfigSuit>> => {
-		const response = await fetchApi<ApiWrapper<ConfigSuit>>(
-			"/api/mcp/suits/create",
-			{
-				method: "POST",
-				body: JSON.stringify(data),
-			},
-		);
-		const result = extractApiData(response);
-		return {
-			status: "success",
-			message: "Config suit created successfully",
-			data: result,
-		};
-	},
+  createSuit: async (
+    data: CreateConfigSuitRequest,
+  ): Promise<ApiResponse<ConfigSuit>> => {
+    const payload = {
+      name: data.name,
+      description: data.description ?? null,
+      profile_type: data.suit_type,
+      multi_select: data.multi_select ?? null,
+      priority: data.priority ?? null,
+      is_active: data.is_active ?? null,
+      is_default: data.is_default ?? null,
+      clone_from_id: data.clone_from_id ?? null,
+    };
+    const response = await fetchApi<ApiWrapper<any>>(
+      "/api/mcp/profile/create",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    );
+    const p = extractApiData(response);
+    const result: ConfigSuit = {
+      id: p.id,
+      name: p.name,
+      description: p.description ?? undefined,
+      suit_type: p.profile_type,
+      multi_select: p.multi_select,
+      priority: p.priority,
+      is_active: p.is_active,
+      is_default: p.is_default,
+      allowed_operations: p.allowed_operations || [],
+    };
+    return { status: "success", message: "Profile created", data: result };
+  },
 
-	updateSuit: async (
-		id: string,
-		data: UpdateConfigSuitRequest,
-	): Promise<ApiResponse<ConfigSuit>> => {
-		const response = await fetchApi<ApiWrapper<ConfigSuit>>(
-			`/api/mcp/suits/update`,
-			{
-				method: "PUT",
-				body: JSON.stringify({ id, ...data }),
-			},
-		);
-		const result = extractApiData(response);
-		return {
-			status: "success",
-			message: "Config suit updated successfully",
-			data: result,
-		};
-	},
+  updateSuit: async (
+    id: string,
+    data: UpdateConfigSuitRequest,
+  ): Promise<ApiResponse<ConfigSuit>> => {
+    const payload = {
+      id,
+      name: data.name ?? null,
+      description: data.description ?? null,
+      profile_type: (data as any).suit_type ?? null,
+      multi_select: data.multi_select ?? null,
+      priority: data.priority ?? null,
+      is_active: data.is_active ?? null,
+      is_default: data.is_default ?? null,
+    };
+    const response = await fetchApi<ApiWrapper<any>>(
+      `/api/mcp/profile/update`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
+    const p = extractApiData(response);
+    const result: ConfigSuit = {
+      id: p.id,
+      name: p.name,
+      description: p.description ?? undefined,
+      suit_type: p.profile_type,
+      multi_select: p.multi_select,
+      priority: p.priority,
+      is_active: p.is_active,
+      is_default: p.is_default,
+      allowed_operations: p.allowed_operations || [],
+    };
+    return { status: "success", message: "Profile updated", data: result };
+  },
 
-	deleteSuit: async (id: string): Promise<ApiResponse<void>> => {
-		const response = await fetchApi<ApiWrapper<void>>(`/api/mcp/suits/delete`, {
-			method: "DELETE",
-			body: JSON.stringify({ id }),
-		});
-		extractApiData(response);
-		return {
-			status: "success",
-			message: "Config suit deleted successfully",
-		};
-	},
+  deleteSuit: async (id: string): Promise<ApiResponse<void>> => {
+    const response = await fetchApi<ApiWrapper<void>>(`/api/mcp/profile/delete`, {
+      method: "DELETE",
+      body: JSON.stringify({ id }),
+    });
+    extractApiData(response);
+    return {
+      status: "success",
+      message: "Config suit deleted successfully",
+    };
+  },
 
 	// Suit management operations
-	_manageSuit: async (id: string, action: string) => {
-		const response = await fetchApi<ApiWrapper<unknown>>(
-			"/api/mcp/suits/manage",
-			{
-				method: "POST",
-				body: JSON.stringify({ ids: [id], action }),
-			},
-		);
-		extractApiData(response);
-		return {
-			status: "success",
-			message: `Config suit ${action}d successfully`,
-			data: null,
-		};
-	},
+  _manageSuit: async (id: string, action: "activate" | "deactivate") => {
+    const response = await fetchApi<ApiWrapper<unknown>>(
+      "/api/mcp/profile/manage",
+      {
+        method: "POST",
+        body: JSON.stringify({ ids: [id], action }),
+      },
+    );
+    extractApiData(response);
+    return {
+      status: "success",
+      message: `Config suit ${action}d successfully`,
+      data: null,
+    };
+  },
 
 	activateSuit: (id: string) => configSuitsApi._manageSuit(id, "activate"),
 	deactivateSuit: (id: string) => configSuitsApi._manageSuit(id, "deactivate"),
@@ -788,92 +855,104 @@ export const configSuitsApi = {
 		executeBatchOperation(ids, configSuitsApi.deactivateSuit),
 
 	// Suit content management
-	getServers: async (suitId: string): Promise<ConfigSuitServersResponse> => {
-		const q = new URLSearchParams({ suit_id: suitId });
-		const response = await fetchApi<
-			ApiWrapper<{
-				suit_id: string;
-				suit_name: string;
-				servers: ConfigSuitServer[];
-			}>
-		>(`/api/mcp/suits/servers/list?${q}`);
-		return extractApiData(response);
-	},
+  getServers: async (suitId: string): Promise<ConfigSuitServersResponse> => {
+    const q = new URLSearchParams({ profile_id: suitId });
+    const response = await fetchApi<
+      ApiWrapper<{
+        profile_id: string;
+        profile_name: string;
+        servers: ConfigSuitServer[];
+      }>
+    >(`/api/mcp/profile/servers/list?${q}`);
+    const data = extractApiData(response);
+    return {
+      suit_id: (data as any).profile_id,
+      suit_name: (data as any).profile_name,
+      servers: (data as any).servers || [],
+    };
+  },
 
-	getTools: async (suitId: string): Promise<ConfigSuitToolsResponse> => {
-		const q = new URLSearchParams({ suit_id: suitId });
-		const response = await fetchApi<
-			ApiWrapper<{
-				suit_id: string;
-				suit_name: string;
-				tools: ConfigSuitTool[];
-			}>
-		>(`/api/mcp/suits/tools/list?${q}`);
-		return extractApiData(response);
-	},
+  getTools: async (suitId: string): Promise<ConfigSuitToolsResponse> => {
+    const q = new URLSearchParams({ profile_id: suitId });
+    const response = await fetchApi<
+      ApiWrapper<{
+        profile_id: string;
+        profile_name: string;
+        tools: ConfigSuitTool[];
+      }>
+    >(`/api/mcp/profile/tools/list?${q}`);
+    const data = extractApiData(response);
+    return {
+      suit_id: (data as any).profile_id,
+      suit_name: (data as any).profile_name,
+      tools: (data as any).tools || [],
+    };
+  },
 
-	getResources: async (
-		suitId: string,
-	): Promise<ConfigSuitResourcesResponse> => {
-		try {
-			return await fetchApi<ConfigSuitResourcesResponse>(
-				`/api/mcp/suits/resources/list?suit_id=${suitId}`,
-			);
-		} catch (error) {
-			console.warn(
-				`Resources endpoint not implemented yet for config suit ${suitId}:`,
-				error,
-			);
-			return { suit_id: suitId, suit_name: "Unknown", resources: [] };
-		}
-	},
+  getResources: async (
+    suitId: string,
+  ): Promise<ConfigSuitResourcesResponse> => {
+    const q = new URLSearchParams({ profile_id: suitId });
+    const response = await fetchApi<
+      ApiWrapper<{
+        profile_id: string;
+        profile_name: string;
+        resources: any[];
+      }>
+    >(`/api/mcp/profile/resources/list?${q}`);
+    const data = extractApiData(response);
+    return {
+      suit_id: (data as any).profile_id,
+      suit_name: (data as any).profile_name,
+      resources: (data as any).resources || [],
+    };
+  },
 
-	getPrompts: async (suitId: string): Promise<ConfigSuitPromptsResponse> => {
-		try {
-			return await fetchApi<ConfigSuitPromptsResponse>(
-				`/api/mcp/suits/prompts/list?suit_id=${suitId}`,
-			);
-		} catch (error) {
-			console.warn(
-				`Prompts endpoint not implemented yet for config suit ${suitId}:`,
-				error,
-			);
-			return { suit_id: suitId, suit_name: "Unknown", prompts: [] };
-		}
-	},
+  getPrompts: async (suitId: string): Promise<ConfigSuitPromptsResponse> => {
+    const q = new URLSearchParams({ profile_id: suitId });
+    const response = await fetchApi<
+      ApiWrapper<{
+        profile_id: string;
+        profile_name: string;
+        prompts: any[];
+      }>
+    >(`/api/mcp/profile/prompts/list?${q}`);
+    const data = extractApiData(response);
+    return {
+      suit_id: (data as any).profile_id,
+      suit_name: (data as any).profile_name,
+      prompts: (data as any).prompts || [],
+    };
+  },
 
 	// Component management operations
-	_manageComponent: (
-		endpoint: string,
-		suitId: string,
-		componentId: string,
-		action: string,
-	) =>
-		fetchApi<ApiResponse<null>>(`/api/mcp/suits/${endpoint}/manage`, {
-			method: "POST",
-			body: JSON.stringify({
-				suit_id: suitId,
-				[`${endpoint.slice(0, -1)}_id`]: componentId,
-				action,
-			}),
-		}),
+  _manageComponent: (
+    endpoint: "servers" | "tools" | "resources" | "prompts",
+    suitId: string,
+    componentId: string,
+    action: "enable" | "disable",
+  ) =>
+    fetchApi<ApiResponse<null>>(`/api/mcp/profile/${endpoint}/manage`, {
+      method: "POST",
+      body: JSON.stringify({ profile_id: suitId, component_ids: [componentId], action }),
+    }),
 
-	enableServer: (suitId: string, serverId: string) =>
-		configSuitsApi._manageComponent("servers", suitId, serverId, "Enable"),
-	disableServer: (suitId: string, serverId: string) =>
-		configSuitsApi._manageComponent("servers", suitId, serverId, "Disable"),
-	enableTool: (suitId: string, toolId: string) =>
-		configSuitsApi._manageComponent("tools", suitId, toolId, "Enable"),
-	disableTool: (suitId: string, toolId: string) =>
-		configSuitsApi._manageComponent("tools", suitId, toolId, "Disable"),
-	enableResource: (suitId: string, resourceId: string) =>
-		configSuitsApi._manageComponent("resources", suitId, resourceId, "Enable"),
-	disableResource: (suitId: string, resourceId: string) =>
-		configSuitsApi._manageComponent("resources", suitId, resourceId, "Disable"),
-	enablePrompt: (suitId: string, promptId: string) =>
-		configSuitsApi._manageComponent("prompts", suitId, promptId, "Enable"),
-	disablePrompt: (suitId: string, promptId: string) =>
-		configSuitsApi._manageComponent("prompts", suitId, promptId, "Disable"),
+  enableServer: (suitId: string, serverId: string) =>
+    configSuitsApi._manageComponent("servers", suitId, serverId, "enable"),
+  disableServer: (suitId: string, serverId: string) =>
+    configSuitsApi._manageComponent("servers", suitId, serverId, "disable"),
+  enableTool: (suitId: string, toolId: string) =>
+    configSuitsApi._manageComponent("tools", suitId, toolId, "enable"),
+  disableTool: (suitId: string, toolId: string) =>
+    configSuitsApi._manageComponent("tools", suitId, toolId, "disable"),
+  enableResource: (suitId: string, resourceId: string) =>
+    configSuitsApi._manageComponent("resources", suitId, resourceId, "enable"),
+  disableResource: (suitId: string, resourceId: string) =>
+    configSuitsApi._manageComponent("resources", suitId, resourceId, "disable"),
+  enablePrompt: (suitId: string, promptId: string) =>
+    configSuitsApi._manageComponent("prompts", suitId, promptId, "enable"),
+  disablePrompt: (suitId: string, promptId: string) =>
+    configSuitsApi._manageComponent("prompts", suitId, promptId, "disable"),
 };
 
 // WebSocket Notifications Service
@@ -969,3 +1048,71 @@ export class NotificationsService {
 }
 
 export const notificationsService = new NotificationsService();
+
+// Clients Management API
+export const clientsApi = {
+  list: async (refresh = false) => {
+    const q = new URLSearchParams({ refresh: String(refresh) });
+    const resp = await fetchApi<ClientCheckResp>(`/api/client/list?${q}`);
+    return extractApiData(resp);
+  },
+
+  manage: async (identifier: string, action: ClientManageAction) => {
+    const resp = await fetchApi<ClientManageResp>("/api/client/manage", {
+      method: "POST",
+      body: JSON.stringify({ identifier, action }),
+    });
+    return extractApiData(resp);
+  },
+
+  configDetails: async (identifier: string, doImport = false) => {
+    const q = new URLSearchParams({ identifier, import: String(doImport) });
+    const resp = await fetchApi<ClientConfigResp>(`/api/client/config/details?${q}`);
+    return extractApiData(resp);
+  },
+
+  applyConfig: async (payload: ClientConfigUpdateReq) => {
+    const resp = await fetchApi<ClientConfigUpdateResp>(`/api/client/config/apply`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return extractApiData(resp);
+  },
+
+  restoreConfig: async (payload: ClientConfigRestoreReq) => {
+    const resp = await fetchApi<ClientBackupActionResp>(`/api/client/config/restore`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return extractApiData(resp);
+  },
+
+  listBackups: async (identifier?: string) => {
+    const q = new URLSearchParams();
+    if (identifier) q.set("identifier", identifier);
+    const resp = await fetchApi<ClientBackupListResp>(`/api/client/backups/list?${q}`);
+    return extractApiData(resp);
+  },
+
+  deleteBackup: async (identifier: string, backup: string) => {
+    const resp = await fetchApi<ClientBackupActionResp>(`/api/client/backups/delete`, {
+      method: "POST",
+      body: JSON.stringify({ identifier, backup }),
+    });
+    return extractApiData(resp);
+  },
+
+  getBackupPolicy: async (identifier: string) => {
+    const q = new URLSearchParams({ identifier });
+    const resp = await fetchApi<ClientBackupPolicyResp>(`/api/client/backups/policy?${q}`);
+    return extractApiData(resp);
+  },
+
+  setBackupPolicy: async (payload: ClientBackupPolicySetReq) => {
+    const resp = await fetchApi<ClientBackupPolicyResp>(`/api/client/backups/policy`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return extractApiData(resp);
+  },
+};

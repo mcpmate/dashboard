@@ -5,37 +5,34 @@ import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 
 export function Layout() {
-	const { sidebarOpen } = useAppStore();
+  const { sidebarOpen, theme } = useAppStore();
 
-	// Set the theme based on app state
-	React.useEffect(() => {
-		const { theme } = useAppStore.getState();
+  // Apply theme and react to changes (system/manual)
+  React.useEffect(() => {
+    const apply = () => {
+      const isDark =
+        theme === "dark" ||
+        (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.classList.toggle("dark", isDark);
+    };
 
-		if (
-			theme === "dark" ||
-			(theme === "system" &&
-				window.matchMedia("(prefers-color-scheme: dark)").matches)
-		) {
-			document.documentElement.classList.add("dark");
-		} else {
-			document.documentElement.classList.remove("dark");
-		}
+    apply();
 
-		// Listen for system theme changes
-		if (theme === "system") {
-			const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-			const handleChange = (e: MediaQueryListEvent) => {
-				if (e.matches) {
-					document.documentElement.classList.add("dark");
-				} else {
-					document.documentElement.classList.remove("dark");
-				}
-			};
+    let mediaQuery: MediaQueryList | null = null;
+    const onChange = (e: MediaQueryListEvent) => {
+      if (theme === "system") {
+        document.documentElement.classList.toggle("dark", e.matches);
+      }
+    };
+    if (theme === "system") {
+      mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      mediaQuery.addEventListener("change", onChange);
+    }
 
-			mediaQuery.addEventListener("change", handleChange);
-			return () => mediaQuery.removeEventListener("change", handleChange);
-		}
-	}, []);
+    return () => {
+      if (mediaQuery) mediaQuery.removeEventListener("change", onChange);
+    };
+  }, [theme]);
 
 	return (
 		<div className="min-h-screen bg-slate-50 dark:bg-slate-900">

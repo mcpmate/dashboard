@@ -95,39 +95,39 @@ export function ConfigPage() {
 	// Suit activation mutation
 	const activateSuitMutation = useMutation({
 		mutationFn: configSuitsApi.activateSuit,
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Config Suit Activated",
-				description: "Configuration suit has been successfully activated",
-			});
-		},
-		onError: (error) => {
-			toast({
-				title: "Activation Failed",
-				description: `Failed to activate config suit: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+        toast({
+            title: "Profile Activated",
+            description: "Profile has been successfully activated",
+        });
+    },
+    onError: (error) => {
+        toast({
+            title: "Activation Failed",
+            description: `Failed to activate profile: ${error instanceof Error ? error.message : String(error)}`,
+            variant: "destructive",
+        });
+    },
 	});
 
 	// Suit deactivation mutation
 	const deactivateSuitMutation = useMutation({
 		mutationFn: configSuitsApi.deactivateSuit,
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Config Suit Deactivated",
-				description: "Configuration suit has been successfully deactivated",
-			});
-		},
-		onError: (error) => {
-			toast({
-				title: "Deactivation Failed",
-				description: `Failed to deactivate config suit: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+        toast({
+            title: "Profile Deactivated",
+            description: "Profile has been successfully deactivated",
+        });
+    },
+    onError: (error) => {
+        toast({
+            title: "Deactivation Failed",
+            description: `Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
+            variant: "destructive",
+        });
+    },
 	});
 
 
@@ -197,13 +197,13 @@ export function ConfigPage() {
 			{/* Debug Error Display */}
 			{suitsError && (
 				<div className="bg-red-50 border border-red-200 rounded-md p-4">
-					<h3 className="text-red-800 font-medium">Error loading config suits:</h3>
+                <h3 className="text-red-800 font-medium">Error loading profiles:</h3>
 					<p className="text-red-600 text-sm mt-1">{String(suitsError)}</p>
 				</div>
 			)}
 
 			<div className="flex items-center justify-between">
-				<h2 className="text-3xl font-bold tracking-tight">Config Suits</h2>
+    <h2 className="text-3xl font-bold tracking-tight">Profiles</h2>
 				<div className="flex gap-2">
 					<Button
 						onClick={() => refetchSuits()}
@@ -216,23 +216,23 @@ export function ConfigPage() {
 						/>
 						Refresh
 					</Button>
-					<Button size="sm" onClick={() => setIsNewSuitDialogOpen(true)}>
-						<Plus className="mr-2 h-4 w-4" />
-						New Suit
-					</Button>
+        <Button size="sm" onClick={() => setIsNewSuitDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Profile
+        </Button>
 				</div>
 			</div>
 
 			<div className="grid gap-6">
 				<div>
 					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-						{/* Active Config Suits */}
+                    {/* Active Profiles */}
 						<Card>
 							<CardHeader className="pb-2">
 								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">
-										Config Suits
-									</CardTitle>
+                            <CardTitle className="text-sm font-medium">
+                                Profiles
+                            </CardTitle>
 									<Settings className="h-4 w-4 text-emerald-600" />
 								</div>
 							</CardHeader>
@@ -248,7 +248,7 @@ export function ConfigPage() {
 											{activeSuits.length}/{suits.length}
 										</div>
 										<p className="text-xs text-muted-foreground">
-											active suits
+                                active profiles
 										</p>
 									</>
 								)}
@@ -340,9 +340,9 @@ export function ConfigPage() {
 					<CardHeader>
 						<div className="flex items-center justify-between">
 							<div>
-								<CardTitle>Configuration Suits</CardTitle>
+                                <CardTitle>Profiles</CardTitle>
 								<CardDescription>
-									Manage configuration suits for different scenarios and
+                                Manage profiles for different scenarios and
 									applications
 								</CardDescription>
 							</div>
@@ -432,13 +432,8 @@ export function ConfigPage() {
 						) : (
 							<div className="text-center py-8">
 								<Settings className="mx-auto h-12 w-12 text-slate-400 mb-4" />
-								<p className="text-slate-500 mb-2">
-									No configuration suits found
-								</p>
-								<p className="text-sm text-slate-400">
-									Configuration suits help organize and manage your MCP servers,
-									tools, and resources
-								</p>
+                            <p className="text-slate-500 mb-2">No profiles found</p>
+                            <p className="text-sm text-slate-400">Profiles help organize and manage your MCP servers, tools, and resources</p>
 							</div>
 						)}
 					</CardContent>

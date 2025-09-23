@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toolsApi } from '../../lib/api';
+import { toolsApi, configSuitsApi } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { RefreshCw, Search, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
@@ -37,12 +37,12 @@ export function ToolsPage() {
 
   // 获取可用的配置套件
   const { data: suitsData } = useQuery({
-    queryKey: ['suits'],
-    queryFn: toolsApi.getSuits,
+    queryKey: ['configSuits'],
+    queryFn: configSuitsApi.getAll,
   });
 
   // 获取第一个可用的配置套件 ID
-  const activeSuitId = suitsData?.suits?.[0]?.id;
+  const activeSuitId = suitsData?.suits?.find((s: any) => s.is_active)?.id || suitsData?.suits?.[0]?.id;
 
   const handleToggleTool = async (tool: { server_name: string; tool_name: string; is_enabled: boolean; tool_id?: string }) => {
     // 生成唯一的工具键，优先使用 tool_id

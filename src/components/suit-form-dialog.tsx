@@ -106,7 +106,7 @@ export function SuitFormDialog({
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			toast({
 				title: "Success",
-				description: "Configuration suit created successfully",
+            description: "Profile created successfully",
 			});
 			onOpenChange(false);
 			resetForm();
@@ -115,7 +115,7 @@ export function SuitFormDialog({
 		onError: (error) => {
 			toast({
 				title: "Error",
-				description: `Failed to create configuration suit: ${error instanceof Error ? error.message : String(error)}`,
+            description: `Failed to create profile: ${error instanceof Error ? error.message : String(error)}`,
 				variant: "destructive",
 			});
 		},
@@ -130,7 +130,7 @@ export function SuitFormDialog({
 			queryClient.invalidateQueries({ queryKey: ["configSuit", suit?.id] });
 			toast({
 				title: "Success",
-				description: "Configuration suit updated successfully",
+            description: "Profile updated successfully",
 			});
 			onOpenChange(false);
 			onSuccess?.();
@@ -138,7 +138,7 @@ export function SuitFormDialog({
 		onError: (error) => {
 			toast({
 				title: "Error",
-				description: `Failed to update configuration suit: ${error instanceof Error ? error.message : String(error)}`,
+            description: `Failed to update profile: ${error instanceof Error ? error.message : String(error)}`,
 				variant: "destructive",
 			});
 		},

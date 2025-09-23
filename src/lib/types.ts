@@ -476,3 +476,170 @@ export interface OperationResponseResp {
   error?: unknown | null;
   success: boolean;
 }
+
+// Server capabilities (per-server) minimal typings
+export interface ServerCapabilityMeta {
+  cache_hit: boolean;
+  source: string;
+  strategy: string;
+}
+
+export interface ServerCapabilityList<T = any> {
+  items: T[];
+  state: string;
+  meta: ServerCapabilityMeta;
+}
+
+export interface ServerCapabilityResp<T = any> {
+  data?: ServerCapabilityList<T> | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+// --------------------
+// Clients (Host applications) Types
+// --------------------
+
+export type ClientCategory = "editor" | "terminal" | "browser" | string;
+
+export type ClientConfigType = "json" | "yaml" | "toml" | string;
+
+export interface ClientTemplateMetadata {
+  name?: string | null;
+  version?: string | null;
+  description?: string | null;
+}
+
+export interface ClientInfo {
+  identifier: string;
+  display_name: string;
+  category: ClientCategory;
+  enabled: boolean;
+  managed: boolean;
+  detected: boolean;
+  config_path: string;
+  config_exists: boolean;
+  has_mcp_config: boolean;
+  supported_transports: string[];
+  supported_runtimes: string[];
+  config_type?: ClientConfigType | null;
+  config_mode?: string | null;
+  install_path?: string | null;
+  logo_url?: string | null;
+  last_detected?: string | null;
+  last_modified?: string | null;
+  template?: ClientTemplateMetadata;
+  mcp_servers_count?: number | null;
+}
+
+export interface ClientCheckData {
+  client: ClientInfo[];
+  total: number;
+  last_updated: string;
+}
+
+export interface ClientCheckResp {
+  data?: ClientCheckData | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export type ClientManageAction = "enable" | "disable";
+
+export interface ClientManageResp {
+  data?: { identifier: string; managed: boolean } | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+// Client config details
+export type ClientConfigMode = "hosted" | "transparent" | string;
+export type ClientConfigSelected = "default" | "profile" | "custom" | string;
+
+export interface ClientImportedServer {
+  name?: string;
+  kind?: string;
+  status?: string;
+}
+
+export interface ClientConfigData {
+  config_exists: boolean;
+  config_path: string;
+  config_type?: ClientConfigType | null;
+  content: unknown;
+  has_mcp_config: boolean;
+  imported_servers?: ClientImportedServer[] | null;
+  last_modified?: string | null;
+  managed: boolean;
+  mcp_servers_count: number;
+  supported_runtimes: string[];
+  supported_transports: string[];
+  template?: ClientTemplateMetadata;
+}
+
+export interface ClientConfigResp {
+  data?: ClientConfigData | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface ClientConfigUpdateReq {
+  identifier: string;
+  mode?: ClientConfigMode;
+  preview?: boolean;
+  selected_config?: ClientConfigSelected;
+}
+
+export interface ClientConfigUpdateResp {
+  data?: unknown | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface ClientConfigRestoreReq {
+  identifier: string;
+  backup: string;
+}
+
+// Backups
+export interface ClientBackupEntry {
+  identifier: string;
+  backup: string;
+  path: string;
+  size: number;
+  created_at?: string | null;
+}
+
+export interface ClientBackupListData {
+  backups: ClientBackupEntry[];
+}
+
+export interface ClientBackupListResp {
+  data?: ClientBackupListData | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface ClientBackupActionResp {
+  data?: { identifier: string; backup: string; message: string } | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+// Backup policy
+export interface ClientBackupPolicyData {
+  identifier: string;
+  policy: string; // e.g., 'keep_n'
+  limit?: number | null;
+}
+
+export interface ClientBackupPolicyResp {
+  data?: ClientBackupPolicyData | null;
+  error?: unknown | null;
+  success: boolean;
+}
+
+export interface ClientBackupPolicySetReq {
+  identifier: string;
+  policy: { label: string; limit?: number | null };
+}

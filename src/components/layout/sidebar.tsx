@@ -1,13 +1,14 @@
 import {
-	Activity,
-	Bug,
-	ChevronLeft,
-	ChevronRight,
-	LayoutDashboard,
-	Server,
-	Settings,
-	Sliders,
-	Wrench,
+    Activity,
+    Bug,
+    ChevronLeft,
+    ChevronRight,
+    LayoutDashboard,
+    Server,
+    Settings,
+    Sliders,
+    Wrench,
+    Users,
 } from "lucide-react";
 import type React from "react";
 import { NavLink } from "react-router-dom";
@@ -115,17 +116,19 @@ export function Sidebar() {
 					{sidebarOpen && "Dashboard"}
 				</SidebarLink>
 
-				<SidebarLink to="/config" icon={<Sliders size={20} />}>
-					{sidebarOpen && "ConfSuits"}
-				</SidebarLink>
+        <SidebarLink to="/config" icon={<Sliders size={20} />}>
+            {sidebarOpen && "Profiles"}
+        </SidebarLink>
+
+        <SidebarLink to="/clients" icon={<Users size={20} />}>
+            {sidebarOpen && "Clients"}
+        </SidebarLink>
 
 				<SidebarLink to="/servers" icon={<Server size={20} />}>
 					{sidebarOpen && "Servers"}
 				</SidebarLink>
 
-				<SidebarLink to="/tools" icon={<Wrench size={20} />}>
-					{sidebarOpen && "Tools"}
-				</SidebarLink>
+        {/* Tools removed per feedback */}
 
 				<SidebarLink to="/runtime" icon={<Activity size={20} />}>
 					{sidebarOpen && "Runtime"}

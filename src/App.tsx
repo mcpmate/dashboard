@@ -13,7 +13,10 @@ import { InstanceDetailPage } from "./pages/servers/instance-detail-page";
 import { ServerDetailPage } from "./pages/servers/server-detail-page";
 import { ServerListPage } from "./pages/servers/server-list-page";
 import { SettingsPage } from "./pages/settings/settings-page";
-import { ToolsPage } from "./pages/tools/tools-page";
+// Tools page removed
+// import { ToolsPage } from "./pages/tools/tools-page";
+import { ClientsPage } from "./pages/clients/clients-page";
+import { ClientDetailPage } from "./pages/clients/client-detail-page";
 
 // Initialize the query client
 const queryClient = new QueryClient({
@@ -48,7 +51,9 @@ function App() {
 							path="servers/:serverId/instances/:instanceId"
 							element={<InstanceDetailPage />}
 						/>
-						<Route path="tools" element={<ToolsPage />} />
+                    {/* Tools route removed */}
+                    <Route path="clients" element={<ClientsPage />} />
+                    <Route path="clients/:identifier" element={<ClientDetailPage />} />
 						<Route path="runtime" element={<RuntimePage />} />
 						<Route path="settings" element={<SettingsPage />} />
 

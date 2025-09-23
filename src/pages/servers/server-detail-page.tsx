@@ -15,6 +15,8 @@ import {
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { StatusBadge } from "../../components/status-badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { serversApi } from "../../lib/api";
 import { Button } from "../../components/ui/button";
 import {
 	Card,
@@ -42,7 +44,7 @@ import {
 	AlertDialogTitle,
 } from "../../components/ui/alert-dialog";
 import { useToast } from "../../components/ui/use-toast";
-import { serversApi } from "../../lib/api";
+// serversApi already imported above
 import { ServerFormDrawer } from "../../components/server-form-drawer";
 
 export function ServerDetailPage() {
@@ -685,6 +687,128 @@ export function ServerDetailPage() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</div>
+
+		{/* Tabs: Overview + Capabilities */}
+		{server && (
+			<Tabs defaultValue="overview">
+				<TabsList>
+					<TabsTrigger value="overview">Overview</TabsTrigger>
+					<TabsTrigger value="capabilities">Capabilities</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="overview">
+					{/* Existing overview content remains above (header + instances) */}
+				</TabsContent>
+
+				<TabsContent value="capabilities">
+					<div className="grid gap-4">
+						{/* Nested tabs for capabilities */}
+						<Tabs defaultValue="tools">
+							<TabsList>
+								<TabsTrigger value="tools">Tools</TabsTrigger>
+								<TabsTrigger value="resources">Resources</TabsTrigger>
+								<TabsTrigger value="prompts">Prompts</TabsTrigger>
+								<TabsTrigger value="templates">Resource Templates</TabsTrigger>
+							</TabsList>
+
+							{/* Tools */}
+							<TabsContent value="tools">
+								<CapabilityList serverId={serverId!} kind="tools" />
+							</TabsContent>
+
+							{/* Resources */}
+							<TabsContent value="resources">
+								<CapabilityList serverId={serverId!} kind="resources" />
+							</TabsContent>
+
+							{/* Prompts */}
+							<TabsContent value="prompts">
+								<CapabilityList serverId={serverId!} kind="prompts" />
+							</TabsContent>
+
+							{/* Templates */}
+							<TabsContent value="templates">
+								<CapabilityList serverId={serverId!} kind="templates" />
+							</TabsContent>
+						</Tabs>
+					</div>
+				</TabsContent>
+			</Tabs>
+		)}
+
+	</div>
 	);
+}
+
+// Capability list section component
+function CapabilityList({ serverId, kind }: { serverId: string; kind: "tools" | "resources" | "prompts" | "templates" }) {
+  const qk = ["server-capability", kind, serverId] as const;
+  const query = useQuery({
+    queryKey: qk,
+    queryFn: async () => {
+      switch (kind) {
+        case "tools":
+          return await serversApi.listTools(serverId);
+        case "resources":
+          return await serversApi.listResources(serverId);
+        case "prompts":
+          return await serversApi.listPrompts(serverId);
+        case "templates":
+          return await serversApi.listResourceTemplates(serverId);
+      }
+    },
+  });
+
+  const items: any[] = (query.data?.items as any[]) || [];
+  const meta: any = query.data?.meta;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span className="capitalize">{kind}</span>
+          <div className="text-xs text-slate-500">
+            {meta ? (
+              <span>
+                source: {meta.source} • strategy: {meta.strategy} • cache_hit: {String(meta.cache_hit)}
+              </span>
+            ) : null}
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {query.isLoading ? (
+          <div className="space-y-2">
+            {[1,2,3].map(i => <div key={i} className="h-10 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />)}
+          </div>
+        ) : items.length ? (
+          <div className="space-y-2">
+            {items.map((it, idx) => {
+              const title = it.tool_name || it.name || it.id || it.uri || it.resource_uri || `#${idx+1}`;
+              const desc = it.description || it.details || "";
+              return (
+                <div key={idx} className="rounded border p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-sm">{String(title)}</div>
+                    {typeof it.enabled === 'boolean' && (
+                      <span className="text-xs px-2 py-0.5 rounded-full border">
+                        {it.enabled ? 'enabled' : 'disabled'}
+                      </span>
+                    )}
+                  </div>
+                  {desc ? <p className="text-xs text-slate-500 mt-1">{String(desc)}</p> : null}
+                  {/* Fallback JSON for unknown schemas */}
+                  <pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">
+                    {JSON.stringify(it, null, 2)}
+                  </pre>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">No data.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

@@ -142,9 +142,9 @@ export function ConfigSuitDetailPage() {
 		queryKey: ["configSuit", suitId],
 		queryFn: async () => {
 			if (!suitId) return undefined;
-			console.log("Fetching config suit details for:", suitId);
+                console.log("Fetching profile details for:", suitId);
 			const result = await configSuitsApi.getSuit(suitId);
-			console.log("Config suit details response:", result);
+                console.log("Profile details response:", result);
 			return result;
 		},
 		enabled: !!suitId,
@@ -161,9 +161,9 @@ export function ConfigSuitDetailPage() {
 		queryKey: ["configSuitServers", suitId],
 		queryFn: async () => {
 			if (!suitId) return undefined;
-			console.log("Fetching servers for config suit:", suitId);
+                console.log("Fetching servers for profile:", suitId);
 			const result = await configSuitsApi.getServers(suitId);
-			console.log("Config suit servers response:", result);
+                console.log("Profile servers response:", result);
 			return result;
 		},
 		enabled: !!suitId,
@@ -211,59 +211,59 @@ export function ConfigSuitDetailPage() {
 	// Activation/deactivation mutations
 	const activateSuitMutation = useMutation({
 		mutationFn: () => configSuitsApi.activateSuit(suitId!),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
-			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Config Suit Activated",
-				description: "Configuration suit has been successfully activated",
-			});
-		},
-		onError: (error) => {
-			toast({
-				title: "Activation Failed",
-				description: `Failed to activate config suit: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+        queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+        toast({
+            title: "Profile Activated",
+            description: "Profile has been successfully activated",
+        });
+    },
+    onError: (error) => {
+        toast({
+            title: "Activation Failed",
+            description: `Failed to activate profile: ${error instanceof Error ? error.message : String(error)}`,
+            variant: "destructive",
+        });
+    },
 	});
 
 	const deactivateSuitMutation = useMutation({
 		mutationFn: () => configSuitsApi.deactivateSuit(suitId!),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
-			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Config Suit Deactivated",
-				description: "Configuration suit has been successfully deactivated",
-			});
-		},
-		onError: (error) => {
-			toast({
-				title: "Deactivation Failed",
-				description: `Failed to deactivate config suit: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+        queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+        toast({
+            title: "Profile Deactivated",
+            description: "Profile has been successfully deactivated",
+        });
+    },
+    onError: (error) => {
+        toast({
+            title: "Deactivation Failed",
+            description: `Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
+            variant: "destructive",
+        });
+    },
 	});
 
-	// Delete suit mutation
+    // Delete profile mutation
 	const deleteSuitMutation = useMutation({
-		mutationFn: () => {
-			if (!suitId) return Promise.reject("No suit ID");
-			return configSuitsApi.deleteSuit(suitId);
-		},
+    mutationFn: () => {
+        if (!suitId) return Promise.reject("No suit ID");
+        return configSuitsApi.deleteSuit(suitId);
+    },
 		onSuccess: () => {
 			toast({
-				title: "Config Suit Deleted",
-				description: "Configuration suit has been successfully deleted",
-			});
+            title: "Profile Deleted",
+            description: "Profile has been successfully deleted",
+        });
 			navigate("/config");
 		},
 		onError: (error) => {
 			toast({
 				title: "Delete Failed",
-				description: `Failed to delete suit: ${error instanceof Error ? error.message : String(error)}`,
+                    description: `Failed to delete profile: ${error instanceof Error ? error.message : String(error)}`,
 				variant: "destructive",
 			});
 		},
@@ -599,7 +599,7 @@ export function ConfigSuitDetailPage() {
 				<Card>
 					<CardContent className="p-6">
 						<p className="text-center text-slate-500">
-							Config suit ID not provided
+                                Profile ID not provided
 						</p>
 					</CardContent>
 				</Card>
@@ -739,7 +739,7 @@ export function ConfigSuitDetailPage() {
 							<CardHeader>
 								<CardTitle>Servers</CardTitle>
 								<CardDescription>
-									Manage servers included in this configuration suit
+                                Manage servers included in this profile
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
@@ -816,7 +816,7 @@ export function ConfigSuitDetailPage() {
 									</div>
 								) : (
 									<p className="text-center text-slate-500 py-8">
-										No servers found in this configuration suit
+                                    No servers found in this profile
 									</p>
 								)}
 							</CardContent>
@@ -828,7 +828,7 @@ export function ConfigSuitDetailPage() {
 							<CardHeader>
 								<CardTitle>Tools</CardTitle>
 								<CardDescription>
-									Manage tools included in this configuration suit
+                                Manage tools included in this profile
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
@@ -923,7 +923,7 @@ export function ConfigSuitDetailPage() {
 									</div>
 								) : (
 									<p className="text-center text-slate-500 py-8">
-										No tools found in this configuration suit
+                                    No tools found in this profile
 									</p>
 								)}
 							</CardContent>
@@ -935,7 +935,7 @@ export function ConfigSuitDetailPage() {
 							<CardHeader>
 								<CardTitle>Resources</CardTitle>
 								<CardDescription>
-									Manage resources included in this configuration suit
+                                Manage resources included in this profile
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
@@ -1030,7 +1030,7 @@ export function ConfigSuitDetailPage() {
 									</div>
 								) : (
 									<p className="text-center text-slate-500 py-8">
-										No resources found in this configuration suit
+                                    No resources found in this profile
 									</p>
 								)}
 							</CardContent>
@@ -1042,7 +1042,7 @@ export function ConfigSuitDetailPage() {
 							<CardHeader>
 								<CardTitle>Prompts</CardTitle>
 								<CardDescription>
-									Manage prompts included in this configuration suit
+                                Manage prompts included in this profile
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
@@ -1137,7 +1137,7 @@ export function ConfigSuitDetailPage() {
 									</div>
 								) : (
 									<p className="text-center text-slate-500 py-8">
-										No prompts found in this configuration suit
+                                    No prompts found in this profile
 									</p>
 								)}
 							</CardContent>
@@ -1148,7 +1148,7 @@ export function ConfigSuitDetailPage() {
 				<Card>
 					<CardContent className="p-6">
 						<p className="text-center text-slate-500">
-							Configuration suit not found
+                            Profile not found
 						</p>
 					</CardContent>
 				</Card>

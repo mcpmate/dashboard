@@ -223,12 +223,12 @@ export function SuitFormDrawer({
 			<DrawerContent className="max-h-[96vh]">
 				<DrawerHeader>
 					<DrawerTitle>
-						{mode === "create" ? "Create New Configuration Suit" : "Edit Configuration Suit"}
+                    {mode === "create" ? "Create New Profile" : "Edit Profile"}
 					</DrawerTitle>
 					<DrawerDescription>
-						{mode === "create"
-							? "Create a new configuration suit to organize your MCP servers and tools."
-							: "Update the configuration suit settings."}
+                    {mode === "create"
+                        ? "Create a new profile to organize your MCP servers and tools."
+                        : "Update the profile settings."}
 					</DrawerDescription>
 				</DrawerHeader>
 
@@ -243,7 +243,7 @@ export function SuitFormDrawer({
 								onChange={(e) =>
 									setFormData((prev) => ({ ...prev, name: e.target.value }))
 								}
-								placeholder="Enter suit name"
+                    placeholder="Enter profile name"
 								required
 							/>
 						</div>
@@ -260,14 +260,14 @@ export function SuitFormDrawer({
 										description: e.target.value,
 									}))
 								}
-								placeholder="Enter suit description"
+                    placeholder="Enter profile description"
 								rows={3}
 							/>
 						</div>
 
 						{/* Suit Type */}
 						<div className="space-y-2">
-							<Label htmlFor={suitTypeId}>Suit Type</Label>
+                    <Label htmlFor={suitTypeId}>Profile Type</Label>
 							<Select
 								value={formData.suit_type}
 								onValueChange={(value: "scenario" | "tool") =>
@@ -352,7 +352,7 @@ export function SuitFormDrawer({
 									}
 								>
 									<SelectTrigger>
-										<SelectValue placeholder="Select a suit to clone from" />
+                                <SelectValue placeholder="Select a profile to clone from" />
 									</SelectTrigger>
 									<SelectContent>
 										<SelectItem value="none">None</SelectItem>
@@ -363,9 +363,7 @@ export function SuitFormDrawer({
 										))}
 									</SelectContent>
 								</Select>
-								<p className="text-sm text-muted-foreground">
-									Copy servers and tools from an existing suit
-								</p>
+                                <p className="text-sm text-muted-foreground">Copy servers and tools from an existing profile</p>
 							</div>
 						)}
 					</form>

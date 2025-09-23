@@ -3,10 +3,10 @@ import { useAppStore } from '../../lib/store';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Switch } from '../../components/ui/switch';
-import { Moon, Sun, Cpu, Wand2 } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 
 export function SettingsPage() {
-  const { theme, setTheme, uiMode, setUiMode } = useAppStore();
+  const { theme, setTheme } = useAppStore();
   
   return (
     <div className="space-y-6">
@@ -62,60 +62,6 @@ export function SettingsPage() {
                   checked={theme === 'system'} 
                   onCheckedChange={(checked) => setTheme(checked ? 'system' : 'light')}
                 />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Interface Mode</CardTitle>
-            <CardDescription>
-              Choose between simplified or advanced interface options
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-4">
-                <div 
-                  className={`cursor-pointer rounded-lg border p-4 ${
-                    uiMode === 'wizard' 
-                      ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/50' 
-                      : 'border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700'
-                  }`}
-                  onClick={() => setUiMode('wizard')}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Wand2 className="h-5 w-5" />
-                      <h3 className="font-medium">Wizard Mode</h3>
-                    </div>
-                    <Switch checked={uiMode === 'wizard'} />
-                  </div>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Simplified interface with step-by-step guidance. Recommended for new users.
-                  </p>
-                </div>
-                
-                <div 
-                  className={`cursor-pointer rounded-lg border p-4 ${
-                    uiMode === 'expert' 
-                      ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/50' 
-                      : 'border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700'
-                  }`}
-                  onClick={() => setUiMode('expert')}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Cpu className="h-5 w-5" />
-                      <h3 className="font-medium">Expert Mode</h3>
-                    </div>
-                    <Switch checked={uiMode === 'expert'} />
-                  </div>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Advanced interface with all options and features. Recommended for experienced users.
-                  </p>
-                </div>
               </div>
             </div>
           </CardContent>
