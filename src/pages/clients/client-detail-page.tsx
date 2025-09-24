@@ -1,6 +1,6 @@
+import { useEffect, useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link } from "react-router-dom";
-import { useEffect, useId, useState } from "react";
+import { useParams } from "react-router-dom";
 import { clientsApi } from "../../lib/api";
 import type { ClientBackupEntry, ClientBackupPolicySetReq, ClientConfigMode, ClientConfigSelected } from "../../lib/types";
 import { Button } from "../../components/ui/button";
@@ -10,14 +10,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Switch } from "../../components/ui/switch";
 import { Input } from "../../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { useToast } from "../../components/ui/use-toast";
-import { RefreshCw, RotateCcw, Trash2, Upload, ArrowLeft } from "lucide-react";
+import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
+import { ConfirmDialog } from "../../components/confirm-dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerDescription } from "../../components/ui/drawer";
+import { RefreshCw, RotateCcw, Trash2, Upload, MoreHorizontal, SlidersHorizontal, Eye } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
 
 export function ClientDetailPage() {
   const { identifier } = useParams<{ identifier: string }>();
-  const { toast } = useToast();
   const qc = useQueryClient();
   const [displayName, setDisplayName] = useState("");
+  const [selectedBackups, setSelectedBackups] = useState<string[]>([]);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
   // Try to get display name from list cache
   useEffect(() => {
@@ -25,6 +30,16 @@ export function ClientDetailPage() {
     if (cached?.client) {
       const found = cached.client.find((c: any) => c.identifier === identifier);
       if (found) setDisplayName(found.display_name);
+    }
+    if (!displayName) {
+      // Fallback: fetch list once to resolve display name
+      clientsApi
+        .list(false)
+        .then((d) => {
+          const f = d.client?.find((c: any) => c.identifier === identifier);
+          if (f?.display_name) setDisplayName(f.display_name);
+        })
+        .catch(() => {});
     }
   }, [identifier, qc]);
 
@@ -34,6 +49,11 @@ export function ClientDetailPage() {
   const [mode, setMode] = useState<ClientConfigMode>("hosted");
   const [selectedConfig, setSelectedConfig] = useState<ClientConfigSelected>("default");
   const [preview, setPreview] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [applyResult, setApplyResult] = useState<any | null>(null);
+  const [policyOpen, setPolicyOpen] = useState(false);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [importPreviewData, setImportPreviewData] = useState<any | null>(null);
 
   const { data: configDetails, isLoading: loadingConfig, refetch: refetchDetails } = useQuery({
     queryKey: ["client-config", identifier],
@@ -48,6 +68,10 @@ export function ClientDetailPage() {
   });
 
   const backups: ClientBackupEntry[] = backupsData?.backups || [];
+  const visibleBackups = useMemo(
+    () => backups.filter((b) => b.identifier === identifier),
+    [backups, identifier]
+  );
 
   const { data: policyData, refetch: refetchPolicy } = useQuery({
     queryKey: ["client-policy", identifier],
@@ -57,168 +81,448 @@ export function ClientDetailPage() {
 
   const applyMutation = useMutation({
     mutationFn: () => clientsApi.applyConfig({ identifier: identifier!, mode, selected_config: selectedConfig, preview }),
-    onSuccess: () => {
-      toast({ title: preview ? "Preview generated" : "Applied", description: preview ? "Preview OK" : "Configuration applied" });
+    onSuccess: (res) => {
+      if (preview) {
+        setApplyResult(res);
+        notifyInfo("Preview generated", "See preview details below");
+      } else {
+        notifySuccess("Applied", "Configuration applied");
+        setApplyOpen(false);
+        setApplyResult(null);
+      }
       qc.invalidateQueries({ queryKey: ["client-config", identifier] });
     },
-    onError: (e) => toast({ title: "Apply failed", description: String(e), variant: "destructive" }),
+    onError: (e) => notifyError("Apply failed", String(e)),
   });
 
   const importMutation = useMutation({
-    mutationFn: () => clientsApi.configDetails(identifier!, true),
-    onSuccess: () => toast({ title: "Imported", description: "Servers imported from client config (if any)" }),
-    onError: (e) => toast({ title: "Import failed", description: String(e), variant: "destructive" }),
+    mutationFn: () => clientsApi.importFromClient(identifier!, { preview: false }),
+    onSuccess: () => notifySuccess("Imported", "Servers imported from client config (if any)"),
+    onError: (e) => notifyError("Import failed", String(e)),
+  });
+  const importPreviewMutation = useMutation({
+    mutationFn: () => clientsApi.importFromClient(identifier!, { preview: true }),
+    onSuccess: (res) => { setImportPreviewData(res); setImportPreviewOpen(true); },
+    onError: (e) => notifyError("Preview failed", String(e)),
   });
 
   const restoreMutation = useMutation({
     mutationFn: ({ backup }: { backup: string }) => clientsApi.restoreConfig({ identifier: identifier!, backup }),
-    onSuccess: () => { toast({ title: "Restored", description: "Configuration restored from backup" }); refetchDetails(); refetchBackups(); },
-    onError: (e) => toast({ title: "Restore failed", description: String(e), variant: "destructive" }),
+    onSuccess: () => { notifySuccess("Restored", "Configuration restored from backup"); refetchDetails(); refetchBackups(); },
+    onError: (e) => notifyError("Restore failed", String(e)),
   });
 
   const deleteBackupMutation = useMutation({
     mutationFn: ({ backup }: { backup: string }) => clientsApi.deleteBackup(identifier!, backup),
-    onSuccess: () => { toast({ title: "Deleted", description: "Backup deleted" }); refetchBackups(); },
-    onError: (e) => toast({ title: "Delete failed", description: String(e), variant: "destructive" }),
+    onSuccess: () => { notifySuccess("Deleted", "Backup deleted"); refetchBackups(); },
+    onError: (e) => notifyError("Delete failed", String(e)),
   });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async () => {
+      const items = [...selectedBackups];
+      const results = await Promise.allSettled(
+        items.map((b) => clientsApi.deleteBackup(identifier!, b))
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) throw new Error(`${failed} deletions failed`);
+    },
+    onSuccess: async () => {
+      notifySuccess("Deleted", "Selected backups have been deleted");
+      setSelectedBackups([]);
+      setBulkConfirmOpen(false);
+      await refetchBackups();
+    },
+    onError: (e) => notifyError("Bulk delete failed", String(e)),
+  });
+
+  const [confirm, setConfirm] = useState<null | { kind: 'delete' | 'restore'; backup: string }>(null);
 
   const setPolicyMutation = useMutation({
     mutationFn: (payload: ClientBackupPolicySetReq) => clientsApi.setBackupPolicy(payload),
-    onSuccess: () => { toast({ title: "Saved", description: "Backup policy updated" }); refetchPolicy(); },
-    onError: (e) => toast({ title: "Save failed", description: String(e), variant: "destructive" }),
+    onSuccess: () => { notifySuccess("Saved", "Backup policy updated"); refetchPolicy(); },
+    onError: (e) => notifyError("Save failed", String(e)),
   });
 
   const [policyLabel, setPolicyLabel] = useState<string>("keep_n");
   const [policyLimit, setPolicyLimit] = useState<number | undefined>(30);
   useEffect(() => { if (policyData) { setPolicyLabel(policyData.policy || "keep_n"); setPolicyLimit(policyData.limit ?? undefined); } }, [policyData]);
 
+  // Heuristic extract current servers from config content for preview
+  const currentServers = useMemo(() => {
+    const c = (configDetails as any)?.content as any;
+    try {
+      if (!c) return [] as string[];
+      if (typeof c === "string") {
+        const parsed = JSON.parse(c);
+        return extractServers(parsed);
+      }
+      return extractServers(c);
+    } catch {
+      return [] as string[];
+    }
+  }, [configDetails]);
+
+  function extractServers(obj: any): string[] {
+    if (!obj || typeof obj !== "object") return [];
+    if (obj.mcpServers && typeof obj.mcpServers === "object") {
+      return Object.keys(obj.mcpServers);
+    }
+    if (obj.mcp && Array.isArray(obj.mcp.servers)) {
+      return obj.mcp.servers.map((s: any) => s?.name).filter(Boolean);
+    }
+    if (Array.isArray(obj.servers)) {
+      return obj.servers.map((s: any) => s?.name).filter(Boolean);
+    }
+    return [];
+  }
+
   if (!identifier) return <div className="p-4">No client identifier provided.</div>;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Link to="/clients"><Button variant="ghost" size="sm"><ArrowLeft className="mr-2 h-4 w-4" />Back</Button></Link>
+        <div className="flex items-center gap-3">
           <h2 className="text-3xl font-bold tracking-tight">{displayName || identifier}</h2>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" variant="outline"><MoreHorizontal className="h-4 w-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={5}>
+            <DropdownMenuItem onClick={() => setApplyOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" /> Apply Config
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPolicyOpen(true)}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" /> Backup Policy
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="apply">Apply</TabsTrigger>
-          <TabsTrigger value="backups">Backups</TabsTrigger>
-          <TabsTrigger value="policy">Policy</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="backups">Backups</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview">
-          <Card>
-            <CardHeader><CardTitle>Overview</CardTitle></CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {loadingConfig ? (
-                <div className="animate-pulse h-16 bg-slate-200 dark:bg-slate-800 rounded" />
-              ) : configDetails ? (
-                <>
-                  <div>Config Path: <span className="font-mono">{configDetails.config_path}</span></div>
-                  <div>Exists: {String(configDetails.config_exists)}</div>
-                  <div>MCP Config: {String(configDetails.has_mcp_config)} (Servers: {configDetails.mcp_servers_count})</div>
-                  <div>Last Modified: {configDetails.last_modified || "-"}</div>
-                </>
-              ) : (
-                <div className="text-slate-500">No details available</div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="apply">
-          <Card>
-            <CardHeader><CardTitle>Apply Configuration</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor={modeId}>Mode</Label>
-                  <Select value={mode} onValueChange={(v) => setMode(v as ClientConfigMode)}>
-                    <SelectTrigger id={modeId}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hosted">hosted</SelectItem>
-                      <SelectItem value="transparent">transparent</SelectItem>
-                    </SelectContent>
-                  </Select>
+          <div className="grid gap-4">
+            <Card>
+              <CardHeader><CardTitle>Client</CardTitle></CardHeader>
+              <CardContent className="text-sm">
+                {loadingConfig ? (
+                  <div className="animate-pulse h-16 bg-slate-200 dark:bg-slate-800 rounded" />
+                ) : configDetails ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-12 w-12">
+                        {((configDetails as any)?.logo_url) ? (
+                          <AvatarImage src={(configDetails as any).logo_url} alt={displayName || identifier} />
+                        ) : null}
+                        <AvatarFallback>{(displayName || identifier || "C").slice(0,1).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="font-medium">{displayName || identifier}</div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>Identifier: <span className="font-mono">{identifier}</span></div>
+                      <div>Config Path: <span className="font-mono">{configDetails.config_path}</span></div>
+                      <div>Managed: {String((configDetails as any).managed)}</div>
+                      <div>Servers detected: {configDetails.mcp_servers_count ?? 0}</div>
+                      <div>Last Modified: {configDetails.last_modified || "-"}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-slate-500">No details available</div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Configured Servers (preview)</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => importPreviewMutation.mutate()}>
+                      <Eye className="mr-2 h-4 w-4" /> Import from Config
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor={sourceId}>Source</Label>
-                  <Select value={selectedConfig} onValueChange={(v) => setSelectedConfig(v as ClientConfigSelected)}>
-                    <SelectTrigger id={sourceId}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">default</SelectItem>
-                      <SelectItem value="profile">profile</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Preview</Label>
-                  <div className="flex items-center gap-2"><Switch checked={preview} onCheckedChange={setPreview} /><span className="text-xs text-slate-500">Only generate preview</span></div>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}><Upload className="mr-2 h-4 w-4" />{preview ? "Preview" : "Apply"}</Button>
-                <Button variant="outline" onClick={() => refetchDetails()} disabled={loadingConfig}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
-                <Button variant="outline" onClick={() => importMutation.mutate()} disabled={importMutation.isPending}>Import Servers</Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {loadingConfig ? (
+                  <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-8 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />)}</div>
+                ) : currentServers.length ? (
+                  <ul className="list-disc pl-6 text-sm">
+                    {currentServers.map((n) => (<li key={n}>{n}</li>))}
+                  </ul>
+                ) : (
+                  <div className="text-sm text-slate-500">No servers extracted from current config.</div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="backups">
           <Card>
-            <CardHeader><CardTitle>Backups</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Backups</CardTitle>
+                <div className="flex items-center gap-2">
+                  {!loadingBackups && visibleBackups.length > 0 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedBackups(visibleBackups.map((b) => b.backup))}
+                      >
+                        Select all
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedBackups([])}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={bulkDeleteMutation.isPending || selectedBackups.length === 0}
+                        onClick={() => setBulkConfirmOpen(true)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete selected ({selectedBackups.length})
+                      </Button>
+                    </>
+                  )}
+                  <Button variant="outline" onClick={() => refetchBackups()} disabled={loadingBackups} size="sm">
+                    <RefreshCw className={`mr-2 h-4 w-4 ${loadingBackups ? 'animate-spin' : ''}`} />Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
             <CardContent className="space-y-3">
               {loadingBackups ? (
                 <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />)}</div>
-              ) : (backups.filter(b => b.identifier === identifier).length ? (
+              ) : (visibleBackups.length ? (
                 <div className="space-y-2">
-                  {backups.filter(b => b.identifier === identifier).map((b) => (
-                    <div key={b.path} className="flex items-center justify-between rounded border p-3 text-sm">
-                      <div className="space-y-0.5"><div className="font-mono">{b.backup}</div><div className="text-slate-500">{b.created_at || "-"} • {(b.size/1024).toFixed(1)} KB</div></div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={() => restoreMutation.mutate({ backup: b.backup })}><RotateCcw className="mr-2 h-4 w-4" />Restore</Button>
-                        <Button size="sm" variant="outline" onClick={() => deleteBackupMutation.mutate({ backup: b.backup })}><Trash2 className="mr-2 h-4 w-4" />Delete</Button>
+                  {visibleBackups.map((b) => {
+                    const selected = selectedBackups.includes(b.backup);
+                    return (
+                      <div
+                        key={b.path}
+                        className={`flex items-center justify-between rounded border p-3 text-sm cursor-pointer hover:bg-accent/50 ${selected ? 'bg-accent/50 ring-1 ring-primary/40' : ''}`}
+                        onClick={() => setSelectedBackups((prev) => prev.includes(b.backup) ? prev.filter((x) => x !== b.backup) : [...prev, b.backup])}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="font-mono">{b.backup}</div>
+                          <div className="text-slate-500">{b.created_at || "-"} • {(b.size/1024).toFixed(1)} KB</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" onClick={(e) => { e.stopPropagation(); setConfirm({ kind: 'restore', backup: b.backup }); }}>
+                            <RotateCcw className="mr-2 h-4 w-4" />Restore
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setConfirm({ kind: 'delete', backup: b.backup }); }}>
+                            <Trash2 className="mr-2 h-4 w-4" />Delete
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : <div className="text-slate-500 text-sm">No backups.</div>)}
-              <div className="mt-3"><Button variant="outline" onClick={() => refetchBackups()} disabled={loadingBackups}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button></div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="policy">
-          <Card>
-            <CardHeader><CardTitle>Backup Policy</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-              <div className="space-y-1">
-                <Label>Policy</Label>
-                <Select value={policyLabel} onValueChange={setPolicyLabel}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="keep_n">keep_n</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor={limitId}>Limit</Label>
-                <Input id={limitId} type="number" min={0} value={policyLimit ?? 0} onChange={(e) => setPolicyLimit(Number(e.target.value))} />
-              </div>
-              <div className="space-y-1">
-                <Button onClick={() => setPolicyMutation.mutate({ identifier: identifier!, policy: { label: policyLabel, limit: policyLimit } })} disabled={setPolicyMutation.isPending}>Save Policy</Button>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        isOpen={!!confirm}
+        onClose={() => setConfirm(null)}
+        title={confirm?.kind === 'delete' ? 'Delete Backup' : 'Restore Backup'}
+        description={confirm?.kind === 'delete' ? 'Are you sure you want to delete this backup? This action cannot be undone.' : 'Restore configuration from the selected backup? Current config may be overwritten.'}
+        confirmLabel={confirm?.kind === 'delete' ? 'Delete' : 'Restore'}
+        variant={confirm?.kind === 'delete' ? 'destructive' : 'default'}
+        isLoading={deleteBackupMutation.isPending || restoreMutation.isPending}
+        onConfirm={async () => {
+          if (!confirm) return;
+          if (confirm.kind === 'delete') {
+            await deleteBackupMutation.mutateAsync({ backup: confirm.backup });
+          } else {
+            await restoreMutation.mutateAsync({ backup: confirm.backup });
+          }
+          setConfirm(null);
+        }}
+      />
+
+      {/* Bulk delete confirmation */}
+      <ConfirmDialog
+        isOpen={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        title="Delete Selected Backups"
+        description={`Are you sure you want to delete ${selectedBackups.length} backup(s)? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        isLoading={bulkDeleteMutation.isPending}
+        onConfirm={() => bulkDeleteMutation.mutate()}
+      />
+
+      {/* Apply Config Drawer */}
+      <Drawer open={applyOpen} onOpenChange={(o) => { setApplyOpen(o); if (!o) setApplyResult(null); }}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Apply Configuration</DrawerTitle>
+            <DrawerDescription>Apply or preview configuration for this client.</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor={modeId}>Mode</Label>
+                <Select value={mode} onValueChange={(v) => setMode(v as ClientConfigMode)}>
+                  <SelectTrigger id={modeId}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hosted">hosted</SelectItem>
+                    <SelectItem value="transparent">transparent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={sourceId}>Source</Label>
+                <Select value={selectedConfig} onValueChange={(v) => setSelectedConfig(v as ClientConfigSelected)}>
+                  <SelectTrigger id={sourceId}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">default</SelectItem>
+                    <SelectItem value="profile">profile</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Preview</Label>
+                <div className="flex items-center gap-2"><Switch checked={preview} onCheckedChange={setPreview} /><span className="text-xs text-slate-500">Only generate preview</span></div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}><Upload className="mr-2 h-4 w-4" />{preview ? "Preview" : "Apply"}</Button>
+              <Button variant="outline" onClick={() => refetchDetails()} disabled={loadingConfig}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
+            </div>
+            {preview && (
+              <div className="rounded border p-3 text-sm">
+                <div className="font-medium mb-2">Preview Result</div>
+                {applyMutation.isPending ? (
+                  <div className="h-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+                ) : applyResult ? (
+                  <>
+                    {applyResult.summary ? (
+                      <div className="grid grid-cols-2 gap-2 mb-2 text-xs text-slate-600 dark:text-slate-300">
+                        <div>changes: {applyResult.summary.changes ?? '-'}</div>
+                        <div>errors: {applyResult.summary.errors?.length ?? 0}</div>
+                      </div>
+                    ) : null}
+                    {applyResult.diff ? (
+                      <details className="mt-1">
+                        <summary className="text-xs text-slate-500 cursor-pointer">Diff</summary>
+                        <pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">{JSON.stringify(applyResult.diff, null, 2)}</pre>
+                      </details>
+                    ) : null}
+                    <pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">{JSON.stringify(applyResult, null, 2)}</pre>
+                  </>
+                ) : (
+                  <div className="text-xs text-slate-500">No preview yet.</div>
+                )}
+              </div>
+            )}
+          </div>
+          <DrawerFooter />
+        </DrawerContent>
+      </Drawer>
+
+      {/* Backup Policy Drawer */}
+      <Drawer open={policyOpen} onOpenChange={setPolicyOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Backup Policy</DrawerTitle>
+          </DrawerHeader>
+          <div className="p-4 space-y-4">
+            <div className="space-y-1">
+              <Label>Policy</Label>
+              <p className="text-xs text-slate-500">Backup retention strategy. For now, only "keep_n" is supported, which keeps at most N recent backups and prunes older ones.</p>
+              <Select value={policyLabel} onValueChange={setPolicyLabel}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="keep_n">keep_n</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={limitId}>Limit</Label>
+              <p className="text-xs text-slate-500">Maximum number of backups to keep for this client. Set to 0 for no limit.</p>
+              <Input id={limitId} type="number" min={0} value={policyLimit ?? 0} onChange={(e) => setPolicyLimit(Number(e.target.value))} />
+            </div>
+            <div>
+              <Button onClick={() => setPolicyMutation.mutate({ identifier: identifier!, policy: { label: policyLabel, limit: policyLimit } })} disabled={setPolicyMutation.isPending}>Save Policy</Button>
+            </div>
+          </div>
+          <DrawerFooter />
+        </DrawerContent>
+      </Drawer>
+
+      {/* Import Preview Drawer */}
+      <Drawer open={importPreviewOpen} onOpenChange={setImportPreviewOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Import Preview</DrawerTitle>
+            <DrawerDescription>Summary of servers detected from current client config.</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 space-y-3 text-sm">
+            {importPreviewMutation.isPending ? (
+              <div className="h-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
+            ) : importPreviewData ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>attempted: {String(importPreviewData.summary?.attempted ?? '-')}</div>
+                  <div>imported: {importPreviewData.summary?.imported_count ?? 0}</div>
+                  <div>skipped: {importPreviewData.summary?.skipped_count ?? 0}</div>
+                  <div>failed: {importPreviewData.summary?.failed_count ?? 0}</div>
+                </div>
+                {Array.isArray(importPreviewData.items) && importPreviewData.items.length > 0 ? (
+                  <div className="rounded border">
+                    <div className="px-3 py-2 text-xs text-slate-500 border-b">Servers to import</div>
+                    <ul className="divide-y">
+                      {importPreviewData.items.map((it: any, idx: number) => (
+                        <li key={idx} className="p-3 text-xs">
+                          <div className="font-medium">{it.name || it.server_name || `#${idx+1}`}</div>
+                          {it.error ? <div className="text-red-500">{String(it.error)}</div> : null}
+                          <div className="mt-1 text-slate-500">tools: {it.tools?.items?.length ?? 0} • resources: {it.resources?.items?.length ?? 0} • templates: {it.resource_templates?.items?.length ?? 0} • prompts: {it.prompts?.items?.length ?? 0}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {importPreviewData.summary?.errors ? (
+                  <details>
+                    <summary className="text-xs text-slate-500 cursor-pointer">Errors</summary>
+                    <pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">{JSON.stringify(importPreviewData.summary.errors, null, 2)}</pre>
+                  </details>
+                ) : null}
+                <details className="mt-2">
+                  <summary className="text-xs text-slate-500 cursor-pointer">Raw preview JSON</summary>
+                  <pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">{JSON.stringify(importPreviewData, null, 2)}</pre>
+                </details>
+              </div>
+            ) : (
+              <div className="text-slate-500">No preview data.</div>
+            )}
+            <div className="flex gap-2 mt-2">
+              <Button onClick={() => importMutation.mutate()} disabled={importMutation.isPending}>Apply Import</Button>
+              <Button variant="outline" onClick={() => setImportPreviewOpen(false)}>Close</Button>
+            </div>
+          </div>
+          <DrawerFooter />
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
 
 export default ClientDetailPage;
-

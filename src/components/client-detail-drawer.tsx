@@ -21,7 +21,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Switch } from "./ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { useToast } from "./ui/use-toast";
+import { notifyError, notifySuccess, notifyInfo } from "../lib/notify";
 import { RefreshCw, RotateCcw, Trash2, Upload } from "lucide-react";
 
 interface ClientDetailDrawerProps {
@@ -32,7 +32,6 @@ interface ClientDetailDrawerProps {
 }
 
 export function ClientDetailDrawer({ open, onOpenChange, identifier, displayName }: ClientDetailDrawerProps) {
-  const { toast } = useToast();
   const qc = useQueryClient();
   const modeId = useId();
   const selectedId = useId();
@@ -51,10 +50,8 @@ export function ClientDetailDrawer({ open, onOpenChange, identifier, displayName
 
   const importMutation = useMutation({
     mutationFn: () => clientsApi.configDetails(identifier, true),
-    onSuccess: () => {
-      toast({ title: "Imported", description: "Servers imported from client config (if any)" });
-    },
-    onError: (e) => toast({ title: "Import failed", description: String(e), variant: "destructive" }),
+    onSuccess: () => { notifySuccess("Imported", "Servers imported from client config (if any)"); },
+    onError: (e) => notifyError("Import failed", String(e)),
   });
 
   const { data: backupsData, isLoading: loadingBackups, refetch: refetchBackups } = useQuery({
@@ -74,38 +71,32 @@ export function ClientDetailDrawer({ open, onOpenChange, identifier, displayName
   const applyMutation = useMutation({
     mutationFn: () => clientsApi.applyConfig({ identifier, mode, selected_config: selectedConfig, preview }),
     onSuccess: () => {
-      toast({ title: preview ? "Preview generated" : "Applied", description: preview ? "Preview OK" : "Configuration applied" });
+      if (preview) {
+        notifyInfo("Preview generated", "Preview ready");
+      } else {
+        notifySuccess("Applied", "Configuration applied");
+      }
       qc.invalidateQueries({ queryKey: ["client-config", identifier] });
     },
-    onError: (e) => toast({ title: "Apply failed", description: String(e), variant: "destructive" }),
+    onError: (e) => notifyError("Apply failed", String(e)),
   });
 
   const restoreMutation = useMutation({
     mutationFn: ({ backup }: { backup: string }) => clientsApi.restoreConfig({ identifier, backup }),
-    onSuccess: () => {
-      toast({ title: "Restored", description: "Configuration restored from backup" });
-      refetchDetails();
-      refetchBackups();
-    },
-    onError: (e) => toast({ title: "Restore failed", description: String(e), variant: "destructive" }),
+    onSuccess: () => { notifySuccess("Restored", "Configuration restored from backup"); refetchDetails(); refetchBackups(); },
+    onError: (e) => notifyError("Restore failed", String(e)),
   });
 
   const deleteBackupMutation = useMutation({
     mutationFn: ({ backup }: { backup: string }) => clientsApi.deleteBackup(identifier, backup),
-    onSuccess: () => {
-      toast({ title: "Deleted", description: "Backup deleted" });
-      refetchBackups();
-    },
-    onError: (e) => toast({ title: "Delete failed", description: String(e), variant: "destructive" }),
+    onSuccess: () => { notifySuccess("Deleted", "Backup deleted"); refetchBackups(); },
+    onError: (e) => notifyError("Delete failed", String(e)),
   });
 
   const setPolicyMutation = useMutation({
     mutationFn: (payload: ClientBackupPolicySetReq) => clientsApi.setBackupPolicy(payload),
-    onSuccess: () => {
-      toast({ title: "Saved", description: "Backup policy updated" });
-      refetchPolicy();
-    },
-    onError: (e) => toast({ title: "Save failed", description: String(e), variant: "destructive" }),
+    onSuccess: () => { notifySuccess("Saved", "Backup policy updated"); refetchPolicy(); },
+    onError: (e) => notifyError("Save failed", String(e)),
   });
 
   // Local input for policy
@@ -121,7 +112,7 @@ export function ClientDetailDrawer({ open, onOpenChange, identifier, displayName
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh]">
+      <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Client Details: {displayName}</DrawerTitle>
           <DrawerDescription>Manage configuration and backups for {identifier}</DrawerDescription>

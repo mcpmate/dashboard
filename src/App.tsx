@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/layout/layout";
-import { Toaster } from "./components/ui/toaster";
 import { ConfigPage } from "./pages/config/config-page";
 import { ConfigPresetPage } from "./pages/config/config-preset-page";
 import { ConfigSuitDetailPage } from "./pages/config/config-suit-detail-page";
@@ -36,15 +35,17 @@ function App() {
 				<Routes>
 					<Route path="/" element={<Layout />}>
 						<Route index element={<DashboardPage />} />
-						<Route path="config" element={<ConfigPage />} />
+                    {/* New canonical routes */}
+                    <Route path="profiles" element={<ConfigPage />} />
 						<Route
 							path="config/presets/:presetId"
 							element={<ConfigPresetPage />}
 						/>
-						<Route
-							path="config/suits/:suitId"
-							element={<ConfigSuitDetailPage />}
-						/>
+                    {/* Back-compat: redirect old routes */}
+                    <Route path="config" element={<Navigate to="/profiles" replace />} />
+                    <Route path="config/suits/:suitId" element={<Navigate to="/profiles/:suitId" replace />} />
+                    <Route path="config/profiles/:suitId" element={<Navigate to="/profiles/:suitId" replace />} />
+                    <Route path="profiles/:suitId" element={<ConfigSuitDetailPage />} />
 						<Route path="servers" element={<ServerListPage />} />
 						<Route path="servers/:serverId" element={<ServerDetailPage />} />
 						<Route
@@ -61,7 +62,6 @@ function App() {
 						<Route path="*" element={<Navigate to="/404" replace />} />
 					</Route>
 				</Routes>
-				<Toaster />
 			</BrowserRouter>
 		</QueryClientProvider>
 	);

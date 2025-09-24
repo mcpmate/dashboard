@@ -26,7 +26,7 @@ import {
 } from "./ui/select";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
-import { useToast } from "./ui/use-toast";
+import { notifyError, notifySuccess } from "../lib/notify";
 
 interface SuitFormDialogProps {
 	open: boolean;
@@ -43,7 +43,6 @@ export function SuitFormDialog({
 	suit,
 	onSuccess,
 }: SuitFormDialogProps) {
-	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const nameId = useId();
 	const descriptionId = useId();
@@ -102,46 +101,28 @@ export function SuitFormDialog({
 	const createMutation = useMutation({
 		mutationFn: (data: CreateConfigSuitRequest) =>
 			configSuitsApi.createSuit(data),
-		onSuccess: () => {
+	onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Success",
-            description: "Profile created successfully",
-			});
+		notifySuccess("Created", "Profile created successfully");
 			onOpenChange(false);
 			resetForm();
 			onSuccess?.();
 		},
-		onError: (error) => {
-			toast({
-				title: "Error",
-            description: `Failed to create profile: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+		onError: (error) => { notifyError("Create failed", `Failed to create profile: ${error instanceof Error ? error.message : String(error)}`); },
 	});
 
 	// Update mutation
 	const updateMutation = useMutation({
 		mutationFn: ({ id, data }: { id: string; data: UpdateConfigSuitRequest }) =>
 			configSuitsApi.updateSuit(id, data),
-		onSuccess: () => {
+	onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			queryClient.invalidateQueries({ queryKey: ["configSuit", suit?.id] });
-			toast({
-				title: "Success",
-            description: "Profile updated successfully",
-			});
+		notifySuccess("Updated", "Profile updated successfully");
 			onOpenChange(false);
 			onSuccess?.();
 		},
-		onError: (error) => {
-			toast({
-				title: "Error",
-            description: `Failed to update profile: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+		onError: (error) => { notifyError("Update failed", `Failed to update profile: ${error instanceof Error ? error.message : String(error)}`); },
 	});
 
 	const resetForm = () => {
@@ -160,14 +141,7 @@ export function SuitFormDialog({
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 
-		if (!formData.name.trim()) {
-			toast({
-				title: "Validation Error",
-				description: "Name is required",
-				variant: "destructive",
-			});
-			return;
-		}
+		if (!formData.name.trim()) { notifyError("Validation failed", "Name is required"); return; }
 
 		if (mode === "create") {
 			const createData: CreateConfigSuitRequest = {

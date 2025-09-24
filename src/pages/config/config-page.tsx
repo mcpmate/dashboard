@@ -9,7 +9,7 @@ import {
 	Wrench,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -21,7 +21,7 @@ import {
 	CardTitle,
 } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
-import { useToast } from "../../components/ui/use-toast";
+import { notifyError, notifySuccess } from "../../lib/notify";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import type {
 	ConfigSuit,
@@ -30,8 +30,8 @@ import type {
 } from "../../lib/types";
 
 export function ConfigPage() {
+    const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const { toast } = useToast();
 	const [isNewSuitDialogOpen, setIsNewSuitDialogOpen] = useState(false);
 
 	const {
@@ -97,17 +97,10 @@ export function ConfigPage() {
 		mutationFn: configSuitsApi.activateSuit,
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-        toast({
-            title: "Profile Activated",
-            description: "Profile has been successfully activated",
-        });
+        notifySuccess("Profile activated", "Profile has been successfully activated");
     },
     onError: (error) => {
-        toast({
-            title: "Activation Failed",
-            description: `Failed to activate profile: ${error instanceof Error ? error.message : String(error)}`,
-            variant: "destructive",
-        });
+        notifyError("Activation failed", `Failed to activate profile: ${error instanceof Error ? error.message : String(error)}`);
     },
 	});
 
@@ -116,17 +109,10 @@ export function ConfigPage() {
 		mutationFn: configSuitsApi.deactivateSuit,
     onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-        toast({
-            title: "Profile Deactivated",
-            description: "Profile has been successfully deactivated",
-        });
+        notifySuccess("Profile deactivated", "Profile has been successfully deactivated");
     },
     onError: (error) => {
-        toast({
-            title: "Deactivation Failed",
-            description: `Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
-            variant: "destructive",
-        });
+        notifyError("Deactivation failed", `Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`);
     },
 	});
 
@@ -367,10 +353,19 @@ export function ConfigPage() {
 						) : suits.length > 0 ? (
 				<div className="space-y-4">
 					{suits.map((suit: ConfigSuit) => (
-						<div
-							key={suit.id}
-							className="flex items-center justify-between rounded-lg border p-4"
-						>
+                    <div
+                        key={suit.id}
+                        className="flex items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-accent/50"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => navigate(`/profiles/${suit.id}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            navigate(`/config/profiles/${suit.id}`);
+                          }
+                        }}
+                    >
 							<div className="space-y-1">
 								<div className="flex items-center gap-2">
 									<h3 className="font-medium text-sm">
@@ -411,20 +406,22 @@ export function ConfigPage() {
 								</div>
 							</div>
 							<div className="flex items-center gap-2">
-								<Switch
-									checked={suit.is_active}
-									onCheckedChange={() => handleSuitToggle(suit)}
-									disabled={
-										activateSuitMutation.isPending ||
-										deactivateSuitMutation.isPending
-									}
-								/>
-								<Link to={`/config/suits/${suit.id}`}>
-									<Button variant="outline" size="sm">
-										<Settings className="mr-2 h-4 w-4" />
-										Configure
-									</Button>
-								</Link>
+                        <Switch
+                            checked={suit.is_active}
+                            onCheckedChange={() => handleSuitToggle(suit)}
+                            disabled={
+                                suit.is_default ||
+                                activateSuitMutation.isPending ||
+                                deactivateSuitMutation.isPending
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <Link to={`/profiles/${suit.id}`} onClick={(e) => e.stopPropagation()}>
+                            <Button variant="outline" size="sm">
+                                <Settings className="mr-2 h-4 w-4" />
+                                Configure
+                            </Button>
+                        </Link>
 							</div>
 						</div>
 					))}

@@ -1,14 +1,14 @@
-import { ArrowLeft, BellRing, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Moon, Sun } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { NotificationCenter } from "../notification-center";
 
 const ROUTE_TITLES: Record<string, string> = {
 	"/": "Dashboard",
-	"/config": "Config Suits",
+	"/profiles": "Profiles",
+	"/clients": "Clients",
 	"/servers": "Servers",
-	"/tools": "Tools",
 	"/runtime": "Runtime",
 	"/system": "System",
 	"/settings": "Settings",
@@ -16,9 +16,9 @@ const ROUTE_TITLES: Record<string, string> = {
 
 const MAIN_ROUTES = [
 	"/",
-	"/config",
+	"/profiles",
+	"/clients",
 	"/servers",
-	"/tools",
 	"/runtime",
 	"/system",
 	"/settings",
@@ -51,43 +51,30 @@ export function Header() {
 					<h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">
 						{pageTitle}
 					</h1>
-				) : (
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={handleBack}
-						className="text-slate-900 dark:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800"
-					>
-						<ArrowLeft className="mr-2 h-4 w-4" />
-						Back
-					</Button>
-				)}
+    ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleBack}
+          className="text-slate-900 dark:text-slate-50 hover:bg-slate-100 dark:hover:bg-slate-800"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+      )}
 
 				<div className="flex items-center space-x-4">
-					<div className="flex items-center">
-						<Button
-							variant="ghost"
-							size="icon"
-							onClick={toggleTheme}
-							aria-label="Toggle theme"
-						>
-							{theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-						</Button>
-					</div>
-
-					<div className="flex items-center">
-						<Button variant="ghost" size="icon" aria-label="Notifications">
-							<div className="relative">
-								<BellRing size={20} />
-								<Badge
-									className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center"
-									variant="destructive"
-								>
-									2
-								</Badge>
-							</div>
-						</Button>
-					</div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
+          </Button>
+          <NotificationCenter />
+        </div>
 				</div>
 			</div>
 		</header>

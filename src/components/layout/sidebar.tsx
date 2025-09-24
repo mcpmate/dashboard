@@ -7,7 +7,6 @@ import {
     Server,
     Settings,
     Sliders,
-    Wrench,
     Users,
 } from "lucide-react";
 import type React from "react";
@@ -77,16 +76,27 @@ export function Sidebar() {
 				sidebarOpen ? "w-64" : "w-16",
 			)}
 		>
-			<div className="flex h-16 items-center justify-between px-4">
-				<div
-					className={cn(
-						"flex items-center",
-						sidebarOpen ? "justify-between w-full" : "justify-center",
-					)}
-				>
-					{sidebarOpen && (
-						<span className="font-bold text-xl dark:text-white">MCPMate</span>
-					)}
+            <div className="flex h-16 items-center justify-between px-4">
+                <div
+                    className={cn(
+                        "flex items-center gap-2",
+                        sidebarOpen ? "justify-between w-full" : "justify-center",
+                    )}
+                >
+                    {/* Brand: show logo + title when expanded; only logo when collapsed */}
+                    <img
+                        src="https://mcpmate.io/logo.svg"
+                        alt="MCPMate"
+                        className={cn(
+                            "h-6 w-6 object-contain transition",
+                            // In dark mode, invert to white for visibility
+                            "dark:invert dark:brightness-0",
+                            !sidebarOpen && "mx-auto",
+                        )}
+                    />
+                    {sidebarOpen && (
+                        <span className="font-bold text-xl dark:text-white">MCPMate</span>
+                    )}
 					<Button
 						variant="ghost"
 						size="icon"
@@ -116,7 +126,7 @@ export function Sidebar() {
 					{sidebarOpen && "Dashboard"}
 				</SidebarLink>
 
-        <SidebarLink to="/config" icon={<Sliders size={20} />}>
+        <SidebarLink to="/profiles" icon={<Sliders size={20} />}>
             {sidebarOpen && "Profiles"}
         </SidebarLink>
 
@@ -135,9 +145,9 @@ export function Sidebar() {
 				</SidebarLink>
 
 				<div className="mt-auto">
-					<ExternalSidebarLink href="http://127.0.0.1:8080/docs" icon={<Bug size={20} />}>
-						{sidebarOpen && "API Test"}
-					</ExternalSidebarLink>
+        <ExternalSidebarLink href="http://127.0.0.1:8080/docs" icon={<Bug size={20} />}>
+            {sidebarOpen && "API Docs"}
+        </ExternalSidebarLink>
 
 					<SidebarLink to="/settings" icon={<Settings size={20} />}>
 						{sidebarOpen && "Settings"}

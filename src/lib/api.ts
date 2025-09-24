@@ -143,20 +143,19 @@ function extractApiData<T>(response: ApiWrapper<T>): T {
 
 // Utility function for batch operations
 async function executeBatchOperation(
-	ids: string[],
-	operation: (id: string) => Promise<unknown>,
+    ids: string[],
+    operation: (id: string) => Promise<unknown>,
 ): Promise<BatchOperationResponse> {
-	const results = await Promise.allSettled(ids.map(operation));
-	const successful = results.filter((r) => r.status === "fulfilled").length;
-	const failed = results.length - successful;
+    const results = await Promise.allSettled(ids.map(operation));
+    const successful = results.filter((r) => r.status === "fulfilled").length;
 
-	return {
-		success_count: successful,
-		successful_ids: ids.slice(0, successful),
-		failed_ids: Object.fromEntries(
-			ids.slice(successful).map((id) => [id, "Batch operation failed"]),
-		),
-	};
+    return {
+        success_count: successful,
+        successful_ids: ids.slice(0, successful),
+        failed_ids: Object.fromEntries(
+            ids.slice(successful).map((id) => [id, "Batch operation failed"]),
+        ),
+    };
 }
 
 // Server Management API
@@ -360,7 +359,94 @@ export const serversApi = {
 		fetchApi<ServerDetailsResp>("/api/mcp/servers/delete", {
 			method: "DELETE",
 			body: JSON.stringify({ id: serverId }),
-		}),
+ 		}),
+
+  // Server capabilities listing
+  listTools: async (
+    serverId: string,
+    refresh: "auto" | "force" | "cache" = "auto",
+  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
+    const q = new URLSearchParams({ id: serverId, refresh });
+    const resp = await fetchApi<{
+      success: boolean;
+      data?: { items: any[]; meta?: any; state?: string } | null;
+      error?: unknown | null;
+    }>(`/api/mcp/servers/tools?${q}`);
+    return (resp?.data as any) || { items: [] };
+  },
+  listResources: async (
+    serverId: string,
+    refresh: "auto" | "force" | "cache" = "auto",
+  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
+    const q = new URLSearchParams({ id: serverId, refresh });
+    const resp = await fetchApi<{
+      success: boolean;
+      data?: { items: any[]; meta?: any; state?: string } | null;
+      error?: unknown | null;
+    }>(`/api/mcp/servers/resources?${q}`);
+    return (resp?.data as any) || { items: [] };
+  },
+  listPrompts: async (
+    serverId: string,
+    refresh: "auto" | "force" | "cache" = "auto",
+  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
+    const q = new URLSearchParams({ id: serverId, refresh });
+    const resp = await fetchApi<{
+      success: boolean;
+      data?: { items: any[]; meta?: any; state?: string } | null;
+      error?: unknown | null;
+    }>(`/api/mcp/servers/prompts?${q}`);
+    return (resp?.data as any) || { items: [] };
+  },
+  listResourceTemplates: async (
+    serverId: string,
+    refresh: "auto" | "force" | "cache" = "auto",
+  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
+    const q = new URLSearchParams({ id: serverId, refresh });
+    const resp = await fetchApi<{
+      success: boolean;
+      data?: { items: any[]; meta?: any; state?: string } | null;
+      error?: unknown | null;
+    }>(`/api/mcp/servers/resources/templates?${q}`);
+    return (resp?.data as any) || { items: [] };
+  },
+
+  // Import servers from JSON-like configuration object
+  importServers: async (payload: {
+    mcpServers: Record<string, any>;
+  }): Promise<{
+    success: boolean;
+    data?: any;
+    error?: unknown | null;
+  }> => {
+    return await fetchApi(`/api/mcp/servers/import`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  // Preview capabilities for proposed server configs without importing
+  previewServers: async (payload: {
+    include_details?: boolean | null;
+    timeout_ms?: number | null;
+    servers: Array<{
+      name: string;
+      kind: string;
+      command?: string | null;
+      args?: string[] | null;
+      env?: Record<string, string> | null;
+      url?: string | null;
+    }>;
+  }): Promise<{
+    success: boolean;
+    data?: { items: any[] } | null;
+    error?: unknown | null;
+  }> => {
+    return await fetchApi(`/api/mcp/servers/preview`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 };
 
 // Tools Management API
@@ -937,22 +1023,43 @@ export const configSuitsApi = {
       body: JSON.stringify({ profile_id: suitId, component_ids: [componentId], action }),
     }),
 
+  // Batch manage multiple component ids in one request for reliability/perf
+  _manageComponentsBatch: (
+    endpoint: "servers" | "tools" | "resources" | "prompts",
+    suitId: string,
+    componentIds: string[],
+    action: "enable" | "disable",
+  ) =>
+    fetchApi<ApiResponse<null>>(`/api/mcp/profile/${endpoint}/manage`, {
+      method: "POST",
+      body: JSON.stringify({ profile_id: suitId, component_ids: componentIds, action }),
+    }),
+
   enableServer: (suitId: string, serverId: string) =>
     configSuitsApi._manageComponent("servers", suitId, serverId, "enable"),
   disableServer: (suitId: string, serverId: string) =>
     configSuitsApi._manageComponent("servers", suitId, serverId, "disable"),
+  // Some backends only support single-id manage for servers; do per-id with best-effort batching
+  bulkServers: async (suitId: string, ids: string[], action: "enable" | "disable") =>
+    executeBatchOperation(ids, (id) => configSuitsApi._manageComponent("servers", suitId, id, action)),
   enableTool: (suitId: string, toolId: string) =>
     configSuitsApi._manageComponent("tools", suitId, toolId, "enable"),
   disableTool: (suitId: string, toolId: string) =>
     configSuitsApi._manageComponent("tools", suitId, toolId, "disable"),
+  bulkTools: (suitId: string, ids: string[], action: "enable" | "disable") =>
+    configSuitsApi._manageComponentsBatch("tools", suitId, ids, action),
   enableResource: (suitId: string, resourceId: string) =>
     configSuitsApi._manageComponent("resources", suitId, resourceId, "enable"),
   disableResource: (suitId: string, resourceId: string) =>
     configSuitsApi._manageComponent("resources", suitId, resourceId, "disable"),
+  bulkResources: (suitId: string, ids: string[], action: "enable" | "disable") =>
+    configSuitsApi._manageComponentsBatch("resources", suitId, ids, action),
   enablePrompt: (suitId: string, promptId: string) =>
     configSuitsApi._manageComponent("prompts", suitId, promptId, "enable"),
   disablePrompt: (suitId: string, promptId: string) =>
     configSuitsApi._manageComponent("prompts", suitId, promptId, "disable"),
+  bulkPrompts: (suitId: string, ids: string[], action: "enable" | "disable") =>
+    configSuitsApi._manageComponentsBatch("prompts", suitId, ids, action),
 };
 
 // WebSocket Notifications Service
@@ -1114,5 +1221,20 @@ export const clientsApi = {
       body: JSON.stringify(payload),
     });
     return extractApiData(resp);
+  },
+
+  // Import servers from an existing client configuration (preview or apply)
+  importFromClient: async (
+    identifier: string,
+    options?: { preview?: boolean; profile_id?: string | null },
+  ) => {
+    const body: any = { identifier };
+    if (options && typeof options.preview === "boolean") body.preview = options.preview;
+    if (options && "profile_id" in options) body.profile_id = options.profile_id;
+    const resp = await fetchApi(`/api/client/config/import`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return extractApiData(resp as any);
   },
 };

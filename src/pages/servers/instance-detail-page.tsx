@@ -1,10 +1,10 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams, Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { serversApi } from '../../lib/api';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { ArrowLeft, RefreshCw, StopCircle, PlayCircle, RotateCw, Shield } from 'lucide-react';
+import { RefreshCw, StopCircle, PlayCircle, RotateCw, Shield } from 'lucide-react';
 import { StatusBadge } from '../../components/status-badge';
 import { formatRelativeTime } from '../../lib/utils';
 
@@ -21,6 +21,12 @@ export function InstanceDetailPage() {
     queryFn: () => serversApi.getInstance(serverId || '', instanceId || ''),
     enabled: !!serverId && !!instanceId,
     refetchInterval: 10000,
+  });
+
+  const { data: serverDetails } = useQuery({
+    queryKey: ['serverForInstance', serverId],
+    queryFn: () => serversApi.getServer(serverId || ''),
+    enabled: !!serverId,
   });
 
   const {
@@ -66,8 +72,13 @@ export function InstanceDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <h2 className="text-2xl font-bold tracking-tight truncate" title={instanceId}>
-            {instanceId.substring(0, 12)}...
+          <h2 className="text-2xl font-bold tracking-tight truncate" title={serverDetails?.name || serverId}>
+            <Link
+              to={`/servers/${encodeURIComponent(serverId || '')}`}
+              className="hover:underline"
+            >
+              {serverDetails?.name || serverId}
+            </Link>
           </h2>
           {!isLoading && instance && (
             <StatusBadge
@@ -155,7 +166,7 @@ export function InstanceDetailPage() {
                         <div className="h-5 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
                       ) : (
                         <StatusBadge
-                          status={health?.healthy ? 'healthy' : 'unhealthy'}
+                          status={(health?.status === 'idle') ? 'idle' : (health?.healthy ? 'healthy' : 'unhealthy')}
                         />
                       )}
                     </dd>

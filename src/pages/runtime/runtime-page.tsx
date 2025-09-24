@@ -10,7 +10,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import { useToast } from "../../components/ui/use-toast";
+import { notifyError, notifySuccess } from "../../lib/notify";
 import { capabilitiesApi, runtimeApi } from "../../lib/api";
 import type {
 	CapabilitiesStatsResponse,
@@ -23,7 +23,6 @@ import { formatBytes, formatRelativeTime } from "../../lib/utils";
 
 export function RuntimePage() {
 	const qc = useQueryClient();
-	const { toast } = useToast();
 	const [confirm, setConfirm] = React.useState<
 		| { type: "resetAll" }
 		| { type: "resetOne"; key: "uv" | "bun" }
@@ -54,64 +53,41 @@ export function RuntimePage() {
 	// Mutations
 	const resetAllM = useMutation<{ success: boolean }, Error, void>({
 		mutationFn: async () => runtimeApi.resetCache("all"),
-		onSuccess: () => {
+	onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["runtimeCache"] });
-			toast({
-				title: "Caches reset",
-				description: "All runtime caches cleared.",
-			});
+			notifySuccess("Caches reset", "All runtime caches cleared.");
 			setConfirm(null);
 		},
-		onError: (e) => {
-			toast({ title: "Reset failed", description: e.message });
-		},
+		onError: (e) => notifyError("Reset failed", e.message),
 	});
 
 	const resetOneM = useMutation<ClearCacheResponse, Error, "uv" | "bun">({
 		mutationFn: async (kind) => runtimeApi.resetCache(kind),
-		onSuccess: (_data, kind) => {
+	onSuccess: (_data, kind) => {
 			qc.invalidateQueries({ queryKey: ["runtimeCache"] });
-			toast({
-				title: `Cache reset`,
-				description: `${kind.toUpperCase()} cache cleared.`,
-			});
+			notifySuccess("Cache reset", `${kind.toUpperCase()} cache cleared.`);
 			setConfirm(null);
 		},
-		onError: (e) => toast({ title: "Reset failed", description: e.message }),
+		onError: (e) => notifyError("Reset failed", e.message),
 	});
 
 	const installM = useMutation<InstallResponse, Error, "uv" | "bun">({
 		mutationFn: async (kind) =>
 			runtimeApi.install({ runtime_type: kind, verbose: true }),
-		onSuccess: (data, kind) => {
+	onSuccess: (data, kind) => {
 			qc.invalidateQueries({ queryKey: ["runtimeStatus"] });
-			toast({
-				title: `Install complete`,
-				description: `${kind.toUpperCase()}: ${data.message}`,
-			});
+			notifySuccess("Install complete", `${kind.toUpperCase()}: ${data.message}`);
 			setConfirm(null);
 		},
-		onError: (e) => toast({ title: "Install failed", description: e.message }),
+		onError: (e) => notifyError("Install failed", e.message),
 	});
 
-	const resetCapabilitiesM = useMutation<ClearCacheResponse, Error, void>({
-		mutationFn: capabilitiesApi.reset,
-		onSuccess: () => {
-			qc.invalidateQueries({ queryKey: ["capabilities"] });
-			toast({
-				title: "Capabilities cache reset",
-				description: "Capabilities cache cleared.",
-			});
-			setConfirm(null);
-		},
-		onError: (e) => toast({ title: "Reset failed", description: e.message }),
-	});
+  // Capabilities cache reset button removed per latest requirement
 
-	const isBusy =
-		resetAllM.isPending ||
-		resetOneM.isPending ||
-		installM.isPending ||
-		resetCapabilitiesM.isPending;
+  const isBusy =
+    resetAllM.isPending ||
+    resetOneM.isPending ||
+    installM.isPending;
 
 	const status = runtimeStatusQ.data as RuntimeStatusResponse | undefined;
 	const cache = runtimeCacheQ.data as RuntimeCacheResponse | undefined;
@@ -348,19 +324,7 @@ export function RuntimePage() {
 								</div>
 							</div>
 
-							<div className="mt-4">
-								<Button
-									variant="outline"
-									size="sm"
-									disabled={resetCapabilitiesM.isPending}
-									onClick={() => setConfirm({ type: "capabilitiesReset" })}
-								>
-									<RefreshCw
-										className={`mr-2 h-4 w-4 ${resetCapabilitiesM.isPending ? "animate-spin" : ""}`}
-									/>
-									Reset Capabilities Cache
-								</Button>
-							</div>
+                  {/* Reset Capabilities button removed as requested */}
 						</div>
 					) : (
 						<p className="text-sm text-slate-500">No data.</p>
@@ -368,60 +332,52 @@ export function RuntimePage() {
 				</CardContent>
 			</Card>
 			{/* Global confirmation dialog */}
-			<ConfirmDialog
-				isOpen={confirm !== null}
-				onClose={() => setConfirm(null)}
-				onConfirm={async () => {
-					if (!confirm) return;
-					if (confirm.type === "resetAll") {
-						resetAllM.mutate();
-					} else if (confirm.type === "resetOne") {
-						resetOneM.mutate(confirm.key);
-					} else if (confirm.type === "install") {
-						installM.mutate(confirm.key);
-					} else if (confirm.type === "capabilitiesReset") {
-						resetCapabilitiesM.mutate();
-					}
-				}}
-				title={
-					confirm?.type === "resetAll"
-						? "Reset all runtime caches?"
-						: confirm?.type === "resetOne"
-							? `Reset ${confirm.key.toUpperCase()} cache?`
-							: confirm?.type === "install"
-								? `Install/Repair ${confirm.key.toUpperCase()} runtime?`
-								: confirm?.type === "capabilitiesReset"
-									? "Reset Capabilities cache?"
-									: "Confirm"
-				}
-				description={
-					confirm?.type === "resetAll"
-						? "This will clear all runtime caches. Continue?"
-						: confirm?.type === "resetOne"
-							? `This will clear ${confirm.key.toUpperCase()} cache. Continue?`
-							: confirm?.type === "install"
-								? `This will install or repair ${confirm.key.toUpperCase()} on the server. Continue?`
-								: confirm?.type === "capabilitiesReset"
-									? "This will clear the Capabilities cache. Continue?"
-									: ""
-				}
-				confirmLabel={
-					confirm?.type === "install" ? "Install / Repair" : "Confirm"
-				}
-				cancelLabel="Cancel"
-				variant={confirm?.type === "install" ? "default" : "destructive"}
-				isLoading={
-					confirm?.type === "resetAll"
-						? resetAllM.isPending
-						: confirm?.type === "resetOne"
-							? resetOneM.isPending
-							: confirm?.type === "install"
-								? installM.isPending
-								: confirm?.type === "capabilitiesReset"
-									? resetCapabilitiesM.isPending
-									: false
-				}
-			/>
+        <ConfirmDialog
+          isOpen={confirm !== null}
+          onClose={() => setConfirm(null)}
+          onConfirm={async () => {
+            if (!confirm) return;
+            if (confirm.type === "resetAll") {
+              resetAllM.mutate();
+            } else if (confirm.type === "resetOne") {
+              resetOneM.mutate(confirm.key);
+            } else if (confirm.type === "install") {
+              installM.mutate(confirm.key);
+            }
+          }}
+          title={
+            confirm?.type === "resetAll"
+              ? "Reset all runtime caches?"
+              : confirm?.type === "resetOne"
+                ? `Reset ${confirm.key.toUpperCase()} cache?`
+                : confirm?.type === "install"
+                  ? `Install/Repair ${confirm.key.toUpperCase()} runtime?`
+                  : "Confirm"
+          }
+          description={
+            confirm?.type === "resetAll"
+              ? "This will clear all runtime caches. Continue?"
+              : confirm?.type === "resetOne"
+                ? `This will clear ${confirm.key.toUpperCase()} cache. Continue?`
+                : confirm?.type === "install"
+                  ? `This will install or repair ${confirm.key.toUpperCase()} on the server. Continue?`
+                  : ""
+          }
+          confirmLabel={
+            confirm?.type === "install" ? "Install / Repair" : "Confirm"
+          }
+          cancelLabel="Cancel"
+          variant={confirm?.type === "install" ? "default" : "destructive"}
+          isLoading={
+            confirm?.type === "resetAll"
+              ? resetAllM.isPending
+              : confirm?.type === "resetOne"
+                ? resetOneM.isPending
+                : confirm?.type === "install"
+                  ? installM.isPending
+                  : false
+          }
+        />
 		</div>
 	);
 }

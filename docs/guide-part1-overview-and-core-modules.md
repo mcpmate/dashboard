@@ -75,4 +75,23 @@ MCPMate 是一个综合性的 Model Context Protocol (MCP) 管理中心，旨在
 
 ---
 
+## 3. OpenAPI 驱动的开发流程（OpenAPI‑Driven Workflow）
+
+- 本项目的前端开发严格依赖后端 OpenAPI 定义，所有接口字段、形状与错误语义以后端提供的 OpenAPI 为准。
+- 本仓库包含已抓取的规范快照：`docs/openapi.json`。联调时可直接对照该文件；当后端更新时，请先刷新该文件并同步 `src/lib/api.ts` 与 `src/lib/types.ts`。
+- 运行中的后端会在开发环境暴露 Live Schema：`http://127.0.0.1:8080/openapi.json`。建议在大改前比对 Live Schema 与 `docs/openapi.json` 的差异后再实施变更。
+- 统一在 `src/lib/api.ts` 维护 API 封装，页面仅通过 TanStack Query 调用这些封装，避免在组件中散落 `fetch`/`URLSearchParams` 逻辑。
+
+## 4. 联动测试与 Playwright MCP 工具
+
+- 联动测试是必要项：功能开发完成后，需要通过页面交互+接口回执的方式进行端到端验证。
+- 推荐使用 Playwright + MCP 工具（playwright mcp）进行可重复的联动测试脚本编写，覆盖以下关键路径：
+  - 服务器（Servers）列表与详情页：启停、刷新、删除、Capabilities 子标签懒加载；
+  - 客户端（Clients）列表排序与管理开关稳定性；
+  - 客户端详情页：Apply 配置 Drawer、Backup Policy Drawer、备份还原/删除；
+  - 配置（Profiles）：各能力项的启用/禁用、筛选条布局与懒加载详情；
+- 运行开发服务：`npm run dev`，后端在 `http://localhost:8080`；Vite 已将 `/api` 与 `/ws` 代理到后端。
+
+---
+
 接下来的部分将详细介绍 API 端点规范。

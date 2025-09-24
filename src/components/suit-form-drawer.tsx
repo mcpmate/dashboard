@@ -26,7 +26,7 @@ import {
 } from "./ui/select";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
-import { useToast } from "./ui/use-toast";
+import { notifyError, notifySuccess } from "../lib/notify";
 
 interface SuitFormDrawerProps {
 	open: boolean;
@@ -43,7 +43,6 @@ export function SuitFormDrawer({
 	suit,
 	onSuccess,
 }: SuitFormDrawerProps) {
-	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
 	// Form state
@@ -119,45 +118,27 @@ export function SuitFormDrawer({
 	// Create mutation
 	const createMutation = useMutation({
 		mutationFn: configSuitsApi.createSuit,
-		onSuccess: () => {
+	onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-			toast({
-				title: "Success",
-				description: "Configuration suit created successfully",
-			});
+			notifySuccess("Created", "Profile created successfully");
 			onOpenChange(false);
 			onSuccess?.();
 		},
-		onError: (error: Error) => {
-			toast({
-				title: "Error",
-				description: error.message || "Failed to create configuration suit",
-				variant: "destructive",
-			});
-		},
+		onError: (error: Error) => { notifyError("Create failed", error.message || "Failed to create profile"); },
 	});
 
 	// Update mutation
 	const updateMutation = useMutation({
 		mutationFn: ({ id, data }: { id: string; data: UpdateConfigSuitRequest }) =>
 			configSuitsApi.updateSuit(id, data),
-		onSuccess: () => {
+	onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			queryClient.invalidateQueries({ queryKey: ["configSuit", suit?.id] });
-			toast({
-				title: "Success",
-				description: "Configuration suit updated successfully",
-			});
+			notifySuccess("Updated", "Profile updated successfully");
 			onOpenChange(false);
 			onSuccess?.();
 		},
-		onError: (error: Error) => {
-			toast({
-				title: "Error",
-				description: error.message || "Failed to update configuration suit",
-				variant: "destructive",
-			});
-		},
+		onError: (error: Error) => { notifyError("Update failed", error.message || "Failed to update profile"); },
 	});
 
 	// Handle form submission
@@ -166,11 +147,7 @@ export function SuitFormDrawer({
 
 		// Basic validation
 		if (!formData.name.trim()) {
-			toast({
-				title: "Validation Error",
-				description: "Name is required",
-				variant: "destructive",
-			});
+			notifyError("Validation failed", "Name is required");
 			return;
 		}
 
@@ -220,7 +197,7 @@ export function SuitFormDrawer({
 
 	return (
 		<Drawer open={open} onOpenChange={onOpenChange}>
-			<DrawerContent className="max-h-[96vh]">
+			<DrawerContent>
 				<DrawerHeader>
 					<DrawerTitle>
                     {mode === "create" ? "Create New Profile" : "Edit Profile"}

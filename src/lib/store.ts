@@ -13,7 +13,7 @@ function getInitialTheme(): Theme {
   try {
     const saved = typeof window !== "undefined" ? localStorage.getItem("mcp_theme") : null;
     if (saved === "light" || saved === "dark" || saved === "system") return saved;
-  } catch {}
+  } catch { /* noop */ }
   return "system";
 }
 
@@ -22,7 +22,7 @@ export const useAppStore = create<AppState>((set) => ({
   setTheme: (theme) => {
     try {
       if (typeof window !== "undefined") localStorage.setItem("mcp_theme", theme);
-    } catch {}
+    } catch { /* noop */ }
     set({ theme });
   },
   sidebarOpen: true,

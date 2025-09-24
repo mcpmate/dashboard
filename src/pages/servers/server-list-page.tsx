@@ -10,7 +10,7 @@ import {
 	Trash,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { ErrorDisplay } from "../../components/error-display";
 import { ServerFormDrawer } from "../../components/server-form-drawer";
@@ -25,7 +25,7 @@ import {
 } from "../../components/ui/card";
 import { Label } from "../../components/ui/label";
 import { Switch } from "../../components/ui/switch";
-import { useToast } from "../../components/ui/use-toast";
+import { notifyError, notifySuccess } from "../../lib/notify";
 import { serversApi } from "../../lib/api";
 import type {
 	MCPServerConfig,
@@ -34,45 +34,7 @@ import type {
 	ServerSummary,
 } from "../../lib/types";
 
-// Helper function to determine if a server is active
-function isServerActive(server: ServerSummary): boolean {
-	// Check server status first
-	const serverStatus = (server.status || "").toLowerCase();
-	if (
-		[
-			"connected",
-			"running",
-			"ready",
-			"healthy",
-			"busy",
-			"active",
-			"thinking",
-			"fetch",
-		].includes(serverStatus)
-	) {
-		return true;
-	}
-
-	// If server has instances, check if any instance is active
-	if (server.instances && server.instances.length > 0) {
-		return server.instances.some((instance) => {
-			const instanceStatus = (instance.status || "").toLowerCase();
-			return [
-				"ready",
-				"busy",
-				"running",
-				"connected",
-				"active",
-				"healthy",
-				"thinking",
-				"fetch",
-			].includes(instanceStatus);
-		});
-	}
-
-	// Otherwise, consider the server inactive
-	return false;
-}
+// (Removed) isServerActive helper was unused; layout simplified
 
 // Helper function to get the instance count for a server
 function getInstanceCount(server: ServerSummary): number {
@@ -91,6 +53,7 @@ function getInstanceCount(server: ServerSummary): number {
 }
 
 export function ServerListPage() {
+    const navigate = useNavigate();
 	const [debugInfo, setDebugInfo] = useState<string | null>(null);
 	const [isAddServerOpen, setIsAddServerOpen] = useState(false);
 	const [editingServer, setEditingServer] = useState<ServerDetail | null>(null);
@@ -99,8 +62,8 @@ export function ServerListPage() {
 	const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [syncToAllClients, setSyncToAllClients] = useState(false);
+  const [pending, setPending] = useState<Record<string, boolean>>({});
 
-	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
 	const {
@@ -143,44 +106,20 @@ export function ServerListPage() {
 	};
 
 	// Enable/disable server
-	const toggleServerMutation = useMutation({
-		mutationFn: async ({
-			serverId,
-			enable,
-			sync,
-		}: {
-			serverId: string;
-			enable: boolean;
-			sync?: boolean;
-		}) => {
-			if (enable) {
-				return await serversApi.enableServer(serverId, sync);
-			} else {
-				return await serversApi.disableServer(serverId, sync);
-			}
-		},
-		onSuccess: (_, variables) => {
-			// Immediate invalidation
-			queryClient.invalidateQueries({ queryKey: ["servers"] });
-
-			toast({
-				title: variables.enable ? "Server Enabled" : "Server Disabled",
-				description: `Server ${variables.serverId} ${variables.enable ? "has been successfully enabled" : "has been successfully disabled"}`,
-			});
-
-			// Delayed refetch to ensure we get the latest state
-			setTimeout(() => {
-				queryClient.invalidateQueries({ queryKey: ["servers"] });
-			}, 1000);
-		},
-		onError: (error, variables) => {
-			toast({
-				title: "Operation Failed",
-				description: `Unable to ${variables.enable ? "enable" : "disable"} server: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
-	});
+  async function toggleServerAsync(serverId: string, enable: boolean, sync?: boolean) {
+    setPending((p) => ({ ...p, [serverId]: true }));
+    try {
+      if (enable) await serversApi.enableServer(serverId, sync);
+      else await serversApi.disableServer(serverId, sync);
+      notifySuccess(enable ? "Server enabled" : "Server disabled", `Server ${serverId}`);
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["servers"] }), 1000);
+    } catch (error) {
+      notifyError("Operation failed", `Unable to ${enable ? "enable" : "disable"} server: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setPending((p) => ({ ...p, [serverId]: false }));
+    }
+  }
 
 	// Note: Reconnect functionality is moved to instance-level pages
 
@@ -189,20 +128,13 @@ export function ServerListPage() {
 		mutationFn: async (serverConfig: Partial<MCPServerConfig>) => {
 			return await serversApi.createServer(serverConfig);
 		},
-		onSuccess: () => {
-			toast({
-				title: "Server Created",
-				description: "New server has been successfully created",
-			});
-			queryClient.invalidateQueries({ queryKey: ["servers"] });
-		},
-		onError: (error) => {
-			toast({
-				title: "Creation Failed",
-				description: `Unable to create server: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+    onSuccess: () => {
+        notifySuccess("Server created", "New server has been successfully created");
+		queryClient.invalidateQueries({ queryKey: ["servers"] });
+	},
+    onError: (error) => {
+        notifyError("Create failed", `Unable to create server: ${error instanceof Error ? error.message : String(error)}`);
+    },
 	});
 
 	// Update server
@@ -216,20 +148,13 @@ export function ServerListPage() {
 		}) => {
 			return await serversApi.updateServer(serverId, config);
 		},
-		onSuccess: (_, variables) => {
-			toast({
-				title: "Server Updated",
-				description: `Server ${variables.serverId} has been successfully updated`,
-			});
-			queryClient.invalidateQueries({ queryKey: ["servers"] });
-		},
-		onError: (error, variables) => {
-			toast({
-				title: "Update Failed",
-				description: `Unable to update server ${variables.serverId}: ${error instanceof Error ? error.message : String(error)}`,
-				variant: "destructive",
-			});
-		},
+    onSuccess: (_, variables) => {
+        notifySuccess("Server updated", `Server ${variables.serverId}`);
+		queryClient.invalidateQueries({ queryKey: ["servers"] });
+	},
+    onError: (error, variables) => {
+        notifyError("Update failed", `Unable to update ${variables.serverId}: ${error instanceof Error ? error.message : String(error)}`);
+    },
 	});
 
 	// Handle add server
@@ -243,13 +168,9 @@ export function ServerListPage() {
 		const serverDetails = await getServerDetails(serverId);
 		if (serverDetails) {
 			setEditingServer(serverDetails);
-		} else {
-			toast({
-				title: "Failed to get server details",
-				description: `Unable to get details for server ${serverId}`,
-				variant: "destructive",
-			});
-		}
+    } else {
+        notifyError("Fetch failed", `Unable to get details for server ${serverId}`);
+    }
 	};
 
 	// Handle update server
@@ -295,10 +216,7 @@ export function ServerListPage() {
 
 		try {
 			await serversApi.deleteServer(deletingServer);
-			toast({
-				title: "Server Deleted",
-				description: `Server ${deletingServer} has been successfully deleted`,
-			});
+        notifySuccess("Server deleted", `Server ${deletingServer}`);
 			queryClient.invalidateQueries({ queryKey: ["servers"] });
 			setIsDeleteConfirmOpen(false);
 			setDeletingServer(null);
@@ -325,47 +243,76 @@ export function ServerListPage() {
 		}
 	};
 
-	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<h2 className="text-3xl font-bold tracking-tight">Servers</h2>
-				<div className="flex gap-2 items-center">
-					{/* Sync to all clients toggle */}
-					<div className="flex items-center space-x-2">
-						<Switch
-							id="sync-toggle"
-							checked={syncToAllClients}
-							onCheckedChange={setSyncToAllClients}
-						/>
-						<Label htmlFor="sync-toggle" className="text-sm font-medium">
-							Sync to all clients
-						</Label>
-					</div>
+  return (
+    <div className="space-y-6">
+      {/* Page header */}
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-3xl font-bold tracking-tight">Servers</h2>
+        {/* Right side header controls: sync toggle + actions in one row */}
+        <div className="flex items-center gap-3 whitespace-nowrap">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="sync-toggle"
+              checked={syncToAllClients}
+              onCheckedChange={setSyncToAllClients}
+            />
+            <Label htmlFor="sync-toggle" className="text-sm font-medium">
+              Sync to all clients
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => refetch()} disabled={isRefetching} variant="outline" size="sm">
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button onClick={() => setIsAddServerOpen(true)} size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Server
+            </Button>
+          </div>
+        </div>
+      </div>
 
-					{isError && (
-						<Button onClick={toggleDebugInfo} variant="outline" size="sm">
-							<AlertCircle className="mr-2 h-4 w-4" />
-							{debugInfo ? "Hide Debug" : "Debug"}
-						</Button>
-					)}
+      {/* Summary cards row */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Total Servers</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold">{serverListResponse?.servers?.length || 0}</div>
+            <CardDescription>registered</CardDescription>
+          </CardContent>
+        </Card>
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Enabled</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold">{(serverListResponse?.servers || []).filter(s => s.enabled).length}</div>
+            <CardDescription>feature toggled</CardDescription>
+          </CardContent>
+        </Card>
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Connected</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold">{(serverListResponse?.servers || []).filter(s => String(s.status || '').toLowerCase()==='connected').length}</div>
+            <CardDescription>active connections</CardDescription>
+          </CardContent>
+        </Card>
+        <Card className="flex flex-col">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">Instances</CardTitle></CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold">{(serverListResponse?.servers || []).reduce((sum, s) => sum + (s.instances?.length || 0), 0)}</div>
+            <CardDescription>total across servers</CardDescription>
+          </CardContent>
+        </Card>
+        {/* Actions moved to page header; remove action card */}
+      </div>
 
-					<Button
-						onClick={() => refetch()}
-						disabled={isRefetching}
-						variant="outline"
-						size="sm"
-					>
-						<RefreshCw
-							className={`mr-2 h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
-						/>
-						Refresh
-					</Button>
-					<Button onClick={() => setIsAddServerOpen(true)} size="sm">
-						<Plus className="mr-2 h-4 w-4" />
-						Add Server
-					</Button>
-				</div>
-			</div>
+            {isError && (
+              <Button onClick={toggleDebugInfo} variant="outline" size="sm">
+                <AlertCircle className="mr-2 h-4 w-4" />
+                {debugInfo ? "Hide Debug" : "Debug"}
+              </Button>
+            )}
+
 
 			{/* Display error information */}
 			{isError && (
@@ -399,7 +346,10 @@ export function ServerListPage() {
 				</Card>
 			)}
 
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {/* List container card for consistency */}
+                <Card className="mt-2">
+                  <CardContent className="p-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{isLoading ? (
 					// Loading skeleton
 					Array.from({ length: 6 }).map((_, i) => (
@@ -417,12 +367,32 @@ export function ServerListPage() {
 						</Card>
 					))
 				) : serverListResponse?.servers?.length ? (
-					serverListResponse.servers.map((server) => (
-						<Card key={server.id} className="overflow-hidden">
+                    serverListResponse.servers.map((server) => (
+                        <Card
+                          key={server.id}
+                          className="overflow-hidden cursor-pointer hover:border-primary/40"
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            const target = e.target as HTMLElement;
+                            if (target.closest('button, a, input, [role="switch"]')) return;
+                            navigate(`/servers/${encodeURIComponent(server.id)}`);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              navigate(`/servers/${encodeURIComponent(server.id)}`);
+                            }
+                          }}
+                        >
 							<CardHeader className="p-4 flex flex-row justify-between items-start">
-								<div>
-									<CardTitle className="text-xl">{server.name}</CardTitle>
-									<CardDescription className="flex flex-col mt-1 space-y-1">
+								<div className="flex items-center gap-3">
+									<div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-lg font-semibold">
+										{(server.name || server.id || 'S').slice(0,1).toUpperCase()}
+									</div>
+									<div>
+										<CardTitle className="text-xl leading-tight">{server.name}</CardTitle>
+										<CardDescription className="flex flex-col mt-1 space-y-1">
 										<span>
 											Type: {server.server_type || server.kind || "Unknown"}
 										</span>
@@ -433,6 +403,7 @@ export function ServerListPage() {
 											</span>
 										)}
 									</CardDescription>
+									</div>
 								</div>
 								{/* 状态徽章放在右上角 */}
 								<StatusBadge
@@ -453,21 +424,15 @@ export function ServerListPage() {
 									<div className="flex justify-between items-center mt-4">
 										{/* 左侧操作按钮 */}
 										<div className="flex gap-2">
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() =>
-													toggleServerMutation.mutate({
-														serverId: server.id,
-														enable: !server.enabled, // Use server enabled status, not instance activity
-														sync: syncToAllClients,
-													})
-												}
-												disabled={toggleServerMutation.isPending}
-												title={
-													server.enabled ? "Disable Server" : "Enable Server"
-												}
-											>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(ev) => { ev.stopPropagation(); toggleServerAsync(server.id, !server.enabled, syncToAllClients); }}
+                                disabled={!!pending[server.id]}
+                                title={
+                                    server.enabled ? "Disable Server" : "Enable Server"
+                                }
+                            >
 												{server.enabled ? (
 													<PowerOff className="h-4 w-4" />
 												) : (
@@ -475,70 +440,71 @@ export function ServerListPage() {
 												)}
 											</Button>
 
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => handleEditServer(server.id)}
-												title="Edit server configuration"
-											>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(ev) => { ev.stopPropagation(); handleEditServer(server.id); }}
+                                title="Edit server configuration"
+                            >
 												<Edit className="h-4 w-4" />
 											</Button>
 
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => {
-													setDeletingServer(server.id);
-													setIsDeleteConfirmOpen(true);
-												}}
-												title="Delete server"
-											>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(ev) => { ev.stopPropagation(); setDeletingServer(server.id); setIsDeleteConfirmOpen(true); }}
+                                title="Delete server"
+                            >
 												<Trash className="h-4 w-4" />
 											</Button>
 										</div>
 
 										{/* 右侧详情按钮 */}
-										<Link to={`/servers/${server.id}`}>
-											<Button size="sm">
-												<Eye className="mr-2 h-4 w-4" />
-												Details
-											</Button>
-										</Link>
+                            <Link to={`/servers/${server.id}`} onClick={(e) => e.stopPropagation()}>
+                                <Button size="sm">
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Details
+                                </Button>
+                            </Link>
 									</div>
 								</div>
 							</CardContent>
-						</Card>
-					))
-				) : (
-					<div className="col-span-full">
-						<Card>
-							<CardContent className="flex flex-col items-center justify-center p-6">
-								<p className="mb-2 text-center text-slate-500">
-									{isError
-										? "Failed to load servers, please check the error message above."
-										: "No servers found. Please ensure the backend service is running and servers are configured."}
-								</p>
-								<Button
-									onClick={() => setIsAddServerOpen(true)}
-									size="sm"
-									className="mt-4"
-								>
-									<Plus className="mr-2 h-4 w-4" />
-									Add First Server
-								</Button>
-							</CardContent>
-						</Card>
-					</div>
-				)}
-			</div>
+                        </Card>
+                      ))
+                    ) : (
+                    <div className="col-span-full">
+                        <Card>
+                          <CardContent className="flex flex-col items-center justify-center p-6">
+                            <p className="mb-2 text-center text-slate-500">
+                              {isError
+                                ? "Failed to load servers, please check the error message above."
+                                : "No servers found. Please ensure the backend service is running and servers are configured."}
+                            </p>
+                            <Button
+                              onClick={() => setIsAddServerOpen(true)}
+                              size="sm"
+                              className="mt-4"
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add First Server
+                            </Button>
+                          </CardContent>
+                        </Card>
+                    </div>
+                  )}
+                </div>
+                  </CardContent>
+                </Card>
 
 			{/* Add server drawer */}
-			<ServerFormDrawer
-				isOpen={isAddServerOpen}
-				onClose={() => setIsAddServerOpen(false)}
-				onSubmit={handleAddServer}
-				title="Add New Server"
-			/>
+  <ServerFormDrawer
+    isOpen={isAddServerOpen}
+    onClose={() => setIsAddServerOpen(false)}
+    onSubmit={handleAddServer}
+    title="Add New Server"
+    enableImportTab
+    onImported={() => queryClient.invalidateQueries({ queryKey: ["servers"] })}
+  />
 
 			{/* Edit server drawer */}
 			{editingServer && (
@@ -551,6 +517,8 @@ export function ServerListPage() {
 					isEditing={true}
 				/>
 			)}
+
+      {/* Import moved into Add Server drawer (tabs) */}
 
 			{/* Delete confirmation dialog */}
 			<ConfirmDialog

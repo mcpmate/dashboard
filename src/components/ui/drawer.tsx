@@ -5,19 +5,108 @@ import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "../../lib/utils"
 
+function cleanupBodyLocks() {
+  try {
+    // Remove body styles/attributes that can block interaction
+    document.body.style.removeProperty("pointer-events");
+    document.body.style.removeProperty("overflow");
+    document.body.style.removeProperty("padding-right");
+    document.body.removeAttribute("data-scroll-locked");
+    document.body.removeAttribute("aria-hidden");
+    document.documentElement?.removeAttribute("aria-hidden");
+
+    // Remove closed/stray overlays and wrappers
+    const overlays = document.querySelectorAll(
+      "[data-vaul-overlay], [data-vaul-drawer-wrapper], [data-radix-dialog-overlay], [data-radix-popper-content-wrapper], .fixed.inset-0"
+    );
+    overlays.forEach((overlay) => {
+      const el = overlay as HTMLElement;
+      if (
+        el.getAttribute("data-state") === "closed" ||
+        !el.closest('[data-state="open"]') ||
+        el.style.pointerEvents === "none"
+      ) {
+        el.remove();
+      }
+    });
+  } catch { /* noop */ }
+}
+
+function hasAnyOpenLayer() {
+  try {
+    return !!document.querySelector(
+      '[data-state="open"][data-vaul-overlay], [data-state="open"][data-vaul-drawer], [data-state="open"][data-radix-dialog-overlay], [data-state="open"][role="dialog"]'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function ensureBodyInteractive() {
+  try {
+    if (!hasAnyOpenLayer()) {
+      document.body.style.removeProperty("pointer-events");
+      document.documentElement?.style?.removeProperty?.("pointer-events");
+    }
+  } catch { /* noop */ }
+}
+
 const Drawer = ({
   shouldScaleBackground = false,
   direction = "right",
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root> & {
   direction?: "right" | "left" | "top" | "bottom"
-}) => (
-  <DrawerPrimitive.Root
-    shouldScaleBackground={shouldScaleBackground}
-    direction={direction}
-    {...props}
-  />
-)
+}) => {
+  const handleOpenChange = React.useCallback((open: boolean) => {
+    try { onOpenChange?.(open); } catch { /* noop */ }
+    if (!open) {
+      // Defer cleanup to after transition completes
+      requestAnimationFrame(() => setTimeout(() => { cleanupBodyLocks(); ensureBodyInteractive(); }, 80));
+    }
+  }, [onOpenChange]);
+
+  // Install global guard (once) to keep body interactive if styles linger
+  React.useEffect(() => {
+    const w = window as unknown as { __mcpDrawerGuardInstalled?: boolean };
+    if (!w.__mcpDrawerGuardInstalled) {
+      try {
+        const mo = new MutationObserver(() => ensureBodyInteractive());
+        mo.observe(document.body, { attributes: true, attributeFilter: ["style"] });
+        window.addEventListener("pointerdown", ensureBodyInteractive, true);
+        window.addEventListener("keydown", ensureBodyInteractive, true);
+        window.addEventListener("resize", ensureBodyInteractive);
+        document.addEventListener("visibilitychange", ensureBodyInteractive);
+        // mark installed
+        (w as any).__mcpDrawerGuardInstalled = true;
+        // store cleanup on window to avoid double attaching
+        ;(window as any).__mcpDrawerGuardCleanup = () => {
+          try {
+            mo.disconnect();
+            window.removeEventListener("pointerdown", ensureBodyInteractive, true);
+            window.removeEventListener("keydown", ensureBodyInteractive, true);
+            window.removeEventListener("resize", ensureBodyInteractive);
+            document.removeEventListener("visibilitychange", ensureBodyInteractive);
+          } catch { /* noop */ }
+        };
+      } catch { /* noop */ }
+    }
+    return () => { /* no-op, keep single global guard */ };
+  }, []);
+
+  // Safety net: cleanup when component unmounts (e.g. route change while open)
+  React.useEffect(() => () => { cleanupBodyLocks(); ensureBodyInteractive(); }, []);
+
+  return (
+    <DrawerPrimitive.Root
+      shouldScaleBackground={shouldScaleBackground}
+      direction={direction}
+      onOpenChange={handleOpenChange}
+      {...props}
+    />
+  );
+}
 Drawer.displayName = "Drawer"
 
 const DrawerTrigger = DrawerPrimitive.Trigger
@@ -47,7 +136,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-y-0 right-0 z-50 h-full w-1/3 flex flex-col border-l bg-background shadow-lg",
+        "fixed top-0 right-0 bottom-0 z-50 h-screen w-full sm:w-[560px] md:w-[720px] flex flex-col border-l bg-background shadow-lg overflow-y-auto",
         className
       )}
       {...props}
