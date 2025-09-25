@@ -21,13 +21,9 @@ export default defineConfig({
 				changeOrigin: true,
 				secure: false,
 				configure: (proxy) => {
-					proxy.on("proxyReq", (proxyReq, req) => {
-						try {
-							// Backend recently introduced Origin allowlist (403 protection).
-							// To keep local development stable, remove Origin when forwarding, allowing backend to skip validation.
-							// Production environment will not go through Vite proxy, so it is not affected.
-							proxyReq.removeHeader("origin");
-						} catch {}
+					proxy.on("proxyReq", (proxyReq) => {
+						// Remove Origin header in dev to bypass backend allowlist; safe for local only
+						try { proxyReq.removeHeader("origin"); } catch { /* noop */ }
 					});
 				},
 			},
@@ -38,11 +34,7 @@ export default defineConfig({
 				changeOrigin: true,
 				secure: false,
 				configure: (proxy) => {
-					proxy.on("proxyReqWs", (proxyReq) => {
-						try {
-							proxyReq.removeHeader("origin");
-						} catch {}
-					});
+					proxy.on("proxyReqWs", (proxyReq) => { try { proxyReq.removeHeader("origin"); } catch { /* noop */ } });
 				},
 			},
 		},

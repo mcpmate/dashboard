@@ -26,6 +26,7 @@ export interface CapabilityListProps<T = any> {
   onSelectToggle?: (id: string, item: T) => void;
   // Render options
   asCard?: boolean; // when false, render list only (no outer Card/Header)
+  renderAction?: (mapped: any, item: T) => React.ReactNode;
 }
 
 // Heuristic helpers to extract display fields from heterogeneous capability payloads
@@ -53,8 +54,14 @@ function mapItem(kind: CapabilityKind, item: any) {
     const name = asString(item.tool_name) || asString(item.name);
     const title = unique || name || asString(item.id) || "Untitled Tool";
     const description = normalizeMultiline(asString(item.description));
-    // MCP tool input schema (best effort)
-    const schema = item.input_schema || item.schema || undefined;
+    // MCP tool input schema (best effort, support both snake_case and camelCase and nested .schema)
+    const schema =
+      item?.input_schema?.schema ||
+      item?.inputSchema?.schema ||
+      item?.input_schema ||
+      item?.inputSchema ||
+      item?.schema ||
+      undefined;
     const args = Array.isArray(item.arguments) ? item.arguments : undefined;
     return { title, subtitle: unique && name && unique !== name ? `Name: ${name}` : undefined, description, server: asString(item.server_name), raw: item, schema, args };
   }
@@ -113,6 +120,7 @@ export function CapabilityList<T = any>({
   selectedIds,
   onSelectToggle,
   asCard,
+  renderAction,
 }: CapabilityListProps<T>) {
   const [internalFilter, setInternalFilter] = useState("");
   const search = filterText ?? internalFilter;
@@ -243,6 +251,12 @@ export function CapabilityList<T = any>({
                             onClick={(e) => e.stopPropagation()}
                             onCheckedChange={(next) => onToggle(id, next, item)}
                           />
+                        </div>
+                      ) : null}
+                      {/* Right-side custom action */}
+                      {renderAction ? (
+                        <div onClick={(e)=> e.stopPropagation()}>
+                          {renderAction(m, item)}
                         </div>
                       ) : null}
                     </div>

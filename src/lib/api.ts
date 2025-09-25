@@ -1,54 +1,54 @@
 import type {
-  ApiResponse,
-  BatchOperationResponse,
-  CapabilitiesKeysResponse,
-  CapabilitiesMetricsStats,
-  CapabilitiesStatsResponse,
-  CapabilitiesStorageStats,
-  ClearCacheResponse,
-  ConfigPreset,
-  ConfigSuit,
-  ConfigSuitListResponse,
-  ConfigSuitPromptsResponse,
-  ConfigSuitResourcesResponse,
-  ConfigSuitServer,
-  ConfigSuitServersResponse,
-  ConfigSuitTool,
-  ConfigSuitToolsResponse,
-  CreateConfigSuitRequest,
-  InstallResponse,
-  InstallRuntimeRequest,
-  InstanceDetail,
-  InstanceDetailsResp,
-  InstanceHealth,
-  InstanceHealthResp,
-  InstanceListResp,
-  InstanceSummary,
-  MCPConfig,
-  MCPServerConfig,
-  OperationResponseResp,
-  RuntimeCacheResponse,
-  RuntimeStatusResponse,
-  ServerDetail,
-  ServerDetailsResp,
-  ServerListResp,
-  ServerListResponse,
-  ServerCapabilityResp,
-  SystemMetrics,
-  SystemStatus,
-  ToolDetail,
-  UpdateConfigSuitRequest,
-  ClientCheckResp,
-  ClientManageResp,
-  ClientManageAction,
-  ClientConfigResp,
-  ClientConfigUpdateReq,
-  ClientConfigUpdateResp,
-  ClientConfigRestoreReq,
-  ClientBackupListResp,
-  ClientBackupActionResp,
-  ClientBackupPolicyResp,
-  ClientBackupPolicySetReq,
+	ApiResponse,
+	BatchOperationResponse,
+	CapabilitiesKeysResponse,
+	CapabilitiesMetricsStats,
+	CapabilitiesStatsResponse,
+	CapabilitiesStorageStats,
+	ClearCacheResponse,
+	ConfigPreset,
+	ConfigSuit,
+	ConfigSuitListResponse,
+	ConfigSuitPromptsResponse,
+	ConfigSuitResourcesResponse,
+	ConfigSuitServer,
+	ConfigSuitServersResponse,
+	ConfigSuitTool,
+	ConfigSuitToolsResponse,
+	CreateConfigSuitRequest,
+	InstallResponse,
+	InstallRuntimeRequest,
+	InstanceDetail,
+	InstanceDetailsResp,
+	InstanceHealth,
+	InstanceHealthResp,
+	InstanceListResp,
+	InstanceSummary,
+	MCPConfig,
+	MCPServerConfig,
+	OperationResponseResp,
+	RuntimeCacheResponse,
+	RuntimeStatusResponse,
+	ServerDetail,
+	ServerDetailsResp,
+	ServerListResp,
+	ServerListResponse,
+	ServerCapabilityResp,
+	SystemMetrics,
+	SystemStatus,
+	ToolDetail,
+	UpdateConfigSuitRequest,
+	ClientCheckResp,
+	ClientManageResp,
+	ClientManageAction,
+	ClientConfigResp,
+	ClientConfigUpdateReq,
+	ClientConfigUpdateResp,
+	ClientConfigRestoreReq,
+	ClientBackupListResp,
+	ClientBackupActionResp,
+	ClientBackupPolicyResp,
+	ClientBackupPolicySetReq,
 } from "./types";
 
 // Base API configuration
@@ -143,19 +143,19 @@ function extractApiData<T>(response: ApiWrapper<T>): T {
 
 // Utility function for batch operations
 async function executeBatchOperation(
-    ids: string[],
-    operation: (id: string) => Promise<unknown>,
+	ids: string[],
+	operation: (id: string) => Promise<unknown>,
 ): Promise<BatchOperationResponse> {
-    const results = await Promise.allSettled(ids.map(operation));
-    const successful = results.filter((r) => r.status === "fulfilled").length;
+	const results = await Promise.allSettled(ids.map(operation));
+	const successful = results.filter((r) => r.status === "fulfilled").length;
 
-    return {
-        success_count: successful,
-        successful_ids: ids.slice(0, successful),
-        failed_ids: Object.fromEntries(
-            ids.slice(successful).map((id) => [id, "Batch operation failed"]),
-        ),
-    };
+	return {
+		success_count: successful,
+		successful_ids: ids.slice(0, successful),
+		failed_ids: Object.fromEntries(
+			ids.slice(successful).map((id) => [id, "Batch operation failed"]),
+		),
+	};
 }
 
 // Server Management API
@@ -320,19 +320,67 @@ export const serversApi = {
 	// CRUD operations
 	createServer: async (serverConfig: Partial<MCPServerConfig>) => {
 		const sc = serverConfig as { url?: string; enabled?: boolean };
-		const body = {
+		const serverType = (serverConfig.kind || "stdio") as string;
+		const base: Record<string, unknown> = {
 			name: serverConfig.name,
-			kind: serverConfig.kind,
-			command: serverConfig.command ?? null,
-			args: serverConfig.args ?? null,
-			env: serverConfig.env ?? null,
-			url: sc.url ?? null,
-			enabled: sc.enabled ?? null,
+			server_type: serverType,
+			enabled: sc.enabled ?? undefined,
 		};
-		return fetchApi<ServerDetailsResp>("/api/mcp/servers/create", {
-			method: "POST",
-			body: JSON.stringify(body),
-		});
+		if (serverType === "stdio") {
+			base.command = serverConfig.command ?? undefined;
+			if (Array.isArray(serverConfig.args)) base.args = serverConfig.args;
+			if (serverConfig.env && typeof serverConfig.env === "object")
+				base.env = serverConfig.env as Record<string, string>;
+		} else {
+			base.url = sc.url ?? serverConfig.command ?? undefined;
+		}
+		try {
+			return await fetchApi<ServerDetailsResp>("/api/mcp/servers/create", {
+				method: "POST",
+				body: JSON.stringify(base),
+			});
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			// Fallback to import when the create endpoint rejects (schema/DB constraints)
+			if (
+				/Check constraint violation|Unprocessable Entity|Invalid server type|missing field `server_type`/i.test(
+					msg,
+				)
+			) {
+				const name = String(serverConfig.name || "").trim();
+				const importBody: any = { mcpServers: {} as Record<string, any> };
+				const cfg: any = { type: serverType };
+				if (serverType === "stdio") {
+					if (serverConfig.command) cfg.command = serverConfig.command;
+					if (Array.isArray(serverConfig.args)) cfg.args = serverConfig.args;
+					if (serverConfig.env) cfg.env = serverConfig.env;
+				} else {
+					if (sc.url) cfg.url = sc.url;
+					else if (serverConfig.command) cfg.url = serverConfig.command;
+				}
+				importBody.mcpServers[name] = cfg;
+				await fetchApi<ServersImportResp>("/api/mcp/servers/import", {
+					method: "POST",
+					body: JSON.stringify(importBody),
+				});
+				// Return a minimal compatible response; list refetch will normalize
+				return {
+					success: true,
+					data: {
+						id: name,
+						name,
+						status: "unknown",
+						kind: serverType as any,
+						instances: [],
+						command: serverConfig.command,
+						args: serverConfig.args,
+						env: serverConfig.env as any,
+					},
+					error: null,
+				} as unknown as ServerDetailsResp;
+			}
+			throw e;
+		}
 	},
 
 	updateServer: async (
@@ -340,15 +388,21 @@ export const serversApi = {
 		serverConfig: Partial<MCPServerConfig>,
 	) => {
 		const sc = serverConfig as { url?: string; enabled?: boolean };
-		const body = {
+		const serverType = serverConfig.kind as string | undefined;
+		const body: Record<string, unknown> = {
 			id: serverId,
-			kind: serverConfig.kind ?? null,
-			command: serverConfig.command ?? null,
-			args: serverConfig.args ?? null,
-			env: serverConfig.env ?? null,
-			url: sc.url ?? null,
-			enabled: sc.enabled ?? null,
+			kind: serverConfig.kind ?? undefined,
+			args: serverConfig.args ?? undefined,
+			env: serverConfig.env ?? undefined,
+			enabled: sc.enabled ?? undefined,
 		};
+		if (serverType === "stdio" || !serverType) {
+			body.command = serverConfig.command ?? undefined;
+			body.url = sc.url ?? undefined;
+		} else {
+			body.url = sc.url ?? serverConfig.command ?? undefined;
+			body.command = undefined;
+		}
 		return fetchApi<ServerDetailsResp>("/api/mcp/servers/update", {
 			method: "POST",
 			body: JSON.stringify(body),
@@ -359,126 +413,182 @@ export const serversApi = {
 		fetchApi<ServerDetailsResp>("/api/mcp/servers/delete", {
 			method: "DELETE",
 			body: JSON.stringify({ id: serverId }),
- 		}),
+		}),
 
-  // Server capabilities listing
-  listTools: async (
-    serverId: string,
-    refresh: "auto" | "force" | "cache" = "auto",
-  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
-    const q = new URLSearchParams({ id: serverId, refresh });
-    const resp = await fetchApi<{
-      success: boolean;
-      data?: { items: any[]; meta?: any; state?: string } | null;
-      error?: unknown | null;
-    }>(`/api/mcp/servers/tools?${q}`);
-    return (resp?.data as any) || { items: [] };
-  },
-  listResources: async (
-    serverId: string,
-    refresh: "auto" | "force" | "cache" = "auto",
-  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
-    const q = new URLSearchParams({ id: serverId, refresh });
-    const resp = await fetchApi<{
-      success: boolean;
-      data?: { items: any[]; meta?: any; state?: string } | null;
-      error?: unknown | null;
-    }>(`/api/mcp/servers/resources?${q}`);
-    return (resp?.data as any) || { items: [] };
-  },
-  listPrompts: async (
-    serverId: string,
-    refresh: "auto" | "force" | "cache" = "auto",
-  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
-    const q = new URLSearchParams({ id: serverId, refresh });
-    const resp = await fetchApi<{
-      success: boolean;
-      data?: { items: any[]; meta?: any; state?: string } | null;
-      error?: unknown | null;
-    }>(`/api/mcp/servers/prompts?${q}`);
-    return (resp?.data as any) || { items: [] };
-  },
-  listResourceTemplates: async (
-    serverId: string,
-    refresh: "auto" | "force" | "cache" = "auto",
-  ): Promise<{ items: any[]; meta?: any; state?: string }> => {
-    const q = new URLSearchParams({ id: serverId, refresh });
-    const resp = await fetchApi<{
-      success: boolean;
-      data?: { items: any[]; meta?: any; state?: string } | null;
-      error?: unknown | null;
-    }>(`/api/mcp/servers/resources/templates?${q}`);
-    return (resp?.data as any) || { items: [] };
-  },
+	// Server capabilities listing
+	listTools: async (
+		serverId: string,
+		refresh: "auto" | "force" | "cache" = "auto",
+	): Promise<{ items: any[]; meta?: any; state?: string }> => {
+		const q = new URLSearchParams({ id: serverId, refresh });
+		const resp = await fetchApi<{
+			success: boolean;
+			data?: { items: any[]; meta?: any; state?: string } | null;
+			error?: unknown | null;
+		}>(`/api/mcp/servers/tools?${q}`);
+		return (resp?.data as any) || { items: [] };
+	},
+	listResources: async (
+		serverId: string,
+		refresh: "auto" | "force" | "cache" = "auto",
+	): Promise<{ items: any[]; meta?: any; state?: string }> => {
+		const q = new URLSearchParams({ id: serverId, refresh });
+		const resp = await fetchApi<{
+			success: boolean;
+			data?: { items: any[]; meta?: any; state?: string } | null;
+			error?: unknown | null;
+		}>(`/api/mcp/servers/resources?${q}`);
+		return (resp?.data as any) || { items: [] };
+	},
+	listPrompts: async (
+		serverId: string,
+		refresh: "auto" | "force" | "cache" = "auto",
+	): Promise<{ items: any[]; meta?: any; state?: string }> => {
+		const q = new URLSearchParams({ id: serverId, refresh });
+		const resp = await fetchApi<{
+			success: boolean;
+			data?: { items: any[]; meta?: any; state?: string } | null;
+			error?: unknown | null;
+		}>(`/api/mcp/servers/prompts?${q}`);
+		return (resp?.data as any) || { items: [] };
+	},
+	listResourceTemplates: async (
+		serverId: string,
+		refresh: "auto" | "force" | "cache" = "auto",
+	): Promise<{ items: any[]; meta?: any; state?: string }> => {
+		const q = new URLSearchParams({ id: serverId, refresh });
+		const resp = await fetchApi<{
+			success: boolean;
+			data?: { items: any[]; meta?: any; state?: string } | null;
+			error?: unknown | null;
+		}>(`/api/mcp/servers/resources/templates?${q}`);
+		return (resp?.data as any) || { items: [] };
+	},
 
-  // Import servers from JSON-like configuration object
-  importServers: async (payload: {
-    mcpServers: Record<string, any>;
-  }): Promise<{
-    success: boolean;
-    data?: any;
-    error?: unknown | null;
-  }> => {
-    return await fetchApi(`/api/mcp/servers/import`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
+	// Import servers from JSON-like configuration object
+	importServers: async (payload: {
+		mcpServers: Record<string, any>;
+	}): Promise<{
+		success: boolean;
+		data?: any;
+		error?: unknown | null;
+	}> => {
+		return await fetchApi(`/api/mcp/servers/import`, {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+	},
 
-  // Preview capabilities for proposed server configs without importing
-  previewServers: async (payload: {
-    include_details?: boolean | null;
-    timeout_ms?: number | null;
-    servers: Array<{
-      name: string;
-      kind: string;
-      command?: string | null;
-      args?: string[] | null;
-      env?: Record<string, string> | null;
-      url?: string | null;
-    }>;
-  }): Promise<{
-    success: boolean;
-    data?: { items: any[] } | null;
-    error?: unknown | null;
-  }> => {
-    return await fetchApi(`/api/mcp/servers/preview`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+	// Preview capabilities for proposed server configs without importing
+	previewServers: async (payload: {
+		include_details?: boolean | null;
+		timeout_ms?: number | null;
+		servers: Array<{
+			name: string;
+			kind: string;
+			command?: string | null;
+			args?: string[] | null;
+			env?: Record<string, string> | null;
+			url?: string | null;
+		}>;
+	}): Promise<{
+		success: boolean;
+		data?: { items: any[] } | null;
+		error?: unknown | null;
+	}> => {
+		return await fetchApi(`/api/mcp/servers/preview`, {
+			method: "POST",
+			body: JSON.stringify(payload),
+		});
+	},
+};
+
+// Inspector API
+export const inspectorApi = {
+  toolsList: (q: { server_id?: string; server_name?: string; mode?: "proxy"|"native"; refresh?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (q.server_id) qs.set("server_id", q.server_id);
+    if (q.server_name) qs.set("server_name", q.server_name);
+    if (q.mode) qs.set("mode", q.mode);
+    if (q.refresh != null) qs.set("refresh", String(q.refresh));
+    return fetchApi(`/api/mcp/inspector/tool/list?${qs}`);
   },
+  toolCall: (req: { tool: string; server_id?: string; server_name?: string; arguments?: Record<string, any>; mode?: "proxy"|"native"; timeout_ms?: number }) =>
+    fetchApi(`/api/mcp/inspector/tool/call`, { method: "POST", body: JSON.stringify(req) }),
+  toolCallStream: (q: { server_id?: string; server_name?: string; tool: string; mode?: "proxy"|"native" }) => {
+    const qs = new URLSearchParams();
+    if (q.server_id) qs.set("server_id", q.server_id);
+    if (q.server_name) qs.set("server_name", q.server_name);
+    if (q.tool) qs.set("tool", q.tool);
+    if (q.mode) qs.set("mode", q.mode);
+    return fetchApi(`/api/mcp/inspector/tool/call/stream?${qs}`);
+  },
+  toolCallCancel: (req: any) => fetchApi(`/api/mcp/inspector/tool/call/cancel`, { method: "POST", body: JSON.stringify(req) }),
+  resourcesList: (q: { server_id?: string; server_name?: string; mode?: "proxy"|"native"; refresh?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (q.server_id) qs.set("server_id", q.server_id);
+    if (q.server_name) qs.set("server_name", q.server_name);
+    if (q.mode) qs.set("mode", q.mode);
+    if (q.refresh != null) qs.set("refresh", String(q.refresh));
+    return fetchApi(`/api/mcp/inspector/resource/list?${qs}`);
+  },
+  resourceRead: (q: { uri: string; server_id?: string; server_name?: string; mode?: "proxy"|"native" }) => {
+    const qs = new URLSearchParams({ uri: q.uri });
+    if (q.server_id) qs.set("server_id", q.server_id);
+    if (q.server_name) qs.set("server_name", q.server_name);
+    if (q.mode) qs.set("mode", q.mode);
+    return fetchApi(`/api/mcp/inspector/resource/read?${qs}`);
+  },
+  promptsList: (q: { server_id?: string; server_name?: string; mode?: "proxy"|"native"; refresh?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (q.server_id) qs.set("server_id", q.server_id);
+    if (q.server_name) qs.set("server_name", q.server_name);
+    if (q.mode) qs.set("mode", q.mode);
+    if (q.refresh != null) qs.set("refresh", String(q.refresh));
+    return fetchApi(`/api/mcp/inspector/prompt/list?${qs}`);
+  },
+  promptGet: (req: { name: string; server_id?: string; server_name?: string; arguments?: Record<string, any>; mode?: "proxy"|"native" }) =>
+    fetchApi(`/api/mcp/inspector/prompt/get`, { method: "POST", body: JSON.stringify(req) }),
+  callsRecent: () => fetchApi(`/api/mcp/inspector/calls/recent`),
+  callsDetails: (q: { id: string }) => fetchApi(`/api/mcp/inspector/calls/details?id=${encodeURIComponent(q.id)}`),
+  callsClear: () => fetchApi(`/api/mcp/inspector/calls/clear`, { method: "POST", body: JSON.stringify({}) }),
 };
 
 // Tools Management API
 export const toolsApi = {
-  getAll: async () => {
-    try {
-      // Try to get tools from active profile first
-      const suitsResponse = await configSuitsApi.getAll();
-      const active = suitsResponse?.suits?.find((s) => s.is_active);
-      if (active) {
-        try {
-          const q = new URLSearchParams({ profile_id: active.id });
-          const resp = await fetchApi<
-            ApiWrapper<{ profile_id: string; profile_name: string; tools: SuitTool[] }>
-          >(`/api/mcp/profile/tools/list?${q}`);
-          const data = extractApiData(resp);
-          if (data?.tools) {
-            const tools = data.tools.map((tool) => ({
-              tool_name: tool.tool_name || tool.name || "",
-              server_name: tool.server_name || "",
-              is_enabled: (tool as any).is_enabled ?? (tool as any).enabled ?? true,
-              description: (tool as any).description || "",
-              tool_id: (tool as any).id || "",
-            }));
-            return { tools };
-          }
-        } catch (e) {
-          console.error("Failed to fetch profile tools:", e);
-        }
-      }
+	getAll: async () => {
+		try {
+			// Try to get tools from active profile first
+			const suitsResponse = await configSuitsApi.getAll();
+			const active = suitsResponse?.suits?.find((s) => s.is_active);
+			if (active) {
+				try {
+					const q = new URLSearchParams({ profile_id: active.id });
+					const resp = await fetchApi<
+						ApiWrapper<{
+							profile_id: string;
+							profile_name: string;
+							tools: SuitTool[];
+						}>
+					>(`/api/mcp/profile/tools/list?${q}`);
+					const data = extractApiData(resp);
+					if (data?.tools) {
+						const tools = data.tools.map((tool) => ({
+							tool_name: tool.tool_name || tool.name || "",
+							server_name: tool.server_name || "",
+							is_enabled:
+								(tool as any).is_enabled ?? (tool as any).enabled ?? true,
+							description: (tool as any).description || "",
+							tool_id: (tool as any).id || "",
+						}));
+						return { tools };
+					}
+				} catch (e) {
+					console.error("Failed to fetch profile tools:", e);
+				}
+			}
 
-      // Fallback to specs endpoint
+			// Fallback to specs endpoint
 			const response = await fetchApi<
 				Array<{
 					name: string;
@@ -513,7 +623,7 @@ export const toolsApi = {
 		}
 	},
 
-  // Deprecated helpers removed; use configSuitsApi instead
+	// Deprecated helpers removed; use configSuitsApi instead
 
 	getTool: (serverId: string, toolName: string) =>
 		fetchApi<ToolDetail>(`/api/mcp/specs/tools/${serverId}/${toolName}`),
@@ -532,17 +642,25 @@ export const toolsApi = {
 		),
 
 	// Tool management operations
-  _manageTool: async (profileId: string, toolId: string, action: "enable" | "disable") =>
-    fetchApi<ApiResponse<null>>("/api/mcp/profile/tools/manage", {
-      method: "POST",
-      body: JSON.stringify({ profile_id: profileId, component_ids: [toolId], action }),
-    }),
+	_manageTool: async (
+		profileId: string,
+		toolId: string,
+		action: "enable" | "disable",
+	) =>
+		fetchApi<ApiResponse<null>>("/api/mcp/profile/tools/manage", {
+			method: "POST",
+			body: JSON.stringify({
+				profile_id: profileId,
+				component_ids: [toolId],
+				action,
+			}),
+		}),
 
-  enableTool: (profileId: string, toolId: string) =>
-    toolsApi._manageTool(profileId, toolId, "enable"),
+	enableTool: (profileId: string, toolId: string) =>
+		toolsApi._manageTool(profileId, toolId, "enable"),
 
-  disableTool: (profileId: string, toolId: string) =>
-    toolsApi._manageTool(profileId, toolId, "disable"),
+	disableTool: (profileId: string, toolId: string) =>
+		toolsApi._manageTool(profileId, toolId, "disable"),
 };
 
 // System Management API
@@ -757,179 +875,194 @@ export const configApi = {
 
 // Config Suits Management API
 export const configSuitsApi = {
-  getAll: async (): Promise<ConfigSuitListResponse> => {
-    try {
-      const response = await fetchApi<
-        ApiWrapper<{ profile: any[]; total: number; timestamp: string }>
-      >("/api/mcp/profile/list");
-      const data = extractApiData(response);
-      const suits: ConfigSuit[] = (data.profile || []).map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description ?? undefined,
-        suit_type: p.profile_type,
-        multi_select: p.multi_select,
-        priority: p.priority,
-        is_active: p.is_active,
-        is_default: p.is_default,
-        allowed_operations: p.allowed_operations || [],
-      }));
-      return { suits };
-    } catch (error) {
-      console.error("Failed to fetch config suits:", error);
-      return { suits: [] };
-    }
-  },
-  // Server capabilities
-  listTools: async (serverId: string, refresh?: "auto" | "force" | "cache") => {
-    const q = new URLSearchParams({ id: serverId });
-    if (refresh) q.set("refresh", refresh);
-    const resp = await fetchApi<ServerCapabilityResp>(`/api/mcp/servers/tools?${q}`);
-    return extractApiData(resp);
-  },
-  listResources: async (serverId: string, refresh?: "auto" | "force" | "cache") => {
-    const q = new URLSearchParams({ id: serverId });
-    if (refresh) q.set("refresh", refresh);
-    const resp = await fetchApi<ServerCapabilityResp>(`/api/mcp/servers/resources?${q}`);
-    return extractApiData(resp);
-  },
-  listPrompts: async (serverId: string, refresh?: "auto" | "force" | "cache") => {
-    const q = new URLSearchParams({ id: serverId });
-    if (refresh) q.set("refresh", refresh);
-    const resp = await fetchApi<ServerCapabilityResp>(`/api/mcp/servers/prompts?${q}`);
-    return extractApiData(resp);
-  },
-  listResourceTemplates: async (
-    serverId: string,
-    refresh?: "auto" | "force" | "cache",
-  ) => {
-    const q = new URLSearchParams({ id: serverId });
-    if (refresh) q.set("refresh", refresh);
-    const resp = await fetchApi<ServerCapabilityResp>(
-      `/api/mcp/servers/resources/templates?${q}`,
-    );
-    return extractApiData(resp);
-  },
+	getAll: async (): Promise<ConfigSuitListResponse> => {
+		try {
+			const response = await fetchApi<
+				ApiWrapper<{ profile: any[]; total: number; timestamp: string }>
+			>("/api/mcp/profile/list");
+			const data = extractApiData(response);
+			const suits: ConfigSuit[] = (data.profile || []).map((p: any) => ({
+				id: p.id,
+				name: p.name,
+				description: p.description ?? undefined,
+				suit_type: p.profile_type,
+				multi_select: p.multi_select,
+				priority: p.priority,
+				is_active: p.is_active,
+				is_default: p.is_default,
+				allowed_operations: p.allowed_operations || [],
+			}));
+			return { suits };
+		} catch (error) {
+			console.error("Failed to fetch config suits:", error);
+			return { suits: [] };
+		}
+	},
+	// Server capabilities
+	listTools: async (serverId: string, refresh?: "auto" | "force" | "cache") => {
+		const q = new URLSearchParams({ id: serverId });
+		if (refresh) q.set("refresh", refresh);
+		const resp = await fetchApi<ServerCapabilityResp>(
+			`/api/mcp/servers/tools?${q}`,
+		);
+		return extractApiData(resp);
+	},
+	listResources: async (
+		serverId: string,
+		refresh?: "auto" | "force" | "cache",
+	) => {
+		const q = new URLSearchParams({ id: serverId });
+		if (refresh) q.set("refresh", refresh);
+		const resp = await fetchApi<ServerCapabilityResp>(
+			`/api/mcp/servers/resources?${q}`,
+		);
+		return extractApiData(resp);
+	},
+	listPrompts: async (
+		serverId: string,
+		refresh?: "auto" | "force" | "cache",
+	) => {
+		const q = new URLSearchParams({ id: serverId });
+		if (refresh) q.set("refresh", refresh);
+		const resp = await fetchApi<ServerCapabilityResp>(
+			`/api/mcp/servers/prompts?${q}`,
+		);
+		return extractApiData(resp);
+	},
+	listResourceTemplates: async (
+		serverId: string,
+		refresh?: "auto" | "force" | "cache",
+	) => {
+		const q = new URLSearchParams({ id: serverId });
+		if (refresh) q.set("refresh", refresh);
+		const resp = await fetchApi<ServerCapabilityResp>(
+			`/api/mcp/servers/resources/templates?${q}`,
+		);
+		return extractApiData(resp);
+	},
 
-  getSuit: async (id: string): Promise<ConfigSuit> => {
-    const q = new URLSearchParams({ id });
-    const response = await fetchApi<ApiWrapper<{ profile: any }>>(
-      `/api/mcp/profile/details?${q}`,
-    );
-    const data = extractApiData(response);
-    const p = (data as any).profile;
-    return {
-      id: p.id,
-      name: p.name,
-      description: p.description ?? undefined,
-      suit_type: p.profile_type,
-      multi_select: p.multi_select,
-      priority: p.priority,
-      is_active: p.is_active,
-      is_default: p.is_default,
-      allowed_operations: p.allowed_operations || [],
-    } as ConfigSuit;
-  },
+	getSuit: async (id: string): Promise<ConfigSuit> => {
+		const q = new URLSearchParams({ id });
+		const response = await fetchApi<ApiWrapper<{ profile: any }>>(
+			`/api/mcp/profile/details?${q}`,
+		);
+		const data = extractApiData(response);
+		const p = (data as any).profile;
+		return {
+			id: p.id,
+			name: p.name,
+			description: p.description ?? undefined,
+			suit_type: p.profile_type,
+			multi_select: p.multi_select,
+			priority: p.priority,
+			is_active: p.is_active,
+			is_default: p.is_default,
+			allowed_operations: p.allowed_operations || [],
+		} as ConfigSuit;
+	},
 
-  createSuit: async (
-    data: CreateConfigSuitRequest,
-  ): Promise<ApiResponse<ConfigSuit>> => {
-    const payload = {
-      name: data.name,
-      description: data.description ?? null,
-      profile_type: data.suit_type,
-      multi_select: data.multi_select ?? null,
-      priority: data.priority ?? null,
-      is_active: data.is_active ?? null,
-      is_default: data.is_default ?? null,
-      clone_from_id: data.clone_from_id ?? null,
-    };
-    const response = await fetchApi<ApiWrapper<any>>(
-      "/api/mcp/profile/create",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-    );
-    const p = extractApiData(response);
-    const result: ConfigSuit = {
-      id: p.id,
-      name: p.name,
-      description: p.description ?? undefined,
-      suit_type: p.profile_type,
-      multi_select: p.multi_select,
-      priority: p.priority,
-      is_active: p.is_active,
-      is_default: p.is_default,
-      allowed_operations: p.allowed_operations || [],
-    };
-    return { status: "success", message: "Profile created", data: result };
-  },
+	createSuit: async (
+		data: CreateConfigSuitRequest,
+	): Promise<ApiResponse<ConfigSuit>> => {
+		const payload = {
+			name: data.name,
+			description: data.description ?? null,
+			profile_type: data.suit_type,
+			multi_select: data.multi_select ?? null,
+			priority: data.priority ?? null,
+			is_active: data.is_active ?? null,
+			is_default: data.is_default ?? null,
+			clone_from_id: data.clone_from_id ?? null,
+		};
+		const response = await fetchApi<ApiWrapper<any>>(
+			"/api/mcp/profile/create",
+			{
+				method: "POST",
+				body: JSON.stringify(payload),
+			},
+		);
+		const p = extractApiData(response);
+		const result: ConfigSuit = {
+			id: p.id,
+			name: p.name,
+			description: p.description ?? undefined,
+			suit_type: p.profile_type,
+			multi_select: p.multi_select,
+			priority: p.priority,
+			is_active: p.is_active,
+			is_default: p.is_default,
+			allowed_operations: p.allowed_operations || [],
+		};
+		return { status: "success", message: "Profile created", data: result };
+	},
 
-  updateSuit: async (
-    id: string,
-    data: UpdateConfigSuitRequest,
-  ): Promise<ApiResponse<ConfigSuit>> => {
-    const payload = {
-      id,
-      name: data.name ?? null,
-      description: data.description ?? null,
-      profile_type: (data as any).suit_type ?? null,
-      multi_select: data.multi_select ?? null,
-      priority: data.priority ?? null,
-      is_active: data.is_active ?? null,
-      is_default: data.is_default ?? null,
-    };
-    const response = await fetchApi<ApiWrapper<any>>(
-      `/api/mcp/profile/update`,
-      {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      },
-    );
-    const p = extractApiData(response);
-    const result: ConfigSuit = {
-      id: p.id,
-      name: p.name,
-      description: p.description ?? undefined,
-      suit_type: p.profile_type,
-      multi_select: p.multi_select,
-      priority: p.priority,
-      is_active: p.is_active,
-      is_default: p.is_default,
-      allowed_operations: p.allowed_operations || [],
-    };
-    return { status: "success", message: "Profile updated", data: result };
-  },
+	updateSuit: async (
+		id: string,
+		data: UpdateConfigSuitRequest,
+	): Promise<ApiResponse<ConfigSuit>> => {
+		const payload = {
+			id,
+			name: data.name ?? null,
+			description: data.description ?? null,
+			profile_type: (data as any).suit_type ?? null,
+			multi_select: data.multi_select ?? null,
+			priority: data.priority ?? null,
+			is_active: data.is_active ?? null,
+			is_default: data.is_default ?? null,
+		};
+		const response = await fetchApi<ApiWrapper<any>>(
+			`/api/mcp/profile/update`,
+			{
+				method: "PUT",
+				body: JSON.stringify(payload),
+			},
+		);
+		const p = extractApiData(response);
+		const result: ConfigSuit = {
+			id: p.id,
+			name: p.name,
+			description: p.description ?? undefined,
+			suit_type: p.profile_type,
+			multi_select: p.multi_select,
+			priority: p.priority,
+			is_active: p.is_active,
+			is_default: p.is_default,
+			allowed_operations: p.allowed_operations || [],
+		};
+		return { status: "success", message: "Profile updated", data: result };
+	},
 
-  deleteSuit: async (id: string): Promise<ApiResponse<void>> => {
-    const response = await fetchApi<ApiWrapper<void>>(`/api/mcp/profile/delete`, {
-      method: "DELETE",
-      body: JSON.stringify({ id }),
-    });
-    extractApiData(response);
-    return {
-      status: "success",
-      message: "Config suit deleted successfully",
-    };
-  },
+	deleteSuit: async (id: string): Promise<ApiResponse<void>> => {
+		const response = await fetchApi<ApiWrapper<void>>(
+			`/api/mcp/profile/delete`,
+			{
+				method: "DELETE",
+				body: JSON.stringify({ id }),
+			},
+		);
+		extractApiData(response);
+		return {
+			status: "success",
+			message: "Config suit deleted successfully",
+		};
+	},
 
 	// Suit management operations
-  _manageSuit: async (id: string, action: "activate" | "deactivate") => {
-    const response = await fetchApi<ApiWrapper<unknown>>(
-      "/api/mcp/profile/manage",
-      {
-        method: "POST",
-        body: JSON.stringify({ ids: [id], action }),
-      },
-    );
-    extractApiData(response);
-    return {
-      status: "success",
-      message: `Config suit ${action}d successfully`,
-      data: null,
-    };
-  },
+	_manageSuit: async (id: string, action: "activate" | "deactivate") => {
+		const response = await fetchApi<ApiWrapper<unknown>>(
+			"/api/mcp/profile/manage",
+			{
+				method: "POST",
+				body: JSON.stringify({ ids: [id], action }),
+			},
+		);
+		extractApiData(response);
+		return {
+			status: "success",
+			message: `Config suit ${action}d successfully`,
+			data: null,
+		};
+	},
 
 	activateSuit: (id: string) => configSuitsApi._manageSuit(id, "activate"),
 	deactivateSuit: (id: string) => configSuitsApi._manageSuit(id, "deactivate"),
@@ -941,125 +1074,142 @@ export const configSuitsApi = {
 		executeBatchOperation(ids, configSuitsApi.deactivateSuit),
 
 	// Suit content management
-  getServers: async (suitId: string): Promise<ConfigSuitServersResponse> => {
-    const q = new URLSearchParams({ profile_id: suitId });
-    const response = await fetchApi<
-      ApiWrapper<{
-        profile_id: string;
-        profile_name: string;
-        servers: ConfigSuitServer[];
-      }>
-    >(`/api/mcp/profile/servers/list?${q}`);
-    const data = extractApiData(response);
-    return {
-      suit_id: (data as any).profile_id,
-      suit_name: (data as any).profile_name,
-      servers: (data as any).servers || [],
-    };
-  },
+	getServers: async (suitId: string): Promise<ConfigSuitServersResponse> => {
+		const q = new URLSearchParams({ profile_id: suitId });
+		const response = await fetchApi<
+			ApiWrapper<{
+				profile_id: string;
+				profile_name: string;
+				servers: ConfigSuitServer[];
+			}>
+		>(`/api/mcp/profile/servers/list?${q}`);
+		const data = extractApiData(response);
+		return {
+			suit_id: (data as any).profile_id,
+			suit_name: (data as any).profile_name,
+			servers: (data as any).servers || [],
+		};
+	},
 
-  getTools: async (suitId: string): Promise<ConfigSuitToolsResponse> => {
-    const q = new URLSearchParams({ profile_id: suitId });
-    const response = await fetchApi<
-      ApiWrapper<{
-        profile_id: string;
-        profile_name: string;
-        tools: ConfigSuitTool[];
-      }>
-    >(`/api/mcp/profile/tools/list?${q}`);
-    const data = extractApiData(response);
-    return {
-      suit_id: (data as any).profile_id,
-      suit_name: (data as any).profile_name,
-      tools: (data as any).tools || [],
-    };
-  },
+	getTools: async (suitId: string): Promise<ConfigSuitToolsResponse> => {
+		const q = new URLSearchParams({ profile_id: suitId });
+		const response = await fetchApi<
+			ApiWrapper<{
+				profile_id: string;
+				profile_name: string;
+				tools: ConfigSuitTool[];
+			}>
+		>(`/api/mcp/profile/tools/list?${q}`);
+		const data = extractApiData(response);
+		return {
+			suit_id: (data as any).profile_id,
+			suit_name: (data as any).profile_name,
+			tools: (data as any).tools || [],
+		};
+	},
 
-  getResources: async (
-    suitId: string,
-  ): Promise<ConfigSuitResourcesResponse> => {
-    const q = new URLSearchParams({ profile_id: suitId });
-    const response = await fetchApi<
-      ApiWrapper<{
-        profile_id: string;
-        profile_name: string;
-        resources: any[];
-      }>
-    >(`/api/mcp/profile/resources/list?${q}`);
-    const data = extractApiData(response);
-    return {
-      suit_id: (data as any).profile_id,
-      suit_name: (data as any).profile_name,
-      resources: (data as any).resources || [],
-    };
-  },
+	getResources: async (
+		suitId: string,
+	): Promise<ConfigSuitResourcesResponse> => {
+		const q = new URLSearchParams({ profile_id: suitId });
+		const response = await fetchApi<
+			ApiWrapper<{
+				profile_id: string;
+				profile_name: string;
+				resources: any[];
+			}>
+		>(`/api/mcp/profile/resources/list?${q}`);
+		const data = extractApiData(response);
+		return {
+			suit_id: (data as any).profile_id,
+			suit_name: (data as any).profile_name,
+			resources: (data as any).resources || [],
+		};
+	},
 
-  getPrompts: async (suitId: string): Promise<ConfigSuitPromptsResponse> => {
-    const q = new URLSearchParams({ profile_id: suitId });
-    const response = await fetchApi<
-      ApiWrapper<{
-        profile_id: string;
-        profile_name: string;
-        prompts: any[];
-      }>
-    >(`/api/mcp/profile/prompts/list?${q}`);
-    const data = extractApiData(response);
-    return {
-      suit_id: (data as any).profile_id,
-      suit_name: (data as any).profile_name,
-      prompts: (data as any).prompts || [],
-    };
-  },
+	getPrompts: async (suitId: string): Promise<ConfigSuitPromptsResponse> => {
+		const q = new URLSearchParams({ profile_id: suitId });
+		const response = await fetchApi<
+			ApiWrapper<{
+				profile_id: string;
+				profile_name: string;
+				prompts: any[];
+			}>
+		>(`/api/mcp/profile/prompts/list?${q}`);
+		const data = extractApiData(response);
+		return {
+			suit_id: (data as any).profile_id,
+			suit_name: (data as any).profile_name,
+			prompts: (data as any).prompts || [],
+		};
+	},
 
 	// Component management operations
-  _manageComponent: (
-    endpoint: "servers" | "tools" | "resources" | "prompts",
-    suitId: string,
-    componentId: string,
-    action: "enable" | "disable",
-  ) =>
-    fetchApi<ApiResponse<null>>(`/api/mcp/profile/${endpoint}/manage`, {
-      method: "POST",
-      body: JSON.stringify({ profile_id: suitId, component_ids: [componentId], action }),
-    }),
+	_manageComponent: (
+		endpoint: "servers" | "tools" | "resources" | "prompts",
+		suitId: string,
+		componentId: string,
+		action: "enable" | "disable",
+	) =>
+		fetchApi<ApiResponse<null>>(`/api/mcp/profile/${endpoint}/manage`, {
+			method: "POST",
+			body: JSON.stringify({
+				profile_id: suitId,
+				component_ids: [componentId],
+				action,
+			}),
+		}),
 
-  // Batch manage multiple component ids in one request for reliability/perf
-  _manageComponentsBatch: (
-    endpoint: "servers" | "tools" | "resources" | "prompts",
-    suitId: string,
-    componentIds: string[],
-    action: "enable" | "disable",
-  ) =>
-    fetchApi<ApiResponse<null>>(`/api/mcp/profile/${endpoint}/manage`, {
-      method: "POST",
-      body: JSON.stringify({ profile_id: suitId, component_ids: componentIds, action }),
-    }),
+	// Batch manage multiple component ids in one request for reliability/perf
+	_manageComponentsBatch: (
+		endpoint: "servers" | "tools" | "resources" | "prompts",
+		suitId: string,
+		componentIds: string[],
+		action: "enable" | "disable",
+	) =>
+		fetchApi<ApiResponse<null>>(`/api/mcp/profile/${endpoint}/manage`, {
+			method: "POST",
+			body: JSON.stringify({
+				profile_id: suitId,
+				component_ids: componentIds,
+				action,
+			}),
+		}),
 
-  enableServer: (suitId: string, serverId: string) =>
-    configSuitsApi._manageComponent("servers", suitId, serverId, "enable"),
-  disableServer: (suitId: string, serverId: string) =>
-    configSuitsApi._manageComponent("servers", suitId, serverId, "disable"),
-  // Some backends only support single-id manage for servers; do per-id with best-effort batching
-  bulkServers: async (suitId: string, ids: string[], action: "enable" | "disable") =>
-    executeBatchOperation(ids, (id) => configSuitsApi._manageComponent("servers", suitId, id, action)),
-  enableTool: (suitId: string, toolId: string) =>
-    configSuitsApi._manageComponent("tools", suitId, toolId, "enable"),
-  disableTool: (suitId: string, toolId: string) =>
-    configSuitsApi._manageComponent("tools", suitId, toolId, "disable"),
-  bulkTools: (suitId: string, ids: string[], action: "enable" | "disable") =>
-    configSuitsApi._manageComponentsBatch("tools", suitId, ids, action),
-  enableResource: (suitId: string, resourceId: string) =>
-    configSuitsApi._manageComponent("resources", suitId, resourceId, "enable"),
-  disableResource: (suitId: string, resourceId: string) =>
-    configSuitsApi._manageComponent("resources", suitId, resourceId, "disable"),
-  bulkResources: (suitId: string, ids: string[], action: "enable" | "disable") =>
-    configSuitsApi._manageComponentsBatch("resources", suitId, ids, action),
-  enablePrompt: (suitId: string, promptId: string) =>
-    configSuitsApi._manageComponent("prompts", suitId, promptId, "enable"),
-  disablePrompt: (suitId: string, promptId: string) =>
-    configSuitsApi._manageComponent("prompts", suitId, promptId, "disable"),
-  bulkPrompts: (suitId: string, ids: string[], action: "enable" | "disable") =>
-    configSuitsApi._manageComponentsBatch("prompts", suitId, ids, action),
+	enableServer: (suitId: string, serverId: string) =>
+		configSuitsApi._manageComponent("servers", suitId, serverId, "enable"),
+	disableServer: (suitId: string, serverId: string) =>
+		configSuitsApi._manageComponent("servers", suitId, serverId, "disable"),
+	// Some backends only support single-id manage for servers; do per-id with best-effort batching
+	bulkServers: async (
+		suitId: string,
+		ids: string[],
+		action: "enable" | "disable",
+	) =>
+		executeBatchOperation(ids, (id) =>
+			configSuitsApi._manageComponent("servers", suitId, id, action),
+		),
+	enableTool: (suitId: string, toolId: string) =>
+		configSuitsApi._manageComponent("tools", suitId, toolId, "enable"),
+	disableTool: (suitId: string, toolId: string) =>
+		configSuitsApi._manageComponent("tools", suitId, toolId, "disable"),
+	bulkTools: (suitId: string, ids: string[], action: "enable" | "disable") =>
+		configSuitsApi._manageComponentsBatch("tools", suitId, ids, action),
+	enableResource: (suitId: string, resourceId: string) =>
+		configSuitsApi._manageComponent("resources", suitId, resourceId, "enable"),
+	disableResource: (suitId: string, resourceId: string) =>
+		configSuitsApi._manageComponent("resources", suitId, resourceId, "disable"),
+	bulkResources: (
+		suitId: string,
+		ids: string[],
+		action: "enable" | "disable",
+	) => configSuitsApi._manageComponentsBatch("resources", suitId, ids, action),
+	enablePrompt: (suitId: string, promptId: string) =>
+		configSuitsApi._manageComponent("prompts", suitId, promptId, "enable"),
+	disablePrompt: (suitId: string, promptId: string) =>
+		configSuitsApi._manageComponent("prompts", suitId, promptId, "disable"),
+	bulkPrompts: (suitId: string, ids: string[], action: "enable" | "disable") =>
+		configSuitsApi._manageComponentsBatch("prompts", suitId, ids, action),
 };
 
 // WebSocket Notifications Service
@@ -1158,83 +1308,103 @@ export const notificationsService = new NotificationsService();
 
 // Clients Management API
 export const clientsApi = {
-  list: async (refresh = false) => {
-    const q = new URLSearchParams({ refresh: String(refresh) });
-    const resp = await fetchApi<ClientCheckResp>(`/api/client/list?${q}`);
-    return extractApiData(resp);
-  },
+	list: async (refresh = false) => {
+		const q = new URLSearchParams({ refresh: String(refresh) });
+		const resp = await fetchApi<ClientCheckResp>(`/api/client/list?${q}`);
+		return extractApiData(resp);
+	},
 
-  manage: async (identifier: string, action: ClientManageAction) => {
-    const resp = await fetchApi<ClientManageResp>("/api/client/manage", {
-      method: "POST",
-      body: JSON.stringify({ identifier, action }),
-    });
-    return extractApiData(resp);
-  },
+	manage: async (identifier: string, action: ClientManageAction) => {
+		const resp = await fetchApi<ClientManageResp>("/api/client/manage", {
+			method: "POST",
+			body: JSON.stringify({ identifier, action }),
+		});
+		return extractApiData(resp);
+	},
 
-  configDetails: async (identifier: string, doImport = false) => {
-    const q = new URLSearchParams({ identifier, import: String(doImport) });
-    const resp = await fetchApi<ClientConfigResp>(`/api/client/config/details?${q}`);
-    return extractApiData(resp);
-  },
+	configDetails: async (identifier: string, doImport = false) => {
+		const q = new URLSearchParams({ identifier, import: String(doImport) });
+		const resp = await fetchApi<ClientConfigResp>(
+			`/api/client/config/details?${q}`,
+		);
+		return extractApiData(resp);
+	},
 
-  applyConfig: async (payload: ClientConfigUpdateReq) => {
-    const resp = await fetchApi<ClientConfigUpdateResp>(`/api/client/config/apply`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return extractApiData(resp);
-  },
+	applyConfig: async (payload: ClientConfigUpdateReq) => {
+		const resp = await fetchApi<ClientConfigUpdateResp>(
+			`/api/client/config/apply`,
+			{
+				method: "POST",
+				body: JSON.stringify(payload),
+			},
+		);
+		return extractApiData(resp);
+	},
 
-  restoreConfig: async (payload: ClientConfigRestoreReq) => {
-    const resp = await fetchApi<ClientBackupActionResp>(`/api/client/config/restore`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return extractApiData(resp);
-  },
+	restoreConfig: async (payload: ClientConfigRestoreReq) => {
+		const resp = await fetchApi<ClientBackupActionResp>(
+			`/api/client/config/restore`,
+			{
+				method: "POST",
+				body: JSON.stringify(payload),
+			},
+		);
+		return extractApiData(resp);
+	},
 
-  listBackups: async (identifier?: string) => {
-    const q = new URLSearchParams();
-    if (identifier) q.set("identifier", identifier);
-    const resp = await fetchApi<ClientBackupListResp>(`/api/client/backups/list?${q}`);
-    return extractApiData(resp);
-  },
+	listBackups: async (identifier?: string) => {
+		const q = new URLSearchParams();
+		if (identifier) q.set("identifier", identifier);
+		const resp = await fetchApi<ClientBackupListResp>(
+			`/api/client/backups/list?${q}`,
+		);
+		return extractApiData(resp);
+	},
 
-  deleteBackup: async (identifier: string, backup: string) => {
-    const resp = await fetchApi<ClientBackupActionResp>(`/api/client/backups/delete`, {
-      method: "POST",
-      body: JSON.stringify({ identifier, backup }),
-    });
-    return extractApiData(resp);
-  },
+	deleteBackup: async (identifier: string, backup: string) => {
+		const resp = await fetchApi<ClientBackupActionResp>(
+			`/api/client/backups/delete`,
+			{
+				method: "POST",
+				body: JSON.stringify({ identifier, backup }),
+			},
+		);
+		return extractApiData(resp);
+	},
 
-  getBackupPolicy: async (identifier: string) => {
-    const q = new URLSearchParams({ identifier });
-    const resp = await fetchApi<ClientBackupPolicyResp>(`/api/client/backups/policy?${q}`);
-    return extractApiData(resp);
-  },
+	getBackupPolicy: async (identifier: string) => {
+		const q = new URLSearchParams({ identifier });
+		const resp = await fetchApi<ClientBackupPolicyResp>(
+			`/api/client/backups/policy?${q}`,
+		);
+		return extractApiData(resp);
+	},
 
-  setBackupPolicy: async (payload: ClientBackupPolicySetReq) => {
-    const resp = await fetchApi<ClientBackupPolicyResp>(`/api/client/backups/policy`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return extractApiData(resp);
-  },
+	setBackupPolicy: async (payload: ClientBackupPolicySetReq) => {
+		const resp = await fetchApi<ClientBackupPolicyResp>(
+			`/api/client/backups/policy`,
+			{
+				method: "POST",
+				body: JSON.stringify(payload),
+			},
+		);
+		return extractApiData(resp);
+	},
 
-  // Import servers from an existing client configuration (preview or apply)
-  importFromClient: async (
-    identifier: string,
-    options?: { preview?: boolean; profile_id?: string | null },
-  ) => {
-    const body: any = { identifier };
-    if (options && typeof options.preview === "boolean") body.preview = options.preview;
-    if (options && "profile_id" in options) body.profile_id = options.profile_id;
-    const resp = await fetchApi(`/api/client/config/import`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    return extractApiData(resp as any);
-  },
+	// Import servers from an existing client configuration (preview or apply)
+	importFromClient: async (
+		identifier: string,
+		options?: { preview?: boolean; profile_id?: string | null },
+	) => {
+		const body: any = { identifier };
+		if (options && typeof options.preview === "boolean")
+			body.preview = options.preview;
+		if (options && "profile_id" in options)
+			body.profile_id = options.profile_id;
+		const resp = await fetchApi(`/api/client/config/import`, {
+			method: "POST",
+			body: JSON.stringify(body),
+		});
+		return extractApiData(resp as any);
+	},
 };

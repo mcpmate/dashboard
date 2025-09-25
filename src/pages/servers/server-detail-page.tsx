@@ -12,6 +12,7 @@ import { StatusBadge } from "../../components/status-badge";
 import { ServerFormDrawer } from "../../components/server-form-drawer";
 import { Edit3, MoreHorizontal, Play, RefreshCw, Square, Trash2, Link as LinkIcon } from "lucide-react";
 import CapabilityList from "../../components/capability-list";
+import InspectorDrawer from "../../components/inspector-drawer";
 import { Avatar, AvatarFallback, AvatarImage } from "../../components/ui/avatar";
 
 export function ServerDetailPage() {
@@ -48,6 +49,9 @@ export function ServerDetailPage() {
     },
     onSuccess: () => {
       notifySuccess("Server deleted");
+      // Ensure the list view reflects the deletion immediately
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+      queryClient.removeQueries({ queryKey: ["server", serverId] });
       navigate("/servers");
     },
     onError: (e) => notifyError("Delete failed", String(e)),
@@ -226,6 +230,7 @@ function ServerCapabilityTabsHeader({ serverId }: { serverId: string }) {
 
 function ServerCapabilityList({ kind, serverId }: { kind: "tools" | "resources" | "prompts" | "templates"; serverId: string }) {
   const [search, setSearch] = useState("");
+  const [inspector, setInspector] = useState<{ open: boolean; kind: "tool"|"resource"|"prompt"; item: any } | null>(null);
   const queryMap = {
     tools: useQuery({ queryKey: ["server-cap", "tools", serverId], queryFn: () => serversApi.listTools(serverId) }),
     resources: useQuery({ queryKey: ["server-cap", "resources", serverId], queryFn: () => serversApi.listResources(serverId) }),
@@ -241,6 +246,7 @@ function ServerCapabilityList({ kind, serverId }: { kind: "tools" | "resources" 
   } as any;
 
   return (
+    <>
     <CapabilityList
       title={`${titleMap[kind]} (${q.data?.items?.length ?? 0})`}
       kind={kind as any}
@@ -250,7 +256,32 @@ function ServerCapabilityList({ kind, serverId }: { kind: "tools" | "resources" 
       filterText={search}
       onFilterTextChange={setSearch}
       emptyText={`No ${titleMap[kind].toLowerCase()} from this server`}
+      renderAction={(m, item) => {
+        if (kind === 'templates') return null;
+        const btn = (
+          <button
+            className="text-xs rounded border px-2 py-1 hover:bg-accent inline-flex items-center gap-1"
+            aria-label="Inspect"
+            title="Inspect"
+            onClick={() => setInspector({ open: true, kind: kind === 'tools' ? 'tool' : kind === 'prompts' ? 'prompt' : 'resource', item })}
+          >
+            <Play className="w-3.5 h-3.5" />
+            <span>Inspect</span>
+          </button>
+        );
+        return btn;
+      }}
     />
+    {inspector && (
+      <InspectorDrawer
+        open={inspector.open}
+        onOpenChange={(o) => setInspector(o ? inspector : null)}
+        serverId={serverId}
+        kind={inspector.kind}
+        item={inspector.item}
+      />
+    )}
+    </>
   );
 }
 
