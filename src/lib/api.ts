@@ -52,10 +52,57 @@ import type {
 } from "./types";
 
 // Base API configuration
-// Prefer VITE_API_BASE_URL; in Tauri desktop fall back to localhost:8080
-const API_BASE_URL =
-  (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_API_BASE_URL) ||
-  (typeof window !== 'undefined' && (window as any).__TAURI__ ? 'http://127.0.0.1:8080' : '');
+// Prefer VITE_API_BASE_URL; otherwise infer from runtime context with sane fallbacks
+const resolveApiBaseUrl = (): string => {
+	const envBase =
+		typeof import.meta !== "undefined" &&
+		(import.meta as any)?.env?.VITE_API_BASE_URL;
+
+	if (typeof envBase === "string" && envBase.trim().length > 0) {
+		return envBase.trim();
+	}
+
+	if (typeof window !== "undefined" && typeof window.location !== "undefined") {
+		const protocol = window.location.protocol;
+		const normalizedProtocol = protocol ? protocol.toLowerCase() : "";
+
+		// Tauri / desktop shells use a custom protocol (e.g. tauri://localhost)
+		if (normalizedProtocol === "tauri:" || normalizedProtocol === "app:" || normalizedProtocol === "file:") {
+			return "http://127.0.0.1:8080";
+		}
+
+		if (window.location.origin) {
+			return window.location.origin;
+		}
+	}
+
+	// Final safety net so API calls never end up on the custom protocol origin
+	return "http://127.0.0.1:8080";
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
+
+const resolveWebSocketUrl = (): string => {
+	if (typeof window === "undefined") {
+		return "";
+	}
+
+	const baseCandidate = API_BASE_URL || window.location.origin;
+
+	try {
+		const parsed = new URL(baseCandidate);
+		const protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+		const host = parsed.host || parsed.hostname;
+		return `${protocol}//${host}/ws`;
+	} catch (error) {
+		console.warn(
+			"Failed to derive WebSocket URL from API base, falling back to window location",
+			error,
+		);
+		const fallbackProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+		return `${fallbackProtocol}//${window.location.host}/ws`;
+	}
+};
 
 // Utility types
 interface ApiWrapper<T> {
@@ -1295,7 +1342,11 @@ export class NotificationsService {
 	connect() {
 		if (this.ws) return;
 
-		const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws`;
+		const wsUrl = resolveWebSocketUrl();
+		if (!wsUrl) {
+			console.warn("WebSocket URL could not be resolved; skipping connection attempt");
+			return;
+		}
 		console.log(`Connecting to WebSocket at ${wsUrl}`);
 
 		try {

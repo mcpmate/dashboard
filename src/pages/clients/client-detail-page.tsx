@@ -2,7 +2,13 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { clientsApi } from "../../lib/api";
-import type { ClientBackupEntry, ClientBackupPolicySetReq, ClientConfigMode, ClientConfigSelected } from "../../lib/types";
+import type {
+  ClientBackupEntry,
+  ClientBackupPolicySetReq,
+  ClientConfigMode,
+  ClientConfigSelected,
+  ClientConfigUpdateData,
+} from "../../lib/types";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Label } from "../../components/ui/label";
@@ -50,7 +56,7 @@ export function ClientDetailPage() {
   const [selectedConfig, setSelectedConfig] = useState<ClientConfigSelected>("default");
   const [preview, setPreview] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
-  const [applyResult, setApplyResult] = useState<any | null>(null);
+  const [applyResult, setApplyResult] = useState<ClientConfigUpdateData | null>(null);
   const [policyOpen, setPolicyOpen] = useState(false);
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [importPreviewData, setImportPreviewData] = useState<any | null>(null);
@@ -168,6 +174,9 @@ export function ClientDetailPage() {
     if (obj.mcpServers && typeof obj.mcpServers === "object") {
       return Object.keys(obj.mcpServers);
     }
+    if (obj.mcp_servers && typeof obj.mcp_servers === "object") {
+      return Object.keys(obj.mcp_servers);
+    }
     if (obj.mcp && Array.isArray(obj.mcp.servers)) {
       return obj.mcp.servers.map((s: any) => s?.name).filter(Boolean);
     }
@@ -211,33 +220,36 @@ export function ClientDetailPage() {
         <TabsContent value="overview">
           <div className="grid gap-4">
             <Card>
-              <CardHeader><CardTitle>Client</CardTitle></CardHeader>
-              <CardContent className="text-sm">
-                {loadingConfig ? (
+              {loadingConfig ? (
+                <CardContent className="text-sm">
                   <div className="animate-pulse h-16 bg-slate-200 dark:bg-slate-800 rounded" />
-                ) : configDetails ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-12 w-12">
-                        {((configDetails as any)?.logo_url) ? (
-                          <AvatarImage src={(configDetails as any).logo_url} alt={displayName || identifier} />
-                        ) : null}
-                        <AvatarFallback>{(displayName || identifier || "C").slice(0,1).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="font-medium">{displayName || identifier}</div>
+                </CardContent>
+              ) : configDetails ? (
+                <>
+                  <CardHeader className="flex flex-row items-center gap-3 pb-0">
+                    <Avatar className="h-12 w-12">
+                      {((configDetails as any)?.logo_url) ? (
+                        <AvatarImage src={(configDetails as any).logo_url} alt={displayName || identifier} />
+                      ) : null}
+                      <AvatarFallback>{(displayName || identifier || "C").slice(0,1).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="text-lg font-semibold leading-tight">{displayName || identifier}</div>
+                      <div className="text-xs text-slate-500">{identifier}</div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>Identifier: <span className="font-mono">{identifier}</span></div>
-                      <div>Config Path: <span className="font-mono">{configDetails.config_path}</span></div>
+                  </CardHeader>
+                  <CardContent className="text-sm pt-4">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>Config Path: <span className="font-mono break-all">{configDetails.config_path}</span></div>
                       <div>Managed: {String((configDetails as any).managed)}</div>
                       <div>Servers detected: {configDetails.mcp_servers_count ?? 0}</div>
                       <div>Last Modified: {configDetails.last_modified || "-"}</div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="text-slate-500">No details available</div>
-                )}
-              </CardContent>
+                  </CardContent>
+                </>
+              ) : (
+                <CardContent className="text-sm text-slate-500">No details available</CardContent>
+              )}
             </Card>
             <Card>
               <CardHeader>
@@ -414,21 +426,46 @@ export function ClientDetailPage() {
                 {applyMutation.isPending ? (
                   <div className="h-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
                 ) : applyResult ? (
-                  <>
-                    {applyResult.summary ? (
-                      <div className="grid grid-cols-2 gap-2 mb-2 text-xs text-slate-600 dark:text-slate-300">
-                        <div>changes: {applyResult.summary.changes ?? '-'}</div>
-                        <div>errors: {applyResult.summary.errors?.length ?? 0}</div>
-                      </div>
+                  <div className="space-y-3 text-xs">
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <div>format: {applyResult.diff_format || "-"}</div>
+                      <div>warnings: {applyResult.warnings?.length ?? 0}</div>
+                      <div>scheduled: {applyResult.scheduled ? "true" : "false"}</div>
+                    </div>
+                    {applyResult.warnings && applyResult.warnings.length > 0 ? (
+                      <ul className="list-disc pl-4 text-amber-600 dark:text-amber-400">
+                        {applyResult.warnings.map((w) => (<li key={w}>{w}</li>))}
+                      </ul>
                     ) : null}
-                    {applyResult.diff ? (
-                      <details className="mt-1">
-                        <summary className="text-xs text-slate-500 cursor-pointer">Diff</summary>
-                        <pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">{JSON.stringify(applyResult.diff, null, 2)}</pre>
+                    {applyResult.preview ? (
+                      <details className="rounded border bg-slate-50 dark:bg-slate-900 p-2" open>
+                        <summary className="cursor-pointer text-slate-600 dark:text-slate-300">Rendered preview payload</summary>
+                        <pre className="mt-2 whitespace-pre-wrap break-all">
+{JSON.stringify(applyResult.preview, null, 2)}
+                        </pre>
                       </details>
                     ) : null}
-                    <pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">{JSON.stringify(applyResult, null, 2)}</pre>
-                  </>
+                    {(applyResult.diff_before || applyResult.diff_after) ? (
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        {applyResult.diff_before ? (
+                          <div>
+                            <div className="mb-1 font-medium text-slate-600 dark:text-slate-200">Before</div>
+                            <pre className="h-40 overflow-auto rounded border bg-slate-50 dark:bg-slate-900 p-2 whitespace-pre">
+{applyResult.diff_before}
+                            </pre>
+                          </div>
+                        ) : null}
+                        {applyResult.diff_after ? (
+                          <div>
+                            <div className="mb-1 font-medium text-slate-600 dark:text-slate-200">After</div>
+                            <pre className="h-40 overflow-auto rounded border bg-slate-50 dark:bg-slate-900 p-2 whitespace-pre">
+{applyResult.diff_after}
+                            </pre>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
                   <div className="text-xs text-slate-500">No preview yet.</div>
                 )}

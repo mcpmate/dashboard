@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	Bug,
 	Check,
 	Edit3,
-	MoreHorizontal,
 	Play,
 	RefreshCw,
 	Server,
 	Square,
 	Trash2,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import CapabilityList from "../../components/capability-list";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import CapabilityList from "../../components/capability-list";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import {
 	AlertDialog,
@@ -32,13 +32,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "../../components/ui/dropdown-menu";
 import { Input } from "../../components/ui/input";
 import {
 	Select,
@@ -54,8 +47,8 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "../../components/ui/tabs";
-import { notifyError, notifySuccess } from "../../lib/notify";
 import { configSuitsApi, serversApi } from "../../lib/api";
+import { notifyError, notifySuccess } from "../../lib/notify";
 import type {
 	ConfigSuitPrompt,
 	ConfigSuitResource,
@@ -63,11 +56,30 @@ import type {
 	ConfigSuitTool,
 } from "../../lib/types";
 
+const toTitleCase = (value?: string | null) =>
+	(value ?? "")
+		.trim()
+		.split(/[\s_-]+/)
+		.filter(Boolean)
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+		.join(" ") ||
+	value ||
+	"";
+
 export function ConfigSuitDetailPage() {
 	const { suitId } = useParams<{ suitId: string }>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState("overview");
+
+	const openDebug = (
+		targetServerId: string,
+		channel: "proxy" | "native" = "proxy",
+	) => {
+		if (typeof window === "undefined") return;
+		const url = `/servers/${encodeURIComponent(targetServerId)}?view=debug&channel=${channel}`;
+		window.open(url, "_blank", "noopener,noreferrer");
+	};
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	// Filters: servers
@@ -92,35 +104,71 @@ export function ConfigSuitDetailPage() {
 	const [promptStatus, setPromptStatus] = useState<
 		"all" | "enabled" | "disabled"
 	>("all");
-  const [promptServer, setPromptServer] = useState<string>("all");
-  // Bulk selection states for lists
-  const [selectedServerIds, setSelectedServerIds] = useState<string[]>([]);
-  const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
-  const [selectedResourceIds, setSelectedResourceIds] = useState<string[]>([]);
-  const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
+	const [promptServer, setPromptServer] = useState<string>("all");
+	// Bulk selection states for lists
+	const [selectedServerIds, setSelectedServerIds] = useState<string[]>([]);
+	const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
+	const [selectedResourceIds, setSelectedResourceIds] = useState<string[]>([]);
+	const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
 
-  // Bulk mutations using server-side batch manage to improve reliability
-  const bulkToolsM = useMutation({
-    mutationFn: ({ enable }: { enable: boolean }) => configSuitsApi.bulkTools(suitId!, selectedToolIds, enable ? "enable" : "disable"),
-    onSuccess: () => { setSelectedToolIds([]); refetchTools(); notifySuccess("Tools updated", "Bulk operation completed"); },
-    onError: (e) => notifyError("Tools update failed", String(e)),
-  });
-  const bulkResourcesM = useMutation({
-    mutationFn: ({ enable }: { enable: boolean }) => configSuitsApi.bulkResources(suitId!, selectedResourceIds, enable ? "enable" : "disable"),
-    onSuccess: () => { setSelectedResourceIds([]); refetchResources(); notifySuccess("Resources updated", "Bulk operation completed"); },
-    onError: (e) => notifyError("Resources update failed", String(e)),
-  });
-  const bulkPromptsM = useMutation({
-    mutationFn: ({ enable }: { enable: boolean }) => configSuitsApi.bulkPrompts(suitId!, selectedPromptIds, enable ? "enable" : "disable"),
-    onSuccess: () => { setSelectedPromptIds([]); refetchPrompts(); notifySuccess("Prompts updated", "Bulk operation completed"); },
-    onError: (e) => notifyError("Prompts update failed", String(e)),
-  });
+	// Bulk mutations using server-side batch manage to improve reliability
+	const bulkToolsM = useMutation({
+		mutationFn: ({ enable }: { enable: boolean }) =>
+			configSuitsApi.bulkTools(
+				suitId!,
+				selectedToolIds,
+				enable ? "enable" : "disable",
+			),
+		onSuccess: () => {
+			setSelectedToolIds([]);
+			refetchTools();
+			notifySuccess("Tools updated", "Bulk operation completed");
+		},
+		onError: (e) => notifyError("Tools update failed", String(e)),
+	});
+	const bulkResourcesM = useMutation({
+		mutationFn: ({ enable }: { enable: boolean }) =>
+			configSuitsApi.bulkResources(
+				suitId!,
+				selectedResourceIds,
+				enable ? "enable" : "disable",
+			),
+		onSuccess: () => {
+			setSelectedResourceIds([]);
+			refetchResources();
+			notifySuccess("Resources updated", "Bulk operation completed");
+		},
+		onError: (e) => notifyError("Resources update failed", String(e)),
+	});
+	const bulkPromptsM = useMutation({
+		mutationFn: ({ enable }: { enable: boolean }) =>
+			configSuitsApi.bulkPrompts(
+				suitId!,
+				selectedPromptIds,
+				enable ? "enable" : "disable",
+			),
+		onSuccess: () => {
+			setSelectedPromptIds([]);
+			refetchPrompts();
+			notifySuccess("Prompts updated", "Bulk operation completed");
+		},
+		onError: (e) => notifyError("Prompts update failed", String(e)),
+	});
 
-  const bulkServersM = useMutation({
-    mutationFn: ({ enable }: { enable: boolean }) => configSuitsApi.bulkServers(suitId!, selectedServerIds, enable ? "enable" : "disable"),
-    onSuccess: () => { setSelectedServerIds([]); refetchServers(); notifySuccess("Servers updated", "Bulk operation completed"); },
-    onError: (e) => notifyError("Servers update failed", String(e)),
-  });
+	const bulkServersM = useMutation({
+		mutationFn: ({ enable }: { enable: boolean }) =>
+			configSuitsApi.bulkServers(
+				suitId!,
+				selectedServerIds,
+				enable ? "enable" : "disable",
+			),
+		onSuccess: () => {
+			setSelectedServerIds([]);
+			refetchServers();
+			notifySuccess("Servers updated", "Bulk operation completed");
+		},
+		onError: (e) => notifyError("Servers update failed", String(e)),
+	});
 
 	// Force cleanup when drawer closes to prevent overlay issues
 	useEffect(() => {
@@ -166,9 +214,9 @@ export function ConfigSuitDetailPage() {
 		queryKey: ["configSuit", suitId],
 		queryFn: async () => {
 			if (!suitId) return undefined;
-                console.log("Fetching profile details for:", suitId);
+			console.log("Fetching profile details for:", suitId);
 			const result = await configSuitsApi.getSuit(suitId);
-                console.log("Profile details response:", result);
+			console.log("Profile details response:", result);
 			return result;
 		},
 		enabled: !!suitId,
@@ -184,9 +232,9 @@ export function ConfigSuitDetailPage() {
 		queryKey: ["configSuitServers", suitId],
 		queryFn: async () => {
 			if (!suitId) return undefined;
-                console.log("Fetching servers for profile:", suitId);
+			console.log("Fetching servers for profile:", suitId);
 			const result = await configSuitsApi.getServers(suitId);
-                console.log("Profile servers response:", result);
+			console.log("Profile servers response:", result);
 			return result;
 		},
 		enabled: !!suitId,
@@ -234,40 +282,55 @@ export function ConfigSuitDetailPage() {
 	// Activation/deactivation mutations
 	const activateSuitMutation = useMutation({
 		mutationFn: () => configSuitsApi.activateSuit(suitId!),
-    onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
-        queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-        notifySuccess("Profile activated", "Profile has been successfully activated");
-    },
-    onError: (error) => {
-        notifyError("Activation failed", `Failed to activate profile: ${error instanceof Error ? error.message : String(error)}`);
-    },
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			notifySuccess(
+				"Profile activated",
+				"Profile has been successfully activated",
+			);
+		},
+		onError: (error) => {
+			notifyError(
+				"Activation failed",
+				`Failed to activate profile: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	const deactivateSuitMutation = useMutation({
 		mutationFn: () => configSuitsApi.deactivateSuit(suitId!),
-    onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
-        queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-        notifySuccess("Profile deactivated", "Profile has been successfully deactivated");
-    },
-    onError: (error) => {
-        notifyError("Deactivation failed", `Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`);
-    },
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			notifySuccess(
+				"Profile deactivated",
+				"Profile has been successfully deactivated",
+			);
+		},
+		onError: (error) => {
+			notifyError(
+				"Deactivation failed",
+				`Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
-    // Delete profile mutation
+	// Delete profile mutation
 	const deleteSuitMutation = useMutation({
-    mutationFn: () => {
-        if (!suitId) return Promise.reject("No suit ID");
-        return configSuitsApi.deleteSuit(suitId);
-    },
+		mutationFn: () => {
+			if (!suitId) return Promise.reject("No suit ID");
+			return configSuitsApi.deleteSuit(suitId);
+		},
 		onSuccess: () => {
-        notifySuccess("Profile deleted", "Profile has been successfully deleted");
+			notifySuccess("Profile deleted", "Profile has been successfully deleted");
 			navigate("/config");
 		},
 		onError: (error) => {
-        notifyError("Delete failed", `Failed to delete profile: ${error instanceof Error ? error.message : String(error)}`);
+			notifyError(
+				"Delete failed",
+				`Failed to delete profile: ${error instanceof Error ? error.message : String(error)}`,
+			);
 		},
 	});
 
@@ -285,12 +348,15 @@ export function ConfigSuitDetailPage() {
 				: configSuitsApi.disableServer(suitId!, serverId);
 		},
 		onSuccess: () => {
-        refetchServers();
-        notifySuccess("Server updated", "Server status has been updated");
+			refetchServers();
+			notifySuccess("Server updated", "Server status has been updated");
 		},
-    onError: (error) => {
-        notifyError("Server update failed", `Failed to update server: ${error instanceof Error ? error.message : String(error)}`);
-    },
+		onError: (error) => {
+			notifyError(
+				"Server update failed",
+				`Failed to update server: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	// Tool toggle mutations
@@ -300,8 +366,16 @@ export function ConfigSuitDetailPage() {
 				? configSuitsApi.enableTool(suitId!, toolId)
 				: configSuitsApi.disableTool(suitId!, toolId);
 		},
-    onSuccess: () => { refetchTools(); notifySuccess("Tool updated", "Tool status has been updated"); },
-    onError: (error) => { notifyError("Tool update failed", `Failed to update tool: ${error instanceof Error ? error.message : String(error)}`); },
+		onSuccess: () => {
+			refetchTools();
+			notifySuccess("Tool updated", "Tool status has been updated");
+		},
+		onError: (error) => {
+			notifyError(
+				"Tool update failed",
+				`Failed to update tool: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	// Resource toggle mutations
@@ -317,8 +391,16 @@ export function ConfigSuitDetailPage() {
 				? configSuitsApi.enableResource(suitId!, resourceId)
 				: configSuitsApi.disableResource(suitId!, resourceId);
 		},
-    onSuccess: () => { refetchResources(); notifySuccess("Resource updated", "Resource status has been updated"); },
-    onError: (error) => { notifyError("Resource update failed", `Failed to update resource: ${error instanceof Error ? error.message : String(error)}`); },
+		onSuccess: () => {
+			refetchResources();
+			notifySuccess("Resource updated", "Resource status has been updated");
+		},
+		onError: (error) => {
+			notifyError(
+				"Resource update failed",
+				`Failed to update resource: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	// Prompt toggle mutations
@@ -334,8 +416,16 @@ export function ConfigSuitDetailPage() {
 				? configSuitsApi.enablePrompt(suitId!, promptId)
 				: configSuitsApi.disablePrompt(suitId!, promptId);
 		},
-    onSuccess: () => { refetchPrompts(); notifySuccess("Prompt updated", "Prompt status has been updated"); },
-    onError: (error) => { notifyError("Prompt update failed", `Failed to update prompt: ${error instanceof Error ? error.message : String(error)}`); },
+		onSuccess: () => {
+			refetchPrompts();
+			notifySuccess("Prompt updated", "Prompt status has been updated");
+		},
+		onError: (error) => {
+			notifyError(
+				"Prompt update failed",
+				`Failed to update prompt: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	const handleSuitToggle = () => {
@@ -390,8 +480,8 @@ export function ConfigSuitDetailPage() {
 					// 确保页面可以正常交互
 					document.body.style.pointerEvents = "";
 
-						// 触发重新渲染以确保状态正确
-						/* force reflow */ void document.body.offsetHeight;
+					// 触发重新渲染以确保状态正确
+					/* force reflow */ void document.body.offsetHeight;
 				}, 100);
 			});
 		}
@@ -408,17 +498,17 @@ export function ConfigSuitDetailPage() {
 	const enabledResources = resources.filter(
 		(r: ConfigSuitResource) => r.enabled,
 	);
-  const enabledPrompts = prompts.filter((p: ConfigSuitPrompt) => p.enabled);
+	const enabledPrompts = prompts.filter((p: ConfigSuitPrompt) => p.enabled);
 
-  // Global servers for availability(connected) calculation
-  const { data: globalServersResp } = useQuery({
-    queryKey: ["all-servers-for-profile-overview"],
-    queryFn: serversApi.getAll,
-    staleTime: 30_000,
-  });
-  const globalServers = globalServersResp?.servers ?? [];
-  // For profile counts, available = total in this profile (not global state)
-  const availableServersInProfile = servers;
+	// Global servers for availability(connected) calculation
+	const { data: globalServersResp } = useQuery({
+		queryKey: ["all-servers-for-profile-overview"],
+		queryFn: serversApi.getAll,
+		staleTime: 30_000,
+	});
+	const globalServers = globalServersResp?.servers ?? [];
+	// For profile counts, available = total in this profile (not global state)
+	const availableServersInProfile = servers;
 
 	// Derived server name options for filters
 	const serverNameOptions = Array.from(
@@ -486,8 +576,8 @@ export function ConfigSuitDetailPage() {
 						<div className="flex items-center gap-3">
 							<div className="flex flex-col">
 								<div className="flex items-center gap-3">
-									<h2 className="text-3xl font-bold tracking-tight uppercase">
-										{suit.name}
+									<h2 className="text-3xl font-bold tracking-tight">
+										{toTitleCase(suit.name)}
 									</h2>
 									<Badge variant={suit.is_active ? "default" : "secondary"}>
 										{suit.suit_type}
@@ -516,7 +606,7 @@ export function ConfigSuitDetailPage() {
 				<Card>
 					<CardContent className="p-6">
 						<p className="text-center text-slate-500">
-                                Profile ID not provided
+							Profile ID not provided
 						</p>
 					</CardContent>
 				</Card>
@@ -532,58 +622,78 @@ export function ConfigSuitDetailPage() {
 					onValueChange={setActiveTab}
 					className="space-y-6"
 				>
-    <TabsList className="grid w-full grid-cols-5">
-      <TabsTrigger value="overview">Overview</TabsTrigger>
-      <TabsTrigger value="servers">Servers ({enabledServers.length}/{servers.length})</TabsTrigger>
-      <TabsTrigger value="tools">Tools ({enabledTools.length}/{tools.length})</TabsTrigger>
-      <TabsTrigger value="resources">Resources ({enabledResources.length}/{resources.length})</TabsTrigger>
-      <TabsTrigger value="prompts">Prompts ({enabledPrompts.length}/{prompts.length})</TabsTrigger>
-    </TabsList>
+					<TabsList className="grid w-full grid-cols-5">
+						<TabsTrigger value="overview">Overview</TabsTrigger>
+						<TabsTrigger value="servers">
+							Servers ({enabledServers.length}/{servers.length})
+						</TabsTrigger>
+						<TabsTrigger value="tools">
+							Tools ({enabledTools.length}/{tools.length})
+						</TabsTrigger>
+						<TabsTrigger value="resources">
+							Resources ({enabledResources.length}/{resources.length})
+						</TabsTrigger>
+						<TabsTrigger value="prompts">
+							Prompts ({enabledPrompts.length}/{prompts.length})
+						</TabsTrigger>
+					</TabsList>
 
 					<TabsContent value="overview">
 						<div className="grid gap-6">
 							<Card>
-								<CardHeader>
-									<div className="flex items-center justify-between">
-										<CardTitle>Configuration Suit Details</CardTitle>
-										{suit && (
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button variant="outline" size="sm">
-														<MoreHorizontal className="h-4 w-4" />
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuItem onClick={handleRefreshAll} disabled={isRefetchingSuit}>
-														<RefreshCw className={`mr-2 h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`} />
-														Refresh
-													</DropdownMenuItem>
-													<DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>
-														<Edit3 className="mr-2 h-4 w-4" />
-														Edit
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														onClick={handleSuitToggle}
-														disabled={(suit.is_default && suit.is_active) || activateSuitMutation.isPending || deactivateSuitMutation.isPending}
-													>
-														{suit.is_active ? (<><Square className="mr-2 h-4 w-4" />Deactivate</>) : (<><Play className="mr-2 h-4 w-4" />Activate</>)}
-													</DropdownMenuItem>
-													<DropdownMenuSeparator />
-													<DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)} className="text-destructive focus:text-destructive" disabled={!!suit?.is_default}>
-														<Trash2 className="mr-2 h-4 w-4" />
-														Delete
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										)}
+								<CardHeader className="flex items-end justify-between">
+									<div className="flex-1" aria-hidden="true"></div>
+									<div className="flex flex-wrap items-center gap-2">
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={handleRefreshAll}
+											disabled={isRefetchingSuit}
+										>
+											<RefreshCw
+												className={`mr-2 h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`}
+											/>
+											Refresh
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setIsEditDialogOpen(true)}
+										>
+											<Edit3 className="mr-2 h-4 w-4" />
+											Edit
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={handleSuitToggle}
+											disabled={
+												(suit?.is_default && suit?.is_active) ||
+												activateSuitMutation.isPending ||
+												deactivateSuitMutation.isPending
+											}
+										>
+											{suit?.is_active ? (
+												<Square className="mr-2 h-4 w-4" />
+											) : (
+												<Play className="mr-2 h-4 w-4" />
+											)}
+											{suit?.is_active ? "Disable" : "Enable"}
+										</Button>
+										<Button
+											variant="destructive"
+											size="sm"
+											onClick={() => setIsDeleteDialogOpen(true)}
+											disabled={!!suit?.is_default}
+										>
+											<Trash2 className="mr-2 h-4 w-4" />
+											Delete
+										</Button>
 									</div>
 								</CardHeader>
 								<CardContent>
 									<div className="grid gap-4 md:grid-cols-2">
 										<div>
-											<h3 className="mb-2 text-sm font-medium text-slate-500">
-												Basic Information
-											</h3>
 											<dl className="space-y-2">
 												<div className="flex justify-between">
 													<dt className="font-medium">Name:</dt>
@@ -610,9 +720,6 @@ export function ConfigSuitDetailPage() {
 											</dl>
 										</div>
 										<div>
-											<h3 className="mb-2 text-sm font-medium text-slate-500">
-												Configuration
-											</h3>
 											<dl className="space-y-2">
 												<div className="flex justify-between">
 													<dt className="font-medium">Multi-select:</dt>
@@ -630,47 +737,67 @@ export function ConfigSuitDetailPage() {
 
 							<div className="grid gap-4 md:grid-cols-4">
 								<Card>
-                  <CardHeader className="pb-2 cursor-pointer" onClick={() => setActiveTab("servers") }>
-                    <CardTitle className="text-sm">Servers</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {enabledServers.length}/{availableServersInProfile.length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">enabled / available</p>
-                  </CardContent>
-                </Card>
+									<CardHeader
+										className="pb-2 cursor-pointer"
+										onClick={() => setActiveTab("servers")}
+									>
+										<CardTitle className="text-sm">Servers</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="text-2xl font-bold">
+											{enabledServers.length}/{availableServersInProfile.length}
+										</div>
+										<p className="text-xs text-muted-foreground">
+											enabled / available
+										</p>
+									</CardContent>
+								</Card>
 								<Card>
-                  <CardHeader className="pb-2 cursor-pointer" onClick={() => setActiveTab("tools") }>
-                    <CardTitle className="text-sm">Tools</CardTitle>
-                  </CardHeader>
+									<CardHeader
+										className="pb-2 cursor-pointer"
+										onClick={() => setActiveTab("tools")}
+									>
+										<CardTitle className="text-sm">Tools</CardTitle>
+									</CardHeader>
 									<CardContent>
 										<div className="text-2xl font-bold">
 											{enabledTools.length}/{tools.length}
 										</div>
-										<p className="text-xs text-muted-foreground">enabled / available</p>
+										<p className="text-xs text-muted-foreground">
+											enabled / available
+										</p>
 									</CardContent>
 								</Card>
 								<Card>
-                  <CardHeader className="pb-2 cursor-pointer" onClick={() => setActiveTab("resources") }>
-                    <CardTitle className="text-sm">Resources</CardTitle>
-                  </CardHeader>
+									<CardHeader
+										className="pb-2 cursor-pointer"
+										onClick={() => setActiveTab("resources")}
+									>
+										<CardTitle className="text-sm">Resources</CardTitle>
+									</CardHeader>
 									<CardContent>
 										<div className="text-2xl font-bold">
 											{enabledResources.length}/{resources.length}
 										</div>
-										<p className="text-xs text-muted-foreground">enabled / available</p>
+										<p className="text-xs text-muted-foreground">
+											enabled / available
+										</p>
 									</CardContent>
 								</Card>
 								<Card>
-                  <CardHeader className="pb-2 cursor-pointer" onClick={() => setActiveTab("prompts") }>
-                    <CardTitle className="text-sm">Prompts</CardTitle>
-                  </CardHeader>
+									<CardHeader
+										className="pb-2 cursor-pointer"
+										onClick={() => setActiveTab("prompts")}
+									>
+										<CardTitle className="text-sm">Prompts</CardTitle>
+									</CardHeader>
 									<CardContent>
 										<div className="text-2xl font-bold">
 											{enabledPrompts.length}/{prompts.length}
 										</div>
-										<p className="text-xs text-muted-foreground">enabled / available</p>
+										<p className="text-xs text-muted-foreground">
+											enabled / available
+										</p>
 									</CardContent>
 								</Card>
 							</div>
@@ -683,33 +810,75 @@ export function ConfigSuitDetailPage() {
 								<div className="flex items-center justify-between gap-2">
 									<div>
 										<CardTitle>Servers</CardTitle>
-										<CardDescription>Manage servers included in this profile</CardDescription>
+										<CardDescription>
+											Manage servers included in this profile
+										</CardDescription>
 									</div>
 									{!isLoadingServers && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    placeholder="Search by name..."
-                    value={serverQuery}
-                    onChange={(e) => setServerQuery(e.target.value)}
-                    className="w-48"
-                  />
-                  <Select value={serverStatus} onValueChange={(v) => setServerStatus(v as "all" | "enabled" | "disabled")}>
-                    <SelectTrigger className="w-36">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="enabled">Enabled</SelectItem>
-                      <SelectItem value="disabled">Disabled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <div className="hidden md:flex items-center gap-1 ml-2">
-                    <Button variant="outline" size="sm" onClick={() => setSelectedServerIds(visibleServers.map((s: any) => s.id))}>Select all</Button>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedServerIds([])}>Clear</Button>
-                    <Button size="sm" disabled={bulkServersM.isPending || selectedServerIds.length===0} onClick={() => bulkServersM.mutate({ enable: true })}>Enable</Button>
-                    <Button size="sm" variant="secondary" disabled={bulkServersM.isPending || selectedServerIds.length===0} onClick={() => bulkServersM.mutate({ enable: false })}>Disable</Button>
-                  </div>
-                </div>
+										<div className="flex flex-wrap items-center gap-2">
+											<Input
+												placeholder="Search by name..."
+												value={serverQuery}
+												onChange={(e) => setServerQuery(e.target.value)}
+												className="w-48"
+											/>
+											<Select
+												value={serverStatus}
+												onValueChange={(v) =>
+													setServerStatus(v as "all" | "enabled" | "disabled")
+												}
+											>
+												<SelectTrigger className="w-36">
+													<SelectValue placeholder="Status" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All</SelectItem>
+													<SelectItem value="enabled">Enabled</SelectItem>
+													<SelectItem value="disabled">Disabled</SelectItem>
+												</SelectContent>
+											</Select>
+											<div className="hidden md:flex items-center gap-1 ml-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														setSelectedServerIds(
+															visibleServers.map((s: any) => s.id),
+														)
+													}
+												>
+													Select all
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => setSelectedServerIds([])}
+												>
+													Clear
+												</Button>
+												<Button
+													size="sm"
+													disabled={
+														bulkServersM.isPending ||
+														selectedServerIds.length === 0
+													}
+													onClick={() => bulkServersM.mutate({ enable: true })}
+												>
+													Enable
+												</Button>
+												<Button
+													size="sm"
+													variant="secondary"
+													disabled={
+														bulkServersM.isPending ||
+														selectedServerIds.length === 0
+													}
+													onClick={() => bulkServersM.mutate({ enable: false })}
+												>
+													Disable
+												</Button>
+											</div>
+										</div>
 									)}
 								</div>
 							</CardHeader>
@@ -728,255 +897,531 @@ export function ConfigSuitDetailPage() {
 									</div>
 								) : visibleServers.length > 0 ? (
 									<div className="space-y-4">
-                {visibleServers.map((server) => {
-                  const global = (globalServers as any[]).find((gs: any) => gs.name === server.name);
-                  const globallyEnabled: boolean | undefined = global?.enabled;
-                  return (
-                  <div
-                    key={server.id}
-                    className={`flex items-center justify-between rounded-lg border p-4 ${selectedServerIds.includes(server.id) ? 'bg-accent/50 ring-1 ring-primary/40' : ''}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedServerIds((prev) => prev.includes(server.id) ? prev.filter((x) => x !== server.id) : [...prev, server.id])}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedServerIds((prev) => prev.includes(server.id) ? prev.filter((x) => x !== server.id) : [...prev, server.id]);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Server className="h-5 w-5 text-slate-500" />
-                      <div>
-                        <h3 className="font-medium">{server.name}</h3>
-                        <p className="text-sm text-slate-500">
-                          ID: {server.id}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 ml-2">
-                        {server.enabled ? (
-                          <Badge variant="default">Enabled</Badge>
-                        ) : (
-                          <Badge variant="secondary">Disabled</Badge>
-                        )}
-                        {globallyEnabled !== undefined && (
-                          globallyEnabled ? (
-                            <Badge variant="default">Global: Enabled</Badge>
-                          ) : (
-                            <Badge variant="secondary">Global: Disabled</Badge>
-                          )
-                        )}
-                      </div>
-                    </div>
-                    <Switch
-                      checked={server.enabled}
-                      onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={(enabled) =>
-                        serverToggleMutation.mutate({
-                          serverId: server.id,
-                          enable: enabled,
-                        })
-                      }
-                      disabled={serverToggleMutation.isPending}
-                    />
-                  </div>
-                )})}
+										{visibleServers.map((server) => {
+											const global = (globalServers as any[]).find(
+												(gs: any) => gs.name === server.name,
+											);
+											const globallyEnabled: boolean | undefined =
+												global?.enabled;
+											return (
+												<div
+													key={server.id}
+													className={`flex items-center justify-between rounded-lg border p-4 ${selectedServerIds.includes(server.id) ? "bg-accent/50 ring-1 ring-primary/40" : ""}`}
+													role="button"
+													tabIndex={0}
+													onClick={() =>
+														setSelectedServerIds((prev) =>
+															prev.includes(server.id)
+																? prev.filter((x) => x !== server.id)
+																: [...prev, server.id],
+														)
+													}
+													onKeyDown={(e) => {
+														if (e.key === "Enter" || e.key === " ") {
+															e.preventDefault();
+															setSelectedServerIds((prev) =>
+																prev.includes(server.id)
+																	? prev.filter((x) => x !== server.id)
+																	: [...prev, server.id],
+															);
+														}
+													}}
+												>
+													<div className="flex items-center gap-3">
+														<Server className="h-5 w-5 text-slate-500" />
+														<div>
+															<h3 className="font-medium">{server.name}</h3>
+															<p className="text-sm text-slate-500">
+																ID: {server.id}
+															</p>
+														</div>
+														<div className="flex items-center gap-2 ml-2">
+															{server.enabled ? (
+																<Badge variant="default">Enabled</Badge>
+															) : (
+																<Badge variant="secondary">Disabled</Badge>
+															)}
+															{globallyEnabled !== undefined &&
+																(globallyEnabled ? (
+																	<Badge variant="default">
+																		Global: Enabled
+																	</Badge>
+																) : (
+																	<Badge variant="secondary">
+																		Global: Disabled
+																	</Badge>
+																))}
+														</div>
+													</div>
+													<div className="flex items-center gap-2">
+														<Button
+															size="sm"
+															variant="outline"
+															className="gap-1"
+															onClick={(ev) => {
+																ev.stopPropagation();
+																openDebug(
+																	server.id,
+																	server.enabled ? "proxy" : "native",
+																);
+															}}
+														>
+															<Bug className="h-4 w-4" /> Debug
+														</Button>
+														<Switch
+															checked={server.enabled}
+															onClick={(e) => e.stopPropagation()}
+															onCheckedChange={(enabled) =>
+																serverToggleMutation.mutate({
+																	serverId: server.id,
+																	enable: enabled,
+																})
+															}
+															disabled={serverToggleMutation.isPending}
+														/>
+													</div>
+												</div>
+											);
+										})}
 									</div>
 								) : (
 									<p className="text-center text-slate-500 py-8">
-                                    No servers found in this profile
+										No servers found in this profile
 									</p>
 								)}
 							</CardContent>
 						</Card>
 					</TabsContent>
 
-						<TabsContent value="tools">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <CardTitle>Tools</CardTitle>
-                      <CardDescription>Manage tools included in this profile</CardDescription>
-                    </div>
-                    {!isLoadingTools && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Input placeholder="Search tool or unique name..." value={toolQuery} onChange={(e) => setToolQuery(e.target.value)} className="w-48" />
-                        <Select value={toolStatus} onValueChange={(v) => setToolStatus(v as "all" | "enabled" | "disabled")}>
-                          <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All</SelectItem>
-                            <SelectItem value="enabled">Enabled</SelectItem>
-                            <SelectItem value="disabled">Disabled</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select value={toolServer} onValueChange={(v) => setToolServer(v)}>
-                          <SelectTrigger className="w-40"><SelectValue placeholder="Server" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Servers</SelectItem>
-                            {serverNameOptions.map((name) => (<SelectItem key={`tool-sel-${name}`} value={name}>{name}</SelectItem>))}
-                          </SelectContent>
-                        </Select>
-                        <div className="hidden md:flex items-center gap-1 ml-2">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedToolIds(visibleTools.map((t: any) => t.id))}>Select all</Button>
-                          <Button variant="outline" size="sm" onClick={() => setSelectedToolIds([])}>Clear</Button>
-                          <Button size="sm" disabled={bulkToolsM.isPending || selectedToolIds.length===0} onClick={() => bulkToolsM.mutate({ enable: true })}>Enable</Button>
-                          <Button size="sm" variant="secondary" disabled={bulkToolsM.isPending || selectedToolIds.length===0} onClick={() => bulkToolsM.mutate({ enable: false })}>Disable</Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CapabilityList
-                    asCard={false}
-                    title="Tools"
-                    kind="tools"
-                    context="profile"
-                    items={visibleTools as any}
-                    loading={isLoadingTools}
-                    enableToggle
-                    getId={(t: any) => t.id}
-                    getEnabled={(t: any) => !!t.enabled}
-                    onToggle={(id, next) => toolToggleMutation.mutate({ toolId: id, enable: next })}
-                    emptyText="No tools found in this profile"
-                    filterText={toolQuery}
-                    selectable
-                    selectedIds={selectedToolIds}
-                    onSelectToggle={(id) => {
-                      setSelectedToolIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-                    }}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
+					<TabsContent value="tools">
+						<Card>
+							<CardHeader>
+								<div className="flex items-center justify-between gap-2">
+									<div>
+										<CardTitle>Tools</CardTitle>
+										<CardDescription>
+											Manage tools included in this profile
+										</CardDescription>
+									</div>
+									{!isLoadingTools && (
+										<div className="flex flex-wrap items-center gap-2">
+											<Input
+												placeholder="Search tool or unique name..."
+												value={toolQuery}
+												onChange={(e) => setToolQuery(e.target.value)}
+												className="w-48"
+											/>
+											<Select
+												value={toolStatus}
+												onValueChange={(v) =>
+													setToolStatus(v as "all" | "enabled" | "disabled")
+												}
+											>
+												<SelectTrigger className="w-36">
+													<SelectValue placeholder="Status" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All</SelectItem>
+													<SelectItem value="enabled">Enabled</SelectItem>
+													<SelectItem value="disabled">Disabled</SelectItem>
+												</SelectContent>
+											</Select>
+											<Select
+												value={toolServer}
+												onValueChange={(v) => setToolServer(v)}
+											>
+												<SelectTrigger className="w-40">
+													<SelectValue placeholder="Server" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All Servers</SelectItem>
+													{serverNameOptions.map((name) => (
+														<SelectItem key={`tool-sel-${name}`} value={name}>
+															{name}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<div className="hidden md:flex items-center gap-1 ml-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														setSelectedToolIds(
+															visibleTools.map((t: any) => t.id),
+														)
+													}
+												>
+													Select all
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => setSelectedToolIds([])}
+												>
+													Clear
+												</Button>
+												<Button
+													size="sm"
+													disabled={
+														bulkToolsM.isPending || selectedToolIds.length === 0
+													}
+													onClick={() => bulkToolsM.mutate({ enable: true })}
+												>
+													Enable
+												</Button>
+												<Button
+													size="sm"
+													variant="secondary"
+													disabled={
+														bulkToolsM.isPending || selectedToolIds.length === 0
+													}
+													onClick={() => bulkToolsM.mutate({ enable: false })}
+												>
+													Disable
+												</Button>
+											</div>
+										</div>
+									)}
+								</div>
+							</CardHeader>
+							<CardContent>
+								<CapabilityList
+									asCard={false}
+									title="Tools"
+									kind="tools"
+									context="profile"
+									items={visibleTools as any}
+									loading={isLoadingTools}
+									enableToggle
+									getId={(t: any) => t.id}
+									getEnabled={(t: any) => !!t.enabled}
+									onToggle={(id, next) =>
+										toolToggleMutation.mutate({ toolId: id, enable: next })
+									}
+									emptyText="No tools found in this profile"
+									filterText={toolQuery}
+									selectable
+									selectedIds={selectedToolIds}
+									onSelectToggle={(id) => {
+										setSelectedToolIds((prev) =>
+											prev.includes(id)
+												? prev.filter((x) => x !== id)
+												: [...prev, id],
+										);
+									}}
+									renderAction={(mapped, tool: ConfigSuitTool) => (
+										<Button
+											size="sm"
+											variant="outline"
+											className="gap-1"
+											onClick={(e) => {
+												e.stopPropagation();
+												openDebug(
+													tool.server_id,
+													tool.enabled ? "proxy" : "native",
+												);
+											}}
+										>
+											<Bug className="h-3.5 w-3.5" /> Debug
+										</Button>
+									)}
+								/>
+							</CardContent>
+						</Card>
+					</TabsContent>
 
-            <TabsContent value="resources">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <CardTitle>Resources</CardTitle>
-                      <CardDescription>Manage resources included in this profile</CardDescription>
-                    </div>
-                {!isLoadingResources && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Input placeholder="Search by URI..." value={resourceQuery} onChange={(e) => setResourceQuery(e.target.value)} className="w-56" />
-                    <Select value={resourceStatus} onValueChange={(v) => setResourceStatus(v as "all" | "enabled" | "disabled")}>
-                      <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="enabled">Enabled</SelectItem>
-                        <SelectItem value="disabled">Disabled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={resourceServer} onValueChange={(v) => setResourceServer(v)}>
-                      <SelectTrigger className="w-40"><SelectValue placeholder="Server" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Servers</SelectItem>
-                        {serverNameOptions.map((name) => (<SelectItem key={`res-sel-${name}`} value={name}>{name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                    <div className="hidden md:flex items-center gap-1 ml-2">
-                      <Button variant="outline" size="sm" onClick={() => setSelectedResourceIds(visibleResources.map((r: any) => r.id))}>Select all</Button>
-                      <Button variant="outline" size="sm" onClick={() => setSelectedResourceIds([])}>Clear</Button>
-                      <Button size="sm" disabled={bulkResourcesM.isPending || selectedResourceIds.length===0} onClick={() => bulkResourcesM.mutate({ enable: true })}>Enable</Button>
-                      <Button size="sm" variant="secondary" disabled={bulkResourcesM.isPending || selectedResourceIds.length===0} onClick={() => bulkResourcesM.mutate({ enable: false })}>Disable</Button>
-                    </div>
-                  </div>
-                )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CapabilityList
-                    asCard={false}
-                    title="Resources"
-                    kind="resources"
-                    context="profile"
-                    items={visibleResources as any}
-                    loading={isLoadingResources}
-                    enableToggle
-                    getId={(r: any) => r.id}
-                    getEnabled={(r: any) => !!r.enabled}
-                    onToggle={(id, next) => resourceToggleMutation.mutate({ resourceId: id, enable: next })}
-                    emptyText="No resources found in this profile"
-                    filterText={resourceQuery}
-                    selectable
-                    selectedIds={selectedResourceIds}
-                    onSelectToggle={(id) => {
-                      setSelectedResourceIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-                    }}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
+					<TabsContent value="resources">
+						<Card>
+							<CardHeader>
+								<div className="flex items-center justify-between gap-2">
+									<div>
+										<CardTitle>Resources</CardTitle>
+										<CardDescription>
+											Manage resources included in this profile
+										</CardDescription>
+									</div>
+									{!isLoadingResources && (
+										<div className="flex flex-wrap items-center gap-2">
+											<Input
+												placeholder="Search by URI..."
+												value={resourceQuery}
+												onChange={(e) => setResourceQuery(e.target.value)}
+												className="w-56"
+											/>
+											<Select
+												value={resourceStatus}
+												onValueChange={(v) =>
+													setResourceStatus(v as "all" | "enabled" | "disabled")
+												}
+											>
+												<SelectTrigger className="w-36">
+													<SelectValue placeholder="Status" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All</SelectItem>
+													<SelectItem value="enabled">Enabled</SelectItem>
+													<SelectItem value="disabled">Disabled</SelectItem>
+												</SelectContent>
+											</Select>
+											<Select
+												value={resourceServer}
+												onValueChange={(v) => setResourceServer(v)}
+											>
+												<SelectTrigger className="w-40">
+													<SelectValue placeholder="Server" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All Servers</SelectItem>
+													{serverNameOptions.map((name) => (
+														<SelectItem key={`res-sel-${name}`} value={name}>
+															{name}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<div className="hidden md:flex items-center gap-1 ml-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														setSelectedResourceIds(
+															visibleResources.map((r: any) => r.id),
+														)
+													}
+												>
+													Select all
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => setSelectedResourceIds([])}
+												>
+													Clear
+												</Button>
+												<Button
+													size="sm"
+													disabled={
+														bulkResourcesM.isPending ||
+														selectedResourceIds.length === 0
+													}
+													onClick={() =>
+														bulkResourcesM.mutate({ enable: true })
+													}
+												>
+													Enable
+												</Button>
+												<Button
+													size="sm"
+													variant="secondary"
+													disabled={
+														bulkResourcesM.isPending ||
+														selectedResourceIds.length === 0
+													}
+													onClick={() =>
+														bulkResourcesM.mutate({ enable: false })
+													}
+												>
+													Disable
+												</Button>
+											</div>
+										</div>
+									)}
+								</div>
+							</CardHeader>
+							<CardContent>
+								<CapabilityList
+									asCard={false}
+									title="Resources"
+									kind="resources"
+									context="profile"
+									items={visibleResources as any}
+									loading={isLoadingResources}
+									enableToggle
+									getId={(r: any) => r.id}
+									getEnabled={(r: any) => !!r.enabled}
+									onToggle={(id, next) =>
+										resourceToggleMutation.mutate({
+											resourceId: id,
+											enable: next,
+										})
+									}
+									emptyText="No resources found in this profile"
+									filterText={resourceQuery}
+									selectable
+									selectedIds={selectedResourceIds}
+									onSelectToggle={(id) => {
+										setSelectedResourceIds((prev) =>
+											prev.includes(id)
+												? prev.filter((x) => x !== id)
+												: [...prev, id],
+										);
+									}}
+									renderAction={(mapped, resource: ConfigSuitResource) => (
+										<Button
+											size="sm"
+											variant="outline"
+											className="gap-1"
+											onClick={(e) => {
+												e.stopPropagation();
+												openDebug(
+													resource.server_id,
+													resource.enabled ? "proxy" : "native",
+												);
+											}}
+										>
+											<Bug className="h-3.5 w-3.5" /> Debug
+										</Button>
+									)}
+								/>
+							</CardContent>
+						</Card>
+					</TabsContent>
 
-						<TabsContent value="prompts">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <CardTitle>Prompts</CardTitle>
-                      <CardDescription>Manage prompts included in this profile</CardDescription>
-                    </div>
-                    {!isLoadingPrompts && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Input placeholder="Search by prompt name..." value={promptQuery} onChange={(e) => setPromptQuery(e.target.value)} className="w-48" />
-                        <Select value={promptStatus} onValueChange={(v) => setPromptStatus(v as "all" | "enabled" | "disabled")}>
-                          <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All</SelectItem>
-                            <SelectItem value="enabled">Enabled</SelectItem>
-                            <SelectItem value="disabled">Disabled</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select value={promptServer} onValueChange={(v) => setPromptServer(v)}>
-                          <SelectTrigger className="w-40"><SelectValue placeholder="Server" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Servers</SelectItem>
-                            {serverNameOptions.map((name) => (<SelectItem key={`prm-sel-${name}`} value={name}>{name}</SelectItem>))}
-                          </SelectContent>
-                        </Select>
-                        <div className="hidden md:flex items-center gap-1 ml-2">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedPromptIds(visiblePrompts.map((p: any) => p.id))}>Select all</Button>
-                          <Button variant="outline" size="sm" onClick={() => setSelectedPromptIds([])}>Clear</Button>
-                          <Button size="sm" disabled={bulkPromptsM.isPending || selectedPromptIds.length===0} onClick={() => bulkPromptsM.mutate({ enable: true })}>Enable</Button>
-                          <Button size="sm" variant="secondary" disabled={bulkPromptsM.isPending || selectedPromptIds.length===0} onClick={() => bulkPromptsM.mutate({ enable: false })}>Disable</Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CapabilityList
-                    asCard={false}
-                    title="Prompts"
-                    kind="prompts"
-                    context="profile"
-                    items={visiblePrompts as any}
-                    loading={isLoadingPrompts}
-                    enableToggle
-                    getId={(p: any) => p.id}
-                    getEnabled={(p: any) => !!p.enabled}
-                    onToggle={(id, next) => promptToggleMutation.mutate({ promptId: id, enable: next })}
-                    emptyText="No prompts found in this profile"
-                    filterText={promptQuery}
-                    selectable
-                    selectedIds={selectedPromptIds}
-                    onSelectToggle={(id) => {
-                      setSelectedPromptIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-                    }}
-                  />
-                </CardContent>
-              </Card>
-            </TabsContent>
+					<TabsContent value="prompts">
+						<Card>
+							<CardHeader>
+								<div className="flex items-center justify-between gap-2">
+									<div>
+										<CardTitle>Prompts</CardTitle>
+										<CardDescription>
+											Manage prompts included in this profile
+										</CardDescription>
+									</div>
+									{!isLoadingPrompts && (
+										<div className="flex flex-wrap items-center gap-2">
+											<Input
+												placeholder="Search by prompt name..."
+												value={promptQuery}
+												onChange={(e) => setPromptQuery(e.target.value)}
+												className="w-48"
+											/>
+											<Select
+												value={promptStatus}
+												onValueChange={(v) =>
+													setPromptStatus(v as "all" | "enabled" | "disabled")
+												}
+											>
+												<SelectTrigger className="w-36">
+													<SelectValue placeholder="Status" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All</SelectItem>
+													<SelectItem value="enabled">Enabled</SelectItem>
+													<SelectItem value="disabled">Disabled</SelectItem>
+												</SelectContent>
+											</Select>
+											<Select
+												value={promptServer}
+												onValueChange={(v) => setPromptServer(v)}
+											>
+												<SelectTrigger className="w-40">
+													<SelectValue placeholder="Server" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All Servers</SelectItem>
+													{serverNameOptions.map((name) => (
+														<SelectItem key={`prm-sel-${name}`} value={name}>
+															{name}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<div className="hidden md:flex items-center gap-1 ml-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														setSelectedPromptIds(
+															visiblePrompts.map((p: any) => p.id),
+														)
+													}
+												>
+													Select all
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => setSelectedPromptIds([])}
+												>
+													Clear
+												</Button>
+												<Button
+													size="sm"
+													disabled={
+														bulkPromptsM.isPending ||
+														selectedPromptIds.length === 0
+													}
+													onClick={() => bulkPromptsM.mutate({ enable: true })}
+												>
+													Enable
+												</Button>
+												<Button
+													size="sm"
+													variant="secondary"
+													disabled={
+														bulkPromptsM.isPending ||
+														selectedPromptIds.length === 0
+													}
+													onClick={() => bulkPromptsM.mutate({ enable: false })}
+												>
+													Disable
+												</Button>
+											</div>
+										</div>
+									)}
+								</div>
+							</CardHeader>
+							<CardContent>
+								<CapabilityList
+									asCard={false}
+									title="Prompts"
+									kind="prompts"
+									context="profile"
+									items={visiblePrompts as any}
+									loading={isLoadingPrompts}
+									enableToggle
+									getId={(p: any) => p.id}
+									getEnabled={(p: any) => !!p.enabled}
+									onToggle={(id, next) =>
+										promptToggleMutation.mutate({ promptId: id, enable: next })
+									}
+									emptyText="No prompts found in this profile"
+									filterText={promptQuery}
+									selectable
+									selectedIds={selectedPromptIds}
+									onSelectToggle={(id) => {
+										setSelectedPromptIds((prev) =>
+											prev.includes(id)
+												? prev.filter((x) => x !== id)
+												: [...prev, id],
+										);
+									}}
+									renderAction={(mapped, prompt: ConfigSuitPrompt) => (
+										<Button
+											size="sm"
+											variant="outline"
+											className="gap-1"
+											onClick={(e) => {
+												e.stopPropagation();
+												openDebug(
+													prompt.server_id,
+													prompt.enabled ? "proxy" : "native",
+												);
+											}}
+										>
+											<Bug className="h-3.5 w-3.5" /> Debug
+										</Button>
+									)}
+								/>
+							</CardContent>
+						</Card>
+					</TabsContent>
 				</Tabs>
 			) : (
 				<Card>
 					<CardContent className="p-6">
-						<p className="text-center text-slate-500">
-                            Profile not found
-						</p>
+						<p className="text-center text-slate-500">Profile not found</p>
 					</CardContent>
 				</Card>
 			)}

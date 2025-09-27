@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	Activity,
 	Check,
@@ -8,7 +8,7 @@ import {
 	Settings,
 	Wrench,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
@@ -28,6 +28,17 @@ import type {
 	InstanceSummary,
 	ServerSummary,
 } from "../../lib/types";
+
+type SuitStats = {
+	totalServers: number;
+	enabledServers: number;
+	totalTools: number;
+	enabledTools: number;
+	totalResources: number;
+	enabledResources: number;
+	totalPrompts: number;
+	enabledPrompts: number;
+};
 
 export function ConfigPage() {
     const navigate = useNavigate();
@@ -128,7 +139,75 @@ export function ConfigPage() {
 
 
 	const suits = suitsResponse?.suits || [];
+	const orderedSuits = useMemo(() => {
+		if (!suits.length) {
+			return [] as ConfigSuit[];
+		}
+		const defaults = suits.filter((suit) => suit.is_default);
+		const others = suits.filter((suit) => !suit.is_default);
+		return [...defaults, ...others];
+	}, [suits]);
 	const activeSuits = suits.filter((suit: ConfigSuit) => suit.is_active);
+
+	const suitStatQueries = useQueries({
+		queries: orderedSuits.map((suit) => ({
+			queryKey: ["configSuitStats", suit.id] as const,
+			queryFn: async (): Promise<SuitStats> => {
+				const [serversRes, toolsRes, resourcesRes, promptsRes] =
+					await Promise.allSettled([
+						configSuitsApi.getServers(suit.id),
+						configSuitsApi.getTools(suit.id),
+						configSuitsApi.getResources(suit.id),
+						configSuitsApi.getPrompts(suit.id),
+					]);
+
+				const servers =
+					serversRes.status === "fulfilled"
+						? serversRes.value.servers || []
+						: [];
+				if (serversRes.status === "rejected") {
+					console.error("Failed to fetch profile servers stats", serversRes.reason);
+				}
+
+				const tools =
+					toolsRes.status === "fulfilled"
+						? toolsRes.value.tools || []
+						: [];
+				if (toolsRes.status === "rejected") {
+					console.error("Failed to fetch profile tools stats", toolsRes.reason);
+				}
+
+				const resources =
+					resourcesRes.status === "fulfilled"
+						? resourcesRes.value.resources || []
+						: [];
+				if (resourcesRes.status === "rejected") {
+					console.error("Failed to fetch profile resources stats", resourcesRes.reason);
+				}
+
+				const prompts =
+					promptsRes.status === "fulfilled"
+						? promptsRes.value.prompts || []
+						: [];
+				if (promptsRes.status === "rejected") {
+					console.error("Failed to fetch profile prompts stats", promptsRes.reason);
+				}
+
+				return {
+					totalServers: servers.length,
+					enabledServers: servers.filter((server) => server.enabled).length,
+					totalTools: tools.length,
+					enabledTools: tools.filter((tool) => tool.enabled).length,
+					totalResources: resources.length,
+					enabledResources: resources.filter((resource) => resource.enabled).length,
+					totalPrompts: prompts.length,
+					enabledPrompts: prompts.filter((prompt) => prompt.enabled).length,
+				};
+			},
+			enabled: !!suit.id,
+			staleTime: 30000,
+			}))
+	});
 
 	// Calculate statistics based on active suit
 	const activeSuitServers = activeSuitServersResponse?.servers || [];
@@ -211,136 +290,123 @@ export function ConfigPage() {
 
 			<div className="grid gap-6">
 				<div>
-					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    {/* Active Profiles */}
-						<Card>
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-                            <CardTitle className="text-sm font-medium">
-                                Profiles
-                            </CardTitle>
-									<Settings className="h-4 w-4 text-emerald-600" />
+				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+					{/* Active Profiles */}
+					<Card className="flex flex-col justify-between">
+						<CardHeader className="pb-2">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium">Profiles</CardTitle>
+								<Settings className="h-4 w-4 text-emerald-600" />
+							</div>
+						</CardHeader>
+						<CardContent className="pt-0">
+							{isLoadingSuits ? (
+								<div className="animate-pulse space-y-1">
+									<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+									<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
 								</div>
-							</CardHeader>
-							<CardContent>
-								{isLoadingSuits ? (
-									<div className="animate-pulse">
-										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
-										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+							) : (
+								<>
+									<div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+										{activeSuits.length}/{suits.length}
 									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-											{activeSuits.length}/{suits.length}
-										</div>
-										<p className="text-xs text-muted-foreground">
-                                active profiles
-										</p>
-									</>
-								)}
-							</CardContent>
-						</Card>
+									<CardDescription className="text-xs text-muted-foreground">
+										active profiles
+									</CardDescription>
+								</>
+							)}
+						</CardContent>
+					</Card>
 
-						{/* Servers Status */}
-						<Card>
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">Servers</CardTitle>
-									<Server className="h-4 w-4 text-blue-600" />
+					{/* Servers Status */}
+					<Card className="flex flex-col justify-between">
+						<CardHeader className="pb-2">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium">Servers</CardTitle>
+								<Server className="h-4 w-4 text-blue-600" />
+							</div>
+						</CardHeader>
+						<CardContent className="pt-0">
+							{isLoadingActiveSuitServers || isLoadingSuits ? (
+								<div className="animate-pulse space-y-1">
+									<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+									<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
 								</div>
-							</CardHeader>
-							<CardContent>
-								{isLoadingActiveSuitServers || isLoadingSuits ? (
-									<div className="animate-pulse">
-										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
-										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+							) : (
+								<>
+									<div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+										{enabledServersCount}/{totalServersInSuit}
 									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-											{enabledServersCount}/{totalServersInSuit}
-										</div>
-										<p className="text-xs text-muted-foreground">running</p>
-									</>
-								)}
-							</CardContent>
-						</Card>
+									<CardDescription className="text-xs text-muted-foreground">
+										running
+									</CardDescription>
+								</>
+							)}
+						</CardContent>
+					</Card>
 
-						{/* Tools Status */}
-						<Card>
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">Tools</CardTitle>
-									<Wrench className="h-4 w-4 text-purple-600" />
+					{/* Tools Status */}
+					<Card className="flex flex-col justify-between">
+						<CardHeader className="pb-2">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium">Tools</CardTitle>
+								<Wrench className="h-4 w-4 text-purple-600" />
+							</div>
+						</CardHeader>
+						<CardContent className="pt-0">
+							{isLoadingActiveSuitTools || isLoadingSuits ? (
+								<div className="animate-pulse space-y-1">
+									<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+									<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
 								</div>
-							</CardHeader>
-							<CardContent>
-								{isLoadingActiveSuitTools || isLoadingSuits ? (
-									<div className="animate-pulse">
-										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
-										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+							) : (
+								<>
+									<div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+										{enabledToolsCount}/{totalToolsInSuit}
 									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-											{enabledToolsCount}/{totalToolsInSuit}
-										</div>
-										<p className="text-xs text-muted-foreground">enabled</p>
-									</>
-								)}
-							</CardContent>
-						</Card>
+									<CardDescription className="text-xs text-muted-foreground">
+										enabled
+									</CardDescription>
+								</>
+							)}
+						</CardContent>
+					</Card>
 
-						{/* Instances Status */}
-						<Card>
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">
-										Instances
-									</CardTitle>
-									<Activity className="h-4 w-4 text-orange-600" />
+					{/* Instances Status */}
+					<Card className="flex flex-col justify-between">
+						<CardHeader className="pb-2">
+							<div className="flex items-center justify-between">
+								<CardTitle className="text-sm font-medium">Instances</CardTitle>
+								<Activity className="h-4 w-4 text-orange-600" />
+							</div>
+						</CardHeader>
+						<CardContent className="pt-0">
+							{isLoadingAllServers || isLoadingActiveSuitServers || isLoadingSuits ? (
+								<div className="animate-pulse space-y-1">
+									<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
+									<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
 								</div>
-							</CardHeader>
-							<CardContent>
-								{isLoadingAllServers ||
-								isLoadingActiveSuitServers ||
-								isLoadingSuits ? (
-									<div className="animate-pulse">
-										<div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 rounded mb-1"></div>
-										<div className="h-4 w-20 bg-slate-200 dark:bg-slate-800 rounded"></div>
+							) : (
+								<>
+									<div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+										{readyInstances}/{totalInstances}
 									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-											{readyInstances}/{totalInstances}
-										</div>
-										<p className="text-xs text-muted-foreground">ready</p>
-									</>
-								)}
-							</CardContent>
-						</Card>
+									<CardDescription className="text-xs text-muted-foreground">
+										ready
+									</CardDescription>
+								</>
+							)}
+						</CardContent>
+					</Card>
 					</div>
 				</div>
 
-				<Card>
-					<CardHeader>
-						<div className="flex items-center justify-between">
-							<div>
-                                <CardTitle>Profiles</CardTitle>
-								<CardDescription>
-                                Manage profiles for different scenarios and
-									applications
-								</CardDescription>
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						{isLoadingSuits ? (
+				{isLoadingSuits ? (
 							<div className="space-y-4">
 								{["s1", "s2", "s3"].map((id) => (
 									<div
 										key={`loading-suit-${id}`}
-										className="flex items-center justify-between rounded-lg border p-4"
+										className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
 									>
 										<div className="space-y-1">
 											<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
@@ -350,22 +416,36 @@ export function ConfigPage() {
 									</div>
 								))}
 							</div>
-						) : suits.length > 0 ? (
+						) : orderedSuits.length > 0 ? (
 				<div className="space-y-4">
-					{suits.map((suit: ConfigSuit) => (
-                    <div
-                        key={suit.id}
-                        className="flex items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-accent/50"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => navigate(`/profiles/${suit.id}`)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            navigate(`/config/profiles/${suit.id}`);
-                          }
-                        }}
-                    >
+					{orderedSuits.map((suit: ConfigSuit, index) => {
+						const statsQuery = suitStatQueries[index];
+						const stats = statsQuery?.data;
+						const statsLoading = statsQuery?.isFetching || statsQuery?.isLoading;
+						const formatCount = (
+							enabled?: number,
+							total?: number,
+						) => {
+							if (statsLoading) return "...";
+							const safeEnabled = typeof enabled === "number" ? enabled : 0;
+							const safeTotal = typeof total === "number" ? total : 0;
+							return `${safeEnabled}/${safeTotal}`;
+						};
+
+						return (
+							<div
+								key={suit.id}
+								className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 cursor-pointer transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950"
+								role="button"
+								tabIndex={0}
+								onClick={() => navigate(`/profiles/${suit.id}`)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										navigate(`/config/profiles/${suit.id}`);
+									}
+								}}
+							>
 							<div className="space-y-1">
 								<div className="flex items-center gap-2">
 									<h3 className="font-medium text-sm">
@@ -398,11 +478,19 @@ export function ConfigPage() {
 										{suit.description}
 									</p>
 								)}
-								<div className="flex items-center gap-4 text-xs text-slate-400">
-									<span>Priority: {suit.priority}</span>
-									<span>
-										Multi-select: {suit.multi_select ? "Yes" : "No"}
-									</span>
+								<div className="flex flex-col gap-1 text-xs text-slate-400">
+									<div className="flex flex-wrap items-center gap-4">
+										<span>Priority: {suit.priority}</span>
+										<span>
+											Multi-select: {suit.multi_select ? "Yes" : "No"}
+										</span>
+									</div>
+									<div className="flex flex-wrap items-center gap-4">
+										<span>Servers: {formatCount(stats?.enabledServers, stats?.totalServers)}</span>
+										<span>Tools: {formatCount(stats?.enabledTools, stats?.totalTools)}</span>
+										<span>Resources: {formatCount(stats?.enabledResources, stats?.totalResources)}</span>
+										<span>Prompts: {formatCount(stats?.enabledPrompts, stats?.totalPrompts)}</span>
+									</div>
 								</div>
 							</div>
 							<div className="flex items-center gap-2">
@@ -423,8 +511,9 @@ export function ConfigPage() {
                             </Button>
                         </Link>
 							</div>
-						</div>
-					))}
+                    </div>
+						);
+					})}
 				</div>
 						) : (
 							<div className="text-center py-8">
@@ -433,8 +522,6 @@ export function ConfigPage() {
                             <p className="text-sm text-slate-400">Profiles help organize and manage your MCP servers, tools, and resources</p>
 							</div>
 						)}
-					</CardContent>
-				</Card>
 			</div>
 
 			{/* New Suit Drawer */}

@@ -118,17 +118,12 @@ export function RuntimePage() {
 				</div>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Overview</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{runtimeStatusQ.isLoading || runtimeCacheQ.isLoading ? (
+			{runtimeStatusQ.isLoading || runtimeCacheQ.isLoading ? (
 						<div className="space-y-2">
 							{[0, 1].map((i) => (
 								<div
 									key={i}
-									className="flex items-center justify-between rounded-md border p-3"
+									className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
 								>
 									<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
 									<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
@@ -147,7 +142,7 @@ export function RuntimePage() {
 									: "";
 
 								return (
-									<div key={key} className="rounded-md border p-4">
+									<div key={key} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:border-primary/40 hover:shadow-md dark:border-slate-800 dark:bg-slate-950">
 										<div className="flex items-center justify-between mb-2">
 											<div className="flex items-center gap-2">
 												<Wrench className="h-4 w-4 text-slate-500" />
@@ -226,8 +221,6 @@ export function RuntimePage() {
 							})}
 						</div>
 					)}
-				</CardContent>
-			</Card>
 
 			{/* Capabilities Cache */}
 			<Card>

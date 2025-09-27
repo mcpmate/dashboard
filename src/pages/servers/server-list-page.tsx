@@ -24,8 +24,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import { Label } from "../../components/ui/label";
-import { Switch } from "../../components/ui/switch";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import type {
@@ -54,7 +52,7 @@ function getInstanceCount(server: ServerSummary): number {
 }
 
 export function ServerListPage() {
-    const navigate = useNavigate();
+	const navigate = useNavigate();
 	const [debugInfo, setDebugInfo] = useState<string | null>(null);
 	const [isAddServerOpen, setIsAddServerOpen] = useState(false);
 	const [editingServer, setEditingServer] = useState<ServerDetail | null>(null);
@@ -62,8 +60,7 @@ export function ServerListPage() {
 	const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 	const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
-	const [syncToAllClients, setSyncToAllClients] = useState(false);
-  const [pending, setPending] = useState<Record<string, boolean>>({});
+	const [pending, setPending] = useState<Record<string, boolean>>({});
 
 	const queryClient = useQueryClient();
 
@@ -114,7 +111,11 @@ export function ServerListPage() {
 								}
 							});
 						} catch (error) {
-							console.error("Failed loading servers for profile", suit.id, error);
+							console.error(
+								"Failed loading servers for profile",
+								suit.id,
+								error,
+							);
 						}
 					}),
 				);
@@ -138,20 +139,33 @@ export function ServerListPage() {
 	};
 
 	// Enable/disable server
-  async function toggleServerAsync(serverId: string, enable: boolean, sync?: boolean) {
-    setPending((p) => ({ ...p, [serverId]: true }));
-    try {
-      if (enable) await serversApi.enableServer(serverId, sync);
-      else await serversApi.disableServer(serverId, sync);
-      notifySuccess(enable ? "Server enabled" : "Server disabled", `Server ${serverId}`);
-      queryClient.invalidateQueries({ queryKey: ["servers"] });
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["servers"] }), 1000);
-    } catch (error) {
-      notifyError("Operation failed", `Unable to ${enable ? "enable" : "disable"} server: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setPending((p) => ({ ...p, [serverId]: false }));
-    }
-  }
+	async function toggleServerAsync(
+		serverId: string,
+		enable: boolean,
+		sync?: boolean,
+	) {
+		setPending((p) => ({ ...p, [serverId]: true }));
+		try {
+			if (enable) await serversApi.enableServer(serverId, sync);
+			else await serversApi.disableServer(serverId, sync);
+			notifySuccess(
+				enable ? "Server enabled" : "Server disabled",
+				`Server ${serverId}`,
+			);
+			queryClient.invalidateQueries({ queryKey: ["servers"] });
+			setTimeout(
+				() => queryClient.invalidateQueries({ queryKey: ["servers"] }),
+				1000,
+			);
+		} catch (error) {
+			notifyError(
+				"Operation failed",
+				`Unable to ${enable ? "enable" : "disable"} server: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		} finally {
+			setPending((p) => ({ ...p, [serverId]: false }));
+		}
+	}
 
 	// Note: Reconnect functionality is moved to instance-level pages
 
@@ -160,13 +174,19 @@ export function ServerListPage() {
 		mutationFn: async (serverConfig: Partial<MCPServerConfig>) => {
 			return await serversApi.createServer(serverConfig);
 		},
-    onSuccess: () => {
-        notifySuccess("Server created", "New server has been successfully created");
-		queryClient.invalidateQueries({ queryKey: ["servers"] });
-	},
-    onError: (error) => {
-        notifyError("Create failed", `Unable to create server: ${error instanceof Error ? error.message : String(error)}`);
-    },
+		onSuccess: () => {
+			notifySuccess(
+				"Server created",
+				"New server has been successfully created",
+			);
+			queryClient.invalidateQueries({ queryKey: ["servers"] });
+		},
+		onError: (error) => {
+			notifyError(
+				"Create failed",
+				`Unable to create server: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	// Update server
@@ -180,13 +200,16 @@ export function ServerListPage() {
 		}) => {
 			return await serversApi.updateServer(serverId, config);
 		},
-    onSuccess: (_, variables) => {
-        notifySuccess("Server updated", `Server ${variables.serverId}`);
-		queryClient.invalidateQueries({ queryKey: ["servers"] });
-	},
-    onError: (error, variables) => {
-        notifyError("Update failed", `Unable to update ${variables.serverId}: ${error instanceof Error ? error.message : String(error)}`);
-    },
+		onSuccess: (_, variables) => {
+			notifySuccess("Server updated", `Server ${variables.serverId}`);
+			queryClient.invalidateQueries({ queryKey: ["servers"] });
+		},
+		onError: (error, variables) => {
+			notifyError(
+				"Update failed",
+				`Unable to update ${variables.serverId}: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	// Handle add server
@@ -200,9 +223,12 @@ export function ServerListPage() {
 		const serverDetails = await getServerDetails(serverId);
 		if (serverDetails) {
 			setEditingServer(serverDetails);
-    } else {
-        notifyError("Fetch failed", `Unable to get details for server ${serverId}`);
-    }
+		} else {
+			notifyError(
+				"Fetch failed",
+				`Unable to get details for server ${serverId}`,
+			);
+		}
 	};
 
 	// Handle update server
@@ -248,7 +274,7 @@ export function ServerListPage() {
 
 		try {
 			await serversApi.deleteServer(deletingServer);
-        notifySuccess("Server deleted", `Server ${deletingServer}`);
+			notifySuccess("Server deleted", `Server ${deletingServer}`);
 			queryClient.invalidateQueries({ queryKey: ["servers"] });
 			setIsDeleteConfirmOpen(false);
 			setDeletingServer(null);
@@ -275,7 +301,7 @@ export function ServerListPage() {
 					navigate(`/servers/${encodeURIComponent(server.id)}`);
 				}}
 				onKeyDown={(e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
+					if (e.key === "Enter" || e.key === " ") {
 						e.preventDefault();
 						navigate(`/servers/${encodeURIComponent(server.id)}`);
 					}
@@ -284,12 +310,16 @@ export function ServerListPage() {
 				<CardHeader className="p-4 flex flex-row justify-between items-start">
 					<div className="flex items-start gap-3">
 						<div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-lg font-semibold">
-							{(server.name || server.id || 'S').slice(0, 1).toUpperCase()}
+							{(server.name || server.id || "S").slice(0, 1).toUpperCase()}
 						</div>
 						<div>
-							<CardTitle className="text-xl leading-tight">{server.name}</CardTitle>
+							<CardTitle className="text-xl leading-tight">
+								{server.name}
+							</CardTitle>
 							<CardDescription className="flex flex-col mt-1 space-y-1">
-								<span>Type: {server.server_type || server.kind || "Unknown"}</span>
+								<span>
+									Type: {server.server_type || server.kind || "Unknown"}
+								</span>
 								<span>Instances: {getInstanceCount(server)}</span>
 								{server.enabled !== undefined ? (
 									<span>Status: {server.enabled ? "Enabled" : "Disabled"}</span>
@@ -300,12 +330,9 @@ export function ServerListPage() {
 					<StatusBadge
 						status={server.status}
 						instances={server.instances}
-						blinkOnError={[
-							"error",
-							"unhealthy",
-							"stopped",
-							"failed",
-						].includes((server.status || "").toLowerCase())}
+						blinkOnError={["error", "unhealthy", "stopped", "failed"].includes(
+							(server.status || "").toLowerCase(),
+						)}
 						isServerEnabled={server.enabled}
 					/>
 				</CardHeader>
@@ -318,12 +345,20 @@ export function ServerListPage() {
 									variant="outline"
 									onClick={(ev) => {
 										ev.stopPropagation();
-										toggleServerAsync(server.id, !server.enabled, syncToAllClients);
+										toggleServerAsync(
+											server.id,
+											!server.enabled,
+											false, // TODO: Add sync to all clients
+										);
 									}}
 									disabled={!!pending[server.id]}
 									title={server.enabled ? "Disable Server" : "Enable Server"}
 								>
-									{server.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+									{server.enabled ? (
+										<PowerOff className="h-4 w-4" />
+									) : (
+										<Power className="h-4 w-4" />
+									)}
 								</Button>
 								<div className="flex gap-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
 									<Button
@@ -358,7 +393,8 @@ export function ServerListPage() {
 									className="gap-1"
 									onClick={(ev) => {
 										ev.stopPropagation();
-										const targetChannel = profileRefs.length > 0 ? "proxy" : "native";
+										const targetChannel =
+											profileRefs.length > 0 ? "proxy" : "native";
 										if (typeof window !== "undefined") {
 											const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
 											window.open(url, "_blank", "noopener,noreferrer");
@@ -368,12 +404,6 @@ export function ServerListPage() {
 								>
 									<Bug className="h-4 w-4" /> Debug
 								</Button>
-								<Link to={`/servers/${server.id}`} onClick={(e) => e.stopPropagation()}>
-									<Button size="sm">
-										<Eye className="mr-2 h-4 w-4" />
-										Details
-									</Button>
-								</Link>
 							</div>
 						</div>
 					</div>
@@ -396,76 +426,98 @@ export function ServerListPage() {
 		}
 	};
 
-  return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-3xl font-bold tracking-tight">Servers</h2>
-        {/* Right side header controls: sync toggle + actions in one row */}
-        <div className="flex items-center gap-3 whitespace-nowrap">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="sync-toggle"
-              checked={syncToAllClients}
-              onCheckedChange={setSyncToAllClients}
-            />
-            <Label htmlFor="sync-toggle" className="text-sm font-medium">
-              Sync to all clients
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => refetch()} disabled={isRefetching} variant="outline" size="sm">
-              <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button onClick={() => setIsAddServerOpen(true)} size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Server
-            </Button>
-          </div>
-        </div>
-      </div>
+	return (
+		<div className="space-y-6">
+			{/* Page header */}
+			<div className="flex items-center justify-between gap-4">
+				<h2 className="text-3xl font-bold tracking-tight">Servers</h2>
+				{/* Right side header controls: sync toggle + actions in one row */}
+				<div className="flex items-center gap-3 whitespace-nowrap">
+					<div className="flex items-center gap-2">
+						<Button
+							onClick={() => refetch()}
+							disabled={isRefetching}
+							variant="outline"
+							size="sm"
+						>
+							<RefreshCw
+								className={`mr-2 h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
+							/>
+							Refresh
+						</Button>
+						<Button onClick={() => setIsAddServerOpen(true)} size="sm">
+							<Plus className="mr-2 h-4 w-4" />
+							Add Server
+						</Button>
+					</div>
+				</div>
+			</div>
 
-      {/* Summary cards row */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Total Servers</CardTitle></CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">{serverListResponse?.servers?.length || 0}</div>
-            <CardDescription>registered</CardDescription>
-          </CardContent>
-        </Card>
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Enabled</CardTitle></CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">{(serverListResponse?.servers || []).filter(s => s.enabled).length}</div>
-            <CardDescription>feature toggled</CardDescription>
-          </CardContent>
-        </Card>
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Connected</CardTitle></CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">{(serverListResponse?.servers || []).filter(s => String(s.status || '').toLowerCase()==='connected').length}</div>
-            <CardDescription>active connections</CardDescription>
-          </CardContent>
-        </Card>
-        <Card className="flex flex-col">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Instances</CardTitle></CardHeader>
-          <CardContent className="pt-0">
-            <div className="text-2xl font-bold">{(serverListResponse?.servers || []).reduce((sum, s) => sum + (s.instances?.length || 0), 0)}</div>
-            <CardDescription>total across servers</CardDescription>
-          </CardContent>
-        </Card>
-        {/* Actions moved to page header; remove action card */}
-      </div>
+			{/* Summary cards row */}
+			<div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+				<Card className="flex flex-col">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm">Total Servers</CardTitle>
+					</CardHeader>
+					<CardContent className="pt-0">
+						<div className="text-2xl font-bold">
+							{serverListResponse?.servers?.length || 0}
+						</div>
+						<CardDescription>registered</CardDescription>
+					</CardContent>
+				</Card>
+				<Card className="flex flex-col">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm">Enabled</CardTitle>
+					</CardHeader>
+					<CardContent className="pt-0">
+						<div className="text-2xl font-bold">
+							{
+								(serverListResponse?.servers || []).filter((s) => s.enabled)
+									.length
+							}
+						</div>
+						<CardDescription>feature toggled</CardDescription>
+					</CardContent>
+				</Card>
+				<Card className="flex flex-col">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm">Connected</CardTitle>
+					</CardHeader>
+					<CardContent className="pt-0">
+						<div className="text-2xl font-bold">
+							{
+								(serverListResponse?.servers || []).filter(
+									(s) => String(s.status || "").toLowerCase() === "connected",
+								).length
+							}
+						</div>
+						<CardDescription>active connections</CardDescription>
+					</CardContent>
+				</Card>
+				<Card className="flex flex-col">
+					<CardHeader className="pb-2">
+						<CardTitle className="text-sm">Instances</CardTitle>
+					</CardHeader>
+					<CardContent className="pt-0">
+						<div className="text-2xl font-bold">
+							{(serverListResponse?.servers || []).reduce(
+								(sum, s) => sum + (s.instances?.length || 0),
+								0,
+							)}
+						</div>
+						<CardDescription>total across servers</CardDescription>
+					</CardContent>
+				</Card>
+				{/* Actions moved to page header; remove action card */}
+			</div>
 
-            {isError && (
-              <Button onClick={toggleDebugInfo} variant="outline" size="sm">
-                <AlertCircle className="mr-2 h-4 w-4" />
-                {debugInfo ? "Hide Debug" : "Debug"}
-              </Button>
-            )}
-
+			{isError && (
+				<Button onClick={toggleDebugInfo} variant="outline" size="sm">
+					<AlertCircle className="mr-2 h-4 w-4" />
+					{debugInfo ? "Hide Debug" : "Debug"}
+				</Button>
+			)}
 
 			{/* Display error information */}
 			{isError && (
@@ -499,10 +551,8 @@ export function ServerListPage() {
 				</Card>
 			)}
 
-                {/* List container card for consistency */}
-                <Card className="mt-2">
-                  <CardContent className="p-4">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+			{/* List container card for consistency */}
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{isLoading ? (
 					// Loading skeleton
 					Array.from({ length: 6 }).map((_, i) => (
@@ -520,41 +570,41 @@ export function ServerListPage() {
 						</Card>
 					))
 				) : serverListResponse?.servers?.length ? (
-                    serverListResponse.servers.map(renderServerCard)
-                  ) : (
-                    <div className="col-span-full">
-                        <Card>
-                          <CardContent className="flex flex-col items-center justify-center p-6">
-                            <p className="mb-2 text-center text-slate-500">
-                              {isError
-                                ? "Failed to load servers, please check the error message above."
-                                : "No servers found. Please ensure the backend service is running and servers are configured."}
-                            </p>
-                            <Button
-                              onClick={() => setIsAddServerOpen(true)}
-                              size="sm"
-                              className="mt-4"
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              Add First Server
-                            </Button>
-                          </CardContent>
-                        </Card>
-                    </div>
-                  )}
-                </div>
-                  </CardContent>
-                </Card>
+					serverListResponse.servers.map(renderServerCard)
+				) : (
+					<div className="col-span-full">
+						<Card>
+							<CardContent className="flex flex-col items-center justify-center p-6">
+								<p className="mb-2 text-center text-slate-500">
+									{isError
+										? "Failed to load servers, please check the error message above."
+										: "No servers found. Please ensure the backend service is running and servers are configured."}
+								</p>
+								<Button
+									onClick={() => setIsAddServerOpen(true)}
+									size="sm"
+									className="mt-4"
+								>
+									<Plus className="mr-2 h-4 w-4" />
+									Add First Server
+								</Button>
+							</CardContent>
+						</Card>
+					</div>
+				)}
+			</div>
 
 			{/* Add server drawer */}
-  <ServerFormDrawer
-    isOpen={isAddServerOpen}
-    onClose={() => setIsAddServerOpen(false)}
-    onSubmit={handleAddServer}
-    title="Add New Server"
-    enableImportTab
-    onImported={() => queryClient.invalidateQueries({ queryKey: ["servers"] })}
-  />
+			<ServerFormDrawer
+				isOpen={isAddServerOpen}
+				onClose={() => setIsAddServerOpen(false)}
+				onSubmit={handleAddServer}
+				title="Add New Server"
+				enableImportTab
+				onImported={() =>
+					queryClient.invalidateQueries({ queryKey: ["servers"] })
+				}
+			/>
 
 			{/* Edit server drawer */}
 			{editingServer && (
@@ -568,7 +618,7 @@ export function ServerListPage() {
 				/>
 			)}
 
-      {/* Import moved into Add Server drawer (tabs) */}
+			{/* Import moved into Add Server drawer (tabs) */}
 
 			{/* Delete confirmation dialog */}
 			<ConfirmDialog
