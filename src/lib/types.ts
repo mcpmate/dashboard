@@ -5,9 +5,10 @@ export interface ServerSummary {
   kind?: string;
   server_type?: string;
   status: string;
-  enabled?: boolean;
-  globally_enabled?: boolean;
-  enabled_in_suits?: boolean;
+	enabled?: boolean;
+	globally_enabled?: boolean;
+	enabled_in_suits?: boolean;
+	enabled_in_profile?: boolean;
   instance_count?: number;
   instances?: InstanceSummary[];
 }
@@ -590,8 +591,21 @@ export interface ClientConfigUpdateReq {
   selected_config?: ClientConfigSelected;
 }
 
+export interface ClientConfigUpdateData {
+  success: boolean;
+  preview?: Record<string, unknown> | null;
+  applied: boolean;
+  backup_path?: string | null;
+  warnings?: string[];
+  diff_format?: string | null;
+  diff_before?: string | null;
+  diff_after?: string | null;
+  scheduled?: boolean | null;
+  scheduled_reason?: string | null;
+}
+
 export interface ClientConfigUpdateResp {
-  data?: unknown | null;
+  data?: ClientConfigUpdateData | null;
   error?: unknown | null;
   success: boolean;
 }

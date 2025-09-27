@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	AlertCircle,
+	Bug,
 	Edit,
 	Eye,
 	Plus,
@@ -26,7 +27,7 @@ import {
 import { Label } from "../../components/ui/label";
 import { Switch } from "../../components/ui/switch";
 import { notifyError, notifySuccess } from "../../lib/notify";
-import { serversApi } from "../../lib/api";
+import { configSuitsApi, serversApi } from "../../lib/api";
 import type {
 	MCPServerConfig,
 	ServerDetail,
@@ -93,6 +94,37 @@ export function ServerListPage() {
 		},
 		refetchInterval: 30000,
 		retry: 1, // Reduce retry count to show errors more quickly
+	});
+
+	const { data: profileUsage } = useQuery<{ [serverId: string]: string[] }>({
+		queryKey: ["servers", "profile-usage"],
+		queryFn: async () => {
+			try {
+				const suits = await configSuitsApi.getAll();
+				const active = suits.suits.filter((s) => s.is_active);
+				const mapping: Record<string, string[]> = {};
+				await Promise.all(
+					active.map(async (suit) => {
+						try {
+							const res = await configSuitsApi.getServers(suit.id);
+							(res.servers || []).forEach((srv) => {
+								if (srv.enabled) {
+									if (!mapping[srv.id]) mapping[srv.id] = [];
+									mapping[srv.id].push(suit.name || suit.id);
+								}
+							});
+						} catch (error) {
+							console.error("Failed loading servers for profile", suit.id, error);
+						}
+					}),
+				);
+				return mapping;
+			} catch (error) {
+				console.error("Failed to resolve profile usage", error);
+				return {};
+			}
+		},
+		staleTime: 30000,
 	});
 
 	// Server details query
@@ -227,6 +259,127 @@ export function ServerListPage() {
 		} finally {
 			setIsDeleteLoading(false);
 		}
+	};
+
+	const renderServerCard = (server: ServerSummary) => {
+		const profileRefs = profileUsage?.[server.id] ?? [];
+		return (
+			<Card
+				key={server.id}
+				className="group overflow-hidden cursor-pointer hover:border-primary/40 transition-shadow hover:shadow-lg"
+				role="button"
+				tabIndex={0}
+				onClick={(e) => {
+					const target = e.target as HTMLElement;
+					if (target.closest('button, a, input, [role="switch"]')) return;
+					navigate(`/servers/${encodeURIComponent(server.id)}`);
+				}}
+				onKeyDown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						navigate(`/servers/${encodeURIComponent(server.id)}`);
+					}
+				}}
+			>
+				<CardHeader className="p-4 flex flex-row justify-between items-start">
+					<div className="flex items-start gap-3">
+						<div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-lg font-semibold">
+							{(server.name || server.id || 'S').slice(0, 1).toUpperCase()}
+						</div>
+						<div>
+							<CardTitle className="text-xl leading-tight">{server.name}</CardTitle>
+							<CardDescription className="flex flex-col mt-1 space-y-1">
+								<span>Type: {server.server_type || server.kind || "Unknown"}</span>
+								<span>Instances: {getInstanceCount(server)}</span>
+								{server.enabled !== undefined ? (
+									<span>Status: {server.enabled ? "Enabled" : "Disabled"}</span>
+								) : null}
+							</CardDescription>
+						</div>
+					</div>
+					<StatusBadge
+						status={server.status}
+						instances={server.instances}
+						blinkOnError={[
+							"error",
+							"unhealthy",
+							"stopped",
+							"failed",
+						].includes((server.status || "").toLowerCase())}
+						isServerEnabled={server.enabled}
+					/>
+				</CardHeader>
+				<CardContent className="p-4 pt-0">
+					<div className="flex flex-col gap-3">
+						<div className="flex justify-between items-center mt-4">
+							<div className="flex gap-2">
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={(ev) => {
+										ev.stopPropagation();
+										toggleServerAsync(server.id, !server.enabled, syncToAllClients);
+									}}
+									disabled={!!pending[server.id]}
+									title={server.enabled ? "Disable Server" : "Enable Server"}
+								>
+									{server.enabled ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+								</Button>
+								<div className="flex gap-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={(ev) => {
+											ev.stopPropagation();
+											handleEditServer(server.id);
+										}}
+										title="Edit server configuration"
+									>
+										<Edit className="h-4 w-4" />
+									</Button>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={(ev) => {
+											ev.stopPropagation();
+											setDeletingServer(server.id);
+											setIsDeleteConfirmOpen(true);
+										}}
+										title="Delete server"
+									>
+										<Trash className="h-4 w-4" />
+									</Button>
+								</div>
+							</div>
+							<div className="flex gap-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
+								<Button
+									size="sm"
+									variant="outline"
+									className="gap-1"
+									onClick={(ev) => {
+										ev.stopPropagation();
+										const targetChannel = profileRefs.length > 0 ? "proxy" : "native";
+										if (typeof window !== "undefined") {
+											const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
+											window.open(url, "_blank", "noopener,noreferrer");
+										}
+									}}
+									title="Open debug view"
+								>
+									<Bug className="h-4 w-4" /> Debug
+								</Button>
+								<Link to={`/servers/${server.id}`} onClick={(e) => e.stopPropagation()}>
+									<Button size="sm">
+										<Eye className="mr-2 h-4 w-4" />
+										Details
+									</Button>
+								</Link>
+							</div>
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+		);
 	};
 
 	// Add debug button handler
@@ -367,111 +520,8 @@ export function ServerListPage() {
 						</Card>
 					))
 				) : serverListResponse?.servers?.length ? (
-                    serverListResponse.servers.map((server) => (
-                        <Card
-                          key={server.id}
-                          className="overflow-hidden cursor-pointer hover:border-primary/40"
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            const target = e.target as HTMLElement;
-                            if (target.closest('button, a, input, [role="switch"]')) return;
-                            navigate(`/servers/${encodeURIComponent(server.id)}`);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              navigate(`/servers/${encodeURIComponent(server.id)}`);
-                            }
-                          }}
-                        >
-							<CardHeader className="p-4 flex flex-row justify-between items-start">
-								<div className="flex items-center gap-3">
-									<div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-lg font-semibold">
-										{(server.name || server.id || 'S').slice(0,1).toUpperCase()}
-									</div>
-									<div>
-										<CardTitle className="text-xl leading-tight">{server.name}</CardTitle>
-										<CardDescription className="flex flex-col mt-1 space-y-1">
-										<span>
-											Type: {server.server_type || server.kind || "Unknown"}
-										</span>
-										<span>Instances: {getInstanceCount(server)}</span>
-										{server.enabled !== undefined && (
-											<span>
-												Status: {server.enabled ? "Enabled" : "Disabled"}
-											</span>
-										)}
-									</CardDescription>
-									</div>
-								</div>
-								{/* 状态徽章放在右上角 */}
-								<StatusBadge
-									status={server.status}
-									instances={server.instances}
-									blinkOnError={[
-										"error",
-										"unhealthy",
-										"stopped",
-										"failed",
-									].includes((server.status || "").toLowerCase())}
-									isServerEnabled={server.enabled}
-								/>
-							</CardHeader>
-							<CardContent className="p-4 pt-0">
-								<div className="flex flex-col gap-3">
-									{/* 操作按钮和详情按钮布局 */}
-									<div className="flex justify-between items-center mt-4">
-										{/* 左侧操作按钮 */}
-										<div className="flex gap-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(ev) => { ev.stopPropagation(); toggleServerAsync(server.id, !server.enabled, syncToAllClients); }}
-                                disabled={!!pending[server.id]}
-                                title={
-                                    server.enabled ? "Disable Server" : "Enable Server"
-                                }
-                            >
-												{server.enabled ? (
-													<PowerOff className="h-4 w-4" />
-												) : (
-													<Power className="h-4 w-4" />
-												)}
-											</Button>
-
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(ev) => { ev.stopPropagation(); handleEditServer(server.id); }}
-                                title="Edit server configuration"
-                            >
-												<Edit className="h-4 w-4" />
-											</Button>
-
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(ev) => { ev.stopPropagation(); setDeletingServer(server.id); setIsDeleteConfirmOpen(true); }}
-                                title="Delete server"
-                            >
-												<Trash className="h-4 w-4" />
-											</Button>
-										</div>
-
-										{/* 右侧详情按钮 */}
-                            <Link to={`/servers/${server.id}`} onClick={(e) => e.stopPropagation()}>
-                                <Button size="sm">
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Details
-                                </Button>
-                            </Link>
-									</div>
-								</div>
-							</CardContent>
-                        </Card>
-                      ))
-                    ) : (
+                    serverListResponse.servers.map(renderServerCard)
+                  ) : (
                     <div className="col-span-full">
                         <Card>
                           <CardContent className="flex flex-col items-center justify-center p-6">

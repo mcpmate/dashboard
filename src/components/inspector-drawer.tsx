@@ -4,7 +4,6 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, D
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { notifyError, notifySuccess } from "../lib/notify";
 import { inspectorApi } from "../lib/api";
 import { SchemaForm, defaultFromSchema } from "./schema-form";
@@ -18,12 +17,29 @@ export interface InspectorDrawerProps {
   serverName?: string;
   kind: InspectorKind;
   item: any; // raw capability item (tool/resource/prompt)
+  mode: "proxy" | "native";
+  onLog?: (entry: InspectorLogEntry) => void;
 }
 
 type Field = { name: string; type: string; required?: boolean; description?: string; enum?: string[] };
 
-export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind, item }: InspectorDrawerProps) {
-  const [mode, setMode] = useState<"proxy" | "native">("proxy");
+export interface InspectorLogEntry {
+  id: string;
+  timestamp: number;
+  channel: "inspector";
+  event: "request" | "success" | "error";
+  method: string;
+  mode: "proxy" | "native";
+  payload?: unknown;
+  message?: string;
+}
+
+function newLogId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `log_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind, item, mode, onLog }: InspectorDrawerProps) {
   const [timeoutMs, setTimeoutMs] = useState<number>(8000);
   const [argsJson, setArgsJson] = useState<string>("{}");
   const [useRaw, setUseRaw] = useState(false);
@@ -62,11 +78,11 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
     return s;
   }
 
-  function deriveFields(): Field[] {
+  function deriveFields(sourceItem: any): Field[] {
     // Tools: item.input_schema?.properties; Prompts: item.arguments (array)
     try {
       if (kind === 'tool') {
-        const schema = extractToolSchema(item);
+        const schema = extractToolSchema(sourceItem);
         const props = schema?.properties || {};
         let list: Field[] = [];
         if (props && Object.keys(props).length > 0) {
@@ -79,8 +95,8 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
           });
         }
         // Fallback to arguments array if schema had no properties
-        if (list.length === 0 && Array.isArray(item?.arguments)) {
-          list = item.arguments.map((a: any) => ({
+        if (list.length === 0 && Array.isArray(sourceItem?.arguments)) {
+          list = sourceItem.arguments.map((a: any) => ({
             name: String(a?.name || 'arg'),
             type: String(a?.type || 'string'),
             required: !!a?.required,
@@ -90,7 +106,7 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
         return list;
       }
       if (kind === 'prompt') {
-        const args = Array.isArray(item?.arguments) ? item.arguments : [];
+        const args = Array.isArray(sourceItem?.arguments) ? sourceItem.arguments : [];
         return args.map((a: any) => ({ name: String(a?.name || 'arg'), type: String(a?.type || 'string'), required: !!a?.required, description: a?.description }));
       }
       return [];
@@ -107,13 +123,17 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
   }
 
   useEffect(() => {
+    if (!open) {
+      return;
+    }
     // Rebuild schema / initial values on open or item change
+    const source = item ?? {};
     let schema: any | null = null;
     if (kind === 'tool') {
-      schema = extractToolSchema(item);
+      schema = extractToolSchema(source);
       if (!schema) {
         // As a last resort, build schema from arguments if present
-        const args = Array.isArray(item?.arguments) ? item.arguments : [];
+        const args = Array.isArray(source?.arguments) ? source.arguments : [];
         if (args.length) {
           const props: Record<string, any> = {};
           const req: string[] = [];
@@ -128,7 +148,7 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
     } else if (kind === 'prompt') {
       const props: Record<string, any> = {};
       const req: string[] = [];
-      const args = Array.isArray(item?.arguments) ? item.arguments : [];
+      const args = Array.isArray(source?.arguments) ? source.arguments : [];
       args.forEach((a: any) => {
         const t = String(a?.type || 'string');
         props[String(a?.name || 'arg')] = { type: t, description: a?.description };
@@ -143,7 +163,7 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
       setArgsJson(JSON.stringify(mock, null, 2));
       setFields([]);
     } else {
-      const fs = deriveFields();
+      const fs = deriveFields(source);
       setFields(fs);
       if (fs.length > 0) {
         const genProps: Record<string, any> = {};
@@ -185,18 +205,70 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
     try {
       setSubmitting(true);
       let resp: any = null;
+      const baseLog = {
+        id: newLogId(),
+        timestamp: Date.now(),
+        channel: "inspector" as const,
+        mode,
+      };
       if (kind === "tool") {
         const args = useRaw ? parseArgs() : values; if (args === undefined) return;
+        onLog?.({
+          ...baseLog,
+          event: "request",
+          method: "tools/call",
+          payload: { tool: name, server_id: serverId, server_name: serverName, arguments: args, timeout_ms: timeoutMs },
+        });
         resp = await inspectorApi.toolCall({ tool: name, server_id: serverId, server_name: serverName, mode, arguments: args, timeout_ms: timeoutMs });
+        onLog?.({
+          ...baseLog,
+          event: "success",
+          method: "tools/call",
+          payload: resp,
+        });
       } else if (kind === "prompt") {
         const args = useRaw ? parseArgs() : values; if (args === undefined) return;
+        onLog?.({
+          ...baseLog,
+          event: "request",
+          method: "prompts/get",
+          payload: { name, server_id: serverId, server_name: serverName, arguments: args },
+        });
         resp = await inspectorApi.promptGet({ name, server_id: serverId, server_name: serverName, mode, arguments: args });
+        onLog?.({
+          ...baseLog,
+          event: "success",
+          method: "prompts/get",
+          payload: resp,
+        });
       } else {
+        onLog?.({
+          ...baseLog,
+          event: "request",
+          method: "resources/read",
+          payload: { uri, server_id: serverId, server_name: serverName },
+        });
         resp = await inspectorApi.resourceRead({ uri, server_id: serverId, server_name: serverName, mode });
+        onLog?.({
+          ...baseLog,
+          event: "success",
+          method: "resources/read",
+          payload: resp,
+        });
       }
       setResult(resp);
       notifySuccess("Inspector executed", "See response below");
     } catch (e) {
+      onLog?.({
+        id: newLogId(),
+        timestamp: Date.now(),
+        channel: "inspector",
+        event: "error",
+        method: kind === "tool" ? "tools/call" : kind === "prompt" ? "prompts/get" : "resources/read",
+        mode,
+        message: e instanceof Error ? e.message : String(e),
+        payload: e,
+      });
       notifyError("Inspector request failed", String(e));
     } finally {
       setSubmitting(false);
@@ -219,13 +291,7 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Mode</Label>
-              <Select value={mode} onValueChange={(v) => setMode(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="proxy">proxy</SelectItem>
-                  <SelectItem value="native">native</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input value={mode} disabled className="font-mono" />
             </div>
             {kind === "tool" ? (
               <div className="space-y-1">
@@ -236,6 +302,9 @@ export function InspectorDrawer({ open, onOpenChange, serverId, serverName, kind
             <div className="space-y-1">
               <Label>Server</Label>
               <Input value={serverName || serverId || "-"} disabled />
+              {serverName && serverId ? (
+                <p className="text-[11px] text-slate-500">ID: {serverId}</p>
+              ) : null}
             </div>
           </div>
 

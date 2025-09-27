@@ -52,7 +52,10 @@ import type {
 } from "./types";
 
 // Base API configuration
-const API_BASE_URL = "";
+// Prefer VITE_API_BASE_URL; in Tauri desktop fall back to localhost:8080
+const API_BASE_URL =
+  (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_API_BASE_URL) ||
+  (typeof window !== 'undefined' && (window as any).__TAURI__ ? 'http://127.0.0.1:8080' : '');
 
 // Utility types
 interface ApiWrapper<T> {
@@ -179,12 +182,80 @@ export const serversApi = {
 				`/api/mcp/servers/details?${q}`,
 			);
 			const data = resp?.data;
+			const enabledValue =
+				typeof data?.enabled === "boolean"
+					? data.enabled
+					: typeof data?.globally_enabled === "boolean"
+					? data.globally_enabled
+					: undefined;
+
+			const instances = Array.isArray(data?.instances) ? data.instances : [];
+
+			const rawStatus = (data?.status ?? data?.state ?? data?.runtime_status ?? data?.meta?.state ?? "")
+				.toString()
+				.toLowerCase();
+
+			const statusMap: Record<string, string> = {
+				ready: "ready",
+				running: "ready",
+				connected: "ready",
+				busy: "busy",
+				active: "ready",
+				healthy: "ready",
+				idle: "idle",
+				unload: enabledValue ? "idle" : "disabled",
+				unloaded: enabledValue ? "idle" : "disabled",
+				disabled: "disabled",
+				offline: "shutdown",
+				stopped: "stopped",
+				stopping: "stopped",
+				error: "error",
+				failed: "error",
+				unknown: "unknown",
+			};
+
+			const hasActiveInstance = instances.some((instance) =>
+				[
+					"ready",
+					"running",
+					"connected",
+					"busy",
+					"active",
+					"healthy",
+					"thinking",
+					"fetch",
+				].includes((instance.status || "").toLowerCase()),
+			);
+			const hasInitializingInstance = instances.some((instance) =>
+				["initializing", "starting", "connecting"].includes(
+					(instance.status || "").toLowerCase(),
+				),
+			);
+			const hasErrorInstance = instances.some((instance) =>
+				["error", "unhealthy", "stopped", "failed"].includes(
+					(instance.status || "").toLowerCase(),
+				),
+			);
+
+			let normalizedStatus = statusMap[rawStatus] ?? rawStatus;
+			if (!normalizedStatus) {
+				if (hasActiveInstance) normalizedStatus = "ready";
+				else if (hasInitializingInstance) normalizedStatus = "initializing";
+				else if (hasErrorInstance) normalizedStatus = "error";
+				else normalizedStatus = enabledValue ? "idle" : "disabled";
+			}
+
 			return {
 				id: data?.id ?? id,
 				name: data?.name ?? id,
-				status: data?.status ?? "unknown",
+				status: normalizedStatus,
 				kind: data?.kind ?? data?.server_type ?? "unknown",
-				instances: Array.isArray(data?.instances) ? data.instances : [],
+				server_type: data?.server_type,
+				enabled: enabledValue,
+				globally_enabled: typeof data?.globally_enabled === "boolean" ? data.globally_enabled : undefined,
+				enabled_in_suits: typeof data?.enabled_in_suits === "boolean" ? data.enabled_in_suits : undefined,
+				enabled_in_profile: typeof data?.enabled_in_profile === "boolean" ? data.enabled_in_profile : undefined,
+				instances,
 				command: data?.command,
 				args: data?.args,
 				env: data?.env,
