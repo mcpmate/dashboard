@@ -23,6 +23,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "../../components/ui/alert-dialog";
+import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -348,7 +349,15 @@ export function ConfigSuitDetailPage() {
 				: configSuitsApi.disableServer(suitId!, serverId);
 		},
 		onSuccess: () => {
+			// Refetch all capability data to update counts in tabs
 			refetchServers();
+			refetchTools();
+			refetchResources();
+			refetchPrompts();
+
+			// Invalidate profile statistics cache for config page
+			queryClient.invalidateQueries({ queryKey: ["configSuitStats", suitId] });
+
 			notifySuccess("Server updated", "Server status has been updated");
 		},
 		onError: (error) => {
@@ -446,45 +455,6 @@ export function ConfigSuitDetailPage() {
 
 	const handleEditDrawerClose = (open: boolean) => {
 		setIsEditDialogOpen(open);
-		if (!open) {
-			// 使用 requestAnimationFrame 确保在正确的时机执行清理
-			requestAnimationFrame(() => {
-				setTimeout(() => {
-					// 全面清理 body 的样式和属性
-					document.body.style.removeProperty("pointer-events");
-					document.body.style.removeProperty("overflow");
-					document.body.style.removeProperty("padding-right");
-					document.body.removeAttribute("data-scroll-locked");
-					document.body.removeAttribute("aria-hidden");
-					document.body.removeAttribute("data-vaul-drawer-wrapper");
-					document.documentElement.removeAttribute("aria-hidden");
-
-					// 清理可能的遮罩层和覆盖元素
-					const overlays = document.querySelectorAll(
-						"[data-radix-popper-content-wrapper], [data-radix-dialog-overlay], [data-vaul-overlay], [data-vaul-drawer-wrapper], .fixed.inset-0",
-					);
-					overlays.forEach((overlay) => {
-						const element = overlay as HTMLElement;
-						if (
-							element.getAttribute("data-state") === "closed" ||
-							!element.closest('[data-state="open"]') ||
-							element.style.pointerEvents === "none"
-						) {
-							element.remove();
-						}
-					});
-
-					// 强制重置焦点和交互能力
-					document.body.focus();
-
-					// 确保页面可以正常交互
-					document.body.style.pointerEvents = "";
-
-					// 触发重新渲染以确保状态正确
-					/* force reflow */ void document.body.offsetHeight;
-				}, 100);
-			});
-		}
 	};
 
 	const servers = (serversResponse?.servers ?? []) as ConfigSuitServer[];
@@ -569,7 +539,7 @@ export function ConfigSuitDetailPage() {
 	});
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<div className="flex items-center">
 					{suit && (
@@ -620,7 +590,7 @@ export function ConfigSuitDetailPage() {
 				<Tabs
 					value={activeTab}
 					onValueChange={setActiveTab}
-					className="space-y-6"
+					className="space-y-4"
 				>
 					<TabsList className="grid w-full grid-cols-5">
 						<TabsTrigger value="overview">Overview</TabsTrigger>
@@ -641,95 +611,110 @@ export function ConfigSuitDetailPage() {
 					<TabsContent value="overview">
 						<div className="grid gap-6">
 							<Card>
-								<CardHeader className="flex items-end justify-between">
-									<div className="flex-1" aria-hidden="true"></div>
-									<div className="flex flex-wrap items-center gap-2">
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={handleRefreshAll}
-											disabled={isRefetchingSuit}
-										>
-											<RefreshCw
-												className={`mr-2 h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`}
-											/>
-											Refresh
-										</Button>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={() => setIsEditDialogOpen(true)}
-										>
-											<Edit3 className="mr-2 h-4 w-4" />
-											Edit
-										</Button>
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={handleSuitToggle}
-											disabled={
-												(suit?.is_default && suit?.is_active) ||
-												activateSuitMutation.isPending ||
-												deactivateSuitMutation.isPending
-											}
-										>
-											{suit?.is_active ? (
-												<Square className="mr-2 h-4 w-4" />
-											) : (
-												<Play className="mr-2 h-4 w-4" />
-											)}
-											{suit?.is_active ? "Disable" : "Enable"}
-										</Button>
-										<Button
-											variant="destructive"
-											size="sm"
-											onClick={() => setIsDeleteDialogOpen(true)}
-											disabled={!!suit?.is_default}
-										>
-											<Trash2 className="mr-2 h-4 w-4" />
-											Delete
-										</Button>
-									</div>
-								</CardHeader>
-								<CardContent>
-									<div className="grid gap-4 md:grid-cols-2">
-										<div>
-											<dl className="space-y-2">
-												<div className="flex justify-between">
-													<dt className="font-medium">Name:</dt>
-													<dd>{suit.name}</dd>
+								<CardContent className="p-6">
+									<div className="flex flex-col gap-4">
+										<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+											<div className="flex flex-wrap items-start gap-4">
+												<Avatar className="h-20 w-20 text-xl">
+													<AvatarFallback>
+														{suit.name.slice(0, 1).toUpperCase()}
+													</AvatarFallback>
+												</Avatar>
+												<div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
+													<span className="text-xs uppercase text-slate-500">
+														Status
+													</span>
+													<Badge
+														variant={suit.is_active ? "secondary" : "outline"}
+														className={`justify-self-start ${suit.is_active ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200" : "text-slate-600 dark:text-slate-300"}`}
+													>
+														{suit.is_active ? "Active" : "Inactive"}
+													</Badge>
+
+													<span className="text-xs uppercase text-slate-500">
+														Type
+													</span>
+													<span className="font-mono text-sm leading-tight">
+														{suit.suit_type}
+													</span>
+
+													<span className="text-xs uppercase text-slate-500">
+														Multi-select
+													</span>
+													<span className="text-sm leading-tight">
+														{suit.multi_select ? "Yes" : "No"}
+													</span>
+
+													<span className="text-xs uppercase text-slate-500">
+														Priority
+													</span>
+													<span className="font-mono text-sm leading-tight">
+														{suit.priority}
+													</span>
+
+													{suit.description && (
+														<>
+															<span className="text-xs uppercase text-slate-500">
+																Description
+															</span>
+															<span className="text-sm leading-tight text-slate-600 dark:text-slate-300">
+																{suit.description}
+															</span>
+														</>
+													)}
 												</div>
-												<div className="flex justify-between">
-													<dt className="font-medium">Type:</dt>
-													<dd>{suit.suit_type}</dd>
-												</div>
-												<div className="flex justify-between">
-													<dt className="font-medium">Status:</dt>
-													<dd>
-														<Badge
-															variant={suit.is_active ? "default" : "secondary"}
-														>
-															{suit.is_active ? "Active" : "Inactive"}
-														</Badge>
-													</dd>
-												</div>
-												<div className="flex justify-between">
-													<dt className="font-medium">Priority:</dt>
-													<dd>{suit.priority}</dd>
-												</div>
-											</dl>
-										</div>
-										<div>
-											<dl className="space-y-2">
-												<div className="flex justify-between">
-													<dt className="font-medium">Multi-select:</dt>
-													<dd>{suit.multi_select ? "Yes" : "No"}</dd>
-												</div>
-												<div className="flex justify-between">
-													<dt className="font-medium">Default:</dt>
-													<dd>{suit.is_default ? "Yes" : "No"}</dd>
-												</div>
-											</dl>
+											</div>
+											<div className="flex flex-wrap items-start justify-end gap-2 self-start">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={handleRefreshAll}
+													disabled={isRefetchingSuit}
+													className="gap-2"
+												>
+													<RefreshCw
+														className={`h-4 w-4 ${isRefetchingSuit ? "animate-spin" : ""}`}
+													/>
+													Refresh
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => setIsEditDialogOpen(true)}
+													className="gap-2"
+												>
+													<Edit3 className="h-4 w-4" />
+													Edit
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={handleSuitToggle}
+													disabled={
+														(suit?.is_default && suit?.is_active) ||
+														activateSuitMutation.isPending ||
+														deactivateSuitMutation.isPending
+													}
+													className="gap-2"
+												>
+													{suit?.is_active ? (
+														<Square className="h-4 w-4" />
+													) : (
+														<Play className="h-4 w-4" />
+													)}
+													{suit?.is_active ? "Disable" : "Enable"}
+												</Button>
+												<Button
+													variant="destructive"
+													size="sm"
+													onClick={() => setIsDeleteDialogOpen(true)}
+													disabled={!!suit?.is_default}
+													className="gap-2"
+												>
+													<Trash2 className="h-4 w-4" />
+													Delete
+												</Button>
+											</div>
 										</div>
 									</div>
 								</CardContent>
