@@ -15,18 +15,15 @@ function cleanupBodyLocks() {
     document.body.removeAttribute("aria-hidden");
     document.documentElement?.removeAttribute("aria-hidden");
 
-    // Remove closed/stray overlays and wrappers
-    const overlays = document.querySelectorAll(
-      "[data-vaul-overlay], [data-vaul-drawer-wrapper], [data-radix-dialog-overlay], [data-radix-popper-content-wrapper], .fixed.inset-0"
+    // Clear lingering pointer locks on previously closed overlays without removing them early
+    const overlays = document.querySelectorAll<HTMLElement>(
+      "[data-vaul-overlay], [data-vaul-drawer-wrapper], [data-radix-dialog-overlay], [data-radix-popper-content-wrapper]"
     );
     overlays.forEach((overlay) => {
-      const el = overlay as HTMLElement;
-      if (
-        el.getAttribute("data-state") === "closed" ||
-        !el.closest('[data-state="open"]') ||
-        el.style.pointerEvents === "none"
-      ) {
-        el.remove();
+      if (overlay.getAttribute("data-state") === "open") {
+        overlay.style.removeProperty("pointer-events");
+      } else {
+        overlay.style.pointerEvents = "none";
       }
     });
   } catch { /* noop */ }

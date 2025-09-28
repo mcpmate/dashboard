@@ -153,7 +153,7 @@ export function DashboardPage() {
 				</Card>
 				</Link>
 
-                <Link to="/config" className="block h-full">
+                <Link to="/profiles" className="block h-full">
                 <Card className="h-full min-h-[160px] hover:border-primary/40 transition-colors cursor-pointer">
 					<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 						<CardTitle className="text-sm font-medium">Current Suit</CardTitle>

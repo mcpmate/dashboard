@@ -50,6 +50,7 @@ import {
 } from "../../components/ui/tabs";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
+import { useAppStore } from "../../lib/store";
 import type {
 	ConfigSuitPrompt,
 	ConfigSuitResource,
@@ -67,11 +68,16 @@ const toTitleCase = (value?: string | null) =>
 	value ||
 	"";
 
-export function ConfigSuitDetailPage() {
+export function ProfileSuitDetailPage() {
 	const { suitId } = useParams<{ suitId: string }>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState("overview");
+
+	// Get enableServerDebug setting
+	const enableServerDebug = useAppStore(
+		(state) => state.dashboardSettings.enableServerDebug,
+	);
 
 	const openDebug = (
 		targetServerId: string,
@@ -324,8 +330,10 @@ export function ConfigSuitDetailPage() {
 			return configSuitsApi.deleteSuit(suitId);
 		},
 		onSuccess: () => {
+			// Invalidate queries to refresh the profiles list
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess("Profile deleted", "Profile has been successfully deleted");
-			navigate("/config");
+			navigate("/profiles");
 		},
 		onError: (error) => {
 			notifyError(
@@ -912,7 +920,7 @@ export function ConfigSuitDetailPage() {
 														}
 													}}
 												>
-													<div className="flex items-center gap-3">
+													<div className="flex flex-1 items-center gap-3">
 														<Server className="h-5 w-5 text-slate-500" />
 														<div>
 															<h3 className="font-medium">{server.name}</h3>
@@ -920,39 +928,23 @@ export function ConfigSuitDetailPage() {
 																ID: {server.id}
 															</p>
 														</div>
-														<div className="flex items-center gap-2 ml-2">
+													</div>
+													<div className="flex items-center gap-2">
+														<div className="flex items-center gap-1 text-xs text-slate-600">
 															{server.enabled ? (
-																<Badge variant="default">Enabled</Badge>
+																<Badge>Enabled</Badge>
 															) : (
-																<Badge variant="secondary">Disabled</Badge>
+																<Badge variant="outline">Disabled</Badge>
 															)}
 															{globallyEnabled !== undefined &&
 																(globallyEnabled ? (
-																	<Badge variant="default">
-																		Global: Enabled
-																	</Badge>
+																	<Badge>Global: Enabled</Badge>
 																) : (
-																	<Badge variant="secondary">
+																	<Badge variant="outline">
 																		Global: Disabled
 																	</Badge>
 																))}
 														</div>
-													</div>
-													<div className="flex items-center gap-2">
-														<Button
-															size="sm"
-															variant="outline"
-															className="gap-1"
-															onClick={(ev) => {
-																ev.stopPropagation();
-																openDebug(
-																	server.id,
-																	server.enabled ? "proxy" : "native",
-																);
-															}}
-														>
-															<Bug className="h-4 w-4" /> Debug
-														</Button>
 														<Switch
 															checked={server.enabled}
 															onClick={(e) => e.stopPropagation()}
@@ -964,6 +956,22 @@ export function ConfigSuitDetailPage() {
 															}
 															disabled={serverToggleMutation.isPending}
 														/>
+														{enableServerDebug && (
+															<Button
+																size="sm"
+																variant="outline"
+																className="gap-1"
+																onClick={(ev) => {
+																	ev.stopPropagation();
+																	openDebug(
+																		server.id,
+																		server.enabled ? "proxy" : "native",
+																	);
+																}}
+															>
+																<Bug className="h-4 w-4" /> Debug
+															</Button>
+														)}
 													</div>
 												</div>
 											);
@@ -1095,22 +1103,26 @@ export function ConfigSuitDetailPage() {
 												: [...prev, id],
 										);
 									}}
-									renderAction={(mapped, tool: ConfigSuitTool) => (
-										<Button
-											size="sm"
-											variant="outline"
-											className="gap-1"
-											onClick={(e) => {
-												e.stopPropagation();
-												openDebug(
-													tool.server_id,
-													tool.enabled ? "proxy" : "native",
-												);
-											}}
-										>
-											<Bug className="h-3.5 w-3.5" /> Debug
-										</Button>
-									)}
+									renderAction={
+										enableServerDebug
+											? (mapped, tool: ConfigSuitTool) => (
+													<Button
+														size="sm"
+														variant="outline"
+														className="gap-1"
+														onClick={(e) => {
+															e.stopPropagation();
+															openDebug(
+																tool.server_id,
+																tool.enabled ? "proxy" : "native",
+															);
+														}}
+													>
+														<Bug className="h-3.5 w-3.5" /> Debug
+													</Button>
+												)
+											: undefined
+									}
 								/>
 							</CardContent>
 						</Card>
@@ -1242,22 +1254,26 @@ export function ConfigSuitDetailPage() {
 												: [...prev, id],
 										);
 									}}
-									renderAction={(mapped, resource: ConfigSuitResource) => (
-										<Button
-											size="sm"
-											variant="outline"
-											className="gap-1"
-											onClick={(e) => {
-												e.stopPropagation();
-												openDebug(
-													resource.server_id,
-													resource.enabled ? "proxy" : "native",
-												);
-											}}
-										>
-											<Bug className="h-3.5 w-3.5" /> Debug
-										</Button>
-									)}
+									renderAction={
+										enableServerDebug
+											? (mapped, resource: ConfigSuitResource) => (
+													<Button
+														size="sm"
+														variant="outline"
+														className="gap-1"
+														onClick={(e) => {
+															e.stopPropagation();
+															openDebug(
+																resource.server_id,
+																resource.enabled ? "proxy" : "native",
+															);
+														}}
+													>
+														<Bug className="h-3.5 w-3.5" /> Debug
+													</Button>
+												)
+											: undefined
+									}
 								/>
 							</CardContent>
 						</Card>
@@ -1382,22 +1398,26 @@ export function ConfigSuitDetailPage() {
 												: [...prev, id],
 										);
 									}}
-									renderAction={(mapped, prompt: ConfigSuitPrompt) => (
-										<Button
-											size="sm"
-											variant="outline"
-											className="gap-1"
-											onClick={(e) => {
-												e.stopPropagation();
-												openDebug(
-													prompt.server_id,
-													prompt.enabled ? "proxy" : "native",
-												);
-											}}
-										>
-											<Bug className="h-3.5 w-3.5" /> Debug
-										</Button>
-									)}
+									renderAction={
+										enableServerDebug
+											? (mapped, prompt: ConfigSuitPrompt) => (
+													<Button
+														size="sm"
+														variant="outline"
+														className="gap-1"
+														onClick={(e) => {
+															e.stopPropagation();
+															openDebug(
+																prompt.server_id,
+																prompt.enabled ? "proxy" : "native",
+															);
+														}}
+													>
+														<Bug className="h-3.5 w-3.5" /> Debug
+													</Button>
+												)
+											: undefined
+									}
 								/>
 							</CardContent>
 						</Card>

@@ -11,7 +11,7 @@ import {
 } from "../../components/ui/card";
 import { configApi } from "../../lib/api";
 
-export function ConfigPresetPage() {
+export function ProfilePresetPage() {
 	const { presetId } = useParams<{ presetId: string }>();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -27,7 +27,7 @@ export function ConfigPresetPage() {
 		mutationFn: configApi.createPreset,
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configPresets"] });
-			navigate("/config");
+			navigate("/profiles");
 		},
 	});
 
@@ -45,7 +45,7 @@ export function ConfigPresetPage() {
 		mutationFn: configApi.deletePreset,
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configPresets"] });
-			navigate("/config");
+			navigate("/profiles");
 		},
 	});
 
@@ -176,7 +176,7 @@ export function ConfigPresetPage() {
 					</Card>
 
 					<div className="flex justify-end gap-4">
-						<Button variant="outline" onClick={() => navigate("/config")}>
+						<Button variant="outline" onClick={() => navigate("/profiles")}>
 							Cancel
 						</Button>
 						<Button

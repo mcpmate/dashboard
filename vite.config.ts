@@ -2,7 +2,6 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import { defineConfig } from "vite";
 
-// https://vitejs.dev/config/
 export default defineConfig({
 	plugins: [react()],
 	resolve: {
@@ -23,7 +22,11 @@ export default defineConfig({
 				configure: (proxy) => {
 					proxy.on("proxyReq", (proxyReq) => {
 						// Remove Origin header in dev to bypass backend allowlist; safe for local only
-						try { proxyReq.removeHeader("origin"); } catch { /* noop */ }
+						try {
+							proxyReq.removeHeader("origin");
+						} catch {
+							/* noop */
+						}
 					});
 				},
 			},
@@ -34,7 +37,13 @@ export default defineConfig({
 				changeOrigin: true,
 				secure: false,
 				configure: (proxy) => {
-					proxy.on("proxyReqWs", (proxyReq) => { try { proxyReq.removeHeader("origin"); } catch { /* noop */ } });
+					proxy.on("proxyReqWs", (proxyReq) => {
+						try {
+							proxyReq.removeHeader("origin");
+						} catch {
+							/* noop */
+						}
+					});
 				},
 			},
 		},

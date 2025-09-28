@@ -44,6 +44,9 @@ interface TransferPanelProps {
 	emptyText: string;
 	disabled?: boolean;
 	loading?: boolean;
+	// New props for direct move functionality
+	onDirectMove?: (itemId: string) => void;
+	panelType: "left" | "right";
 }
 
 const TransferPanel: React.FC<TransferPanelProps> = ({
@@ -58,6 +61,8 @@ const TransferPanel: React.FC<TransferPanelProps> = ({
 	emptyText,
 	disabled = false,
 	loading = false,
+	onDirectMove,
+	panelType: _panelType,
 }) => {
 	const handleSelectAll = (checked: boolean) => {
 		if (checked) {
@@ -79,8 +84,14 @@ const TransferPanel: React.FC<TransferPanelProps> = ({
 	};
 
 	const handleItemClick = (itemId: string) => {
-		const isSelected = selectedKeys.includes(itemId);
-		handleItemSelect(itemId, !isSelected);
+		// If direct move is enabled, move the item directly
+		if (onDirectMove) {
+			onDirectMove(itemId);
+		} else {
+			// Fallback to selection behavior
+			const isSelected = selectedKeys.includes(itemId);
+			handleItemSelect(itemId, !isSelected);
+		}
 	};
 
 	const selectableItems = items.filter((item) => !item.disabled);
@@ -267,6 +278,18 @@ export const Transfer: React.FC<TransferProps> = ({
 		setRightSelectedKeys([]);
 	};
 
+	// Handle direct move from left panel (move to right)
+	const handleDirectMoveToRight = (itemId: string) => {
+		const newTargetKeys = [...targetKeys, itemId];
+		onChange(newTargetKeys, "right", [itemId]);
+	};
+
+	// Handle direct move from right panel (move to left)
+	const handleDirectMoveToLeft = (itemId: string) => {
+		const newTargetKeys = targetKeys.filter((key) => key !== itemId);
+		onChange(newTargetKeys, "left", [itemId]);
+	};
+
 	return (
 		<div className={`flex items-stretch gap-2 h-full ${className}`}>
 			<TransferPanel
@@ -281,6 +304,8 @@ export const Transfer: React.FC<TransferProps> = ({
 				emptyText={emptyText}
 				disabled={disabled}
 				loading={loading}
+				onDirectMove={handleDirectMoveToRight}
+				panelType="left"
 			/>
 
 			<div className="flex flex-col justify-center gap-2 px-1">
@@ -318,6 +343,8 @@ export const Transfer: React.FC<TransferProps> = ({
 				emptyText={emptyText}
 				disabled={disabled}
 				loading={loading}
+				onDirectMove={handleDirectMoveToLeft}
+				panelType="right"
 			/>
 		</div>
 	);

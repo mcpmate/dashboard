@@ -9,6 +9,7 @@ export interface ServerSummary {
 	globally_enabled?: boolean;
 	enabled_in_suits?: boolean;
 	enabled_in_profile?: boolean;
+  registry_server_id?: string | null;
   instance_count?: number;
   instances?: InstanceSummary[];
 }
@@ -33,6 +34,74 @@ export interface ServerDetail extends ServerSummary {
   args?: string[];
   env?: Record<string, string>;
   instances: InstanceSummary[];
+}
+
+export interface RegistryTransportHeader {
+  name: string;
+  description?: string;
+  isRequired?: boolean;
+  isSecret?: boolean;
+}
+
+export interface RegistryTransport {
+  type: string;
+  url?: string;
+  headers?: RegistryTransportHeader[] | null;
+}
+
+export interface RegistryPackageArgument {
+  name: string;
+  description?: string;
+  type?: string;
+  isRequired?: boolean;
+  default?: string;
+  valueHint?: string;
+}
+
+export interface RegistryPackage {
+  registryType?: string;
+  registryBaseUrl?: string;
+  identifier?: string;
+  version?: string;
+  transport?: { type: string };
+  environmentVariables?: RegistryTransportHeader[] | null;
+  packageArguments?: RegistryPackageArgument[] | null;
+  runtimeArguments?: RegistryPackageArgument[] | null;
+}
+
+export interface RegistryOfficialMeta {
+  serverId: string;
+  versionId: string;
+  publishedAt: string;
+  updatedAt?: string;
+  isLatest?: boolean;
+}
+
+export interface RegistryServerMeta {
+  "io.modelcontextprotocol.registry/official"?: RegistryOfficialMeta;
+  "io.modelcontextprotocol.registry/publisher-provided"?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface RegistryServerEntry {
+  name: string;
+  description: string;
+  version: string;
+  status?: string;
+  repository?: { url?: string; source?: string; subfolder?: string };
+  websiteUrl?: string;
+  remotes?: RegistryTransport[] | null;
+  packages?: RegistryPackage[] | null;
+  _meta?: RegistryServerMeta;
+  $schema?: string;
+}
+
+export interface RegistryServerListResponse {
+  servers: RegistryServerEntry[];
+  metadata: {
+    next_cursor?: string;
+    count: number;
+  };
 }
 
 export interface ServerInstanceDetails {

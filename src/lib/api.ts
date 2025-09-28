@@ -67,7 +67,11 @@ const resolveApiBaseUrl = (): string => {
 		const normalizedProtocol = protocol ? protocol.toLowerCase() : "";
 
 		// Tauri / desktop shells use a custom protocol (e.g. tauri://localhost)
-		if (normalizedProtocol === "tauri:" || normalizedProtocol === "app:" || normalizedProtocol === "file:") {
+		if (
+			normalizedProtocol === "tauri:" ||
+			normalizedProtocol === "app:" ||
+			normalizedProtocol === "file:"
+		) {
 			return "http://127.0.0.1:8080";
 		}
 
@@ -99,7 +103,8 @@ const resolveWebSocketUrl = (): string => {
 			"Failed to derive WebSocket URL from API base, falling back to window location",
 			error,
 		);
-		const fallbackProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+		const fallbackProtocol =
+			window.location.protocol === "https:" ? "wss:" : "ws:";
 		return `${fallbackProtocol}//${window.location.host}/ws`;
 	}
 };
@@ -213,8 +218,17 @@ export const serversApi = {
 	getAll: async (): Promise<ServerListResponse> => {
 		try {
 			const resp = await fetchApi<ServerListResp>("/api/mcp/servers/list");
+			const rawServers = Array.isArray(resp?.data?.servers)
+				? resp.data.servers
+				: [];
 			return {
-				servers: Array.isArray(resp?.data?.servers) ? resp.data.servers : [],
+				servers: rawServers.map((server: any) => ({
+					...server,
+					registry_server_id:
+						server?.registry_server_id ??
+						server?.registryServerId ??
+						null,
+				})),
 			};
 		} catch (error) {
 			console.error("Failed to fetch servers:", error);
@@ -233,12 +247,18 @@ export const serversApi = {
 				typeof data?.enabled === "boolean"
 					? data.enabled
 					: typeof data?.globally_enabled === "boolean"
-					? data.globally_enabled
-					: undefined;
+						? data.globally_enabled
+						: undefined;
 
 			const instances = Array.isArray(data?.instances) ? data.instances : [];
 
-			const rawStatus = (data?.status ?? data?.state ?? data?.runtime_status ?? data?.meta?.state ?? "")
+			const rawStatus = (
+				data?.status ??
+				data?.state ??
+				data?.runtime_status ??
+				data?.meta?.state ??
+				""
+			)
 				.toString()
 				.toLowerCase();
 
@@ -298,10 +318,23 @@ export const serversApi = {
 				status: normalizedStatus,
 				kind: data?.kind ?? data?.server_type ?? "unknown",
 				server_type: data?.server_type,
+				registry_server_id:
+					data?.registry_server_id ??
+					data?.registryServerId ??
+					null,
 				enabled: enabledValue,
-				globally_enabled: typeof data?.globally_enabled === "boolean" ? data.globally_enabled : undefined,
-				enabled_in_suits: typeof data?.enabled_in_suits === "boolean" ? data.enabled_in_suits : undefined,
-				enabled_in_profile: typeof data?.enabled_in_profile === "boolean" ? data.enabled_in_profile : undefined,
+				globally_enabled:
+					typeof data?.globally_enabled === "boolean"
+						? data.globally_enabled
+						: undefined,
+				enabled_in_suits:
+					typeof data?.enabled_in_suits === "boolean"
+						? data.enabled_in_suits
+						: undefined,
+				enabled_in_profile:
+					typeof data?.enabled_in_profile === "boolean"
+						? data.enabled_in_profile
+						: undefined,
 				instances,
 				command: data?.command,
 				args: data?.args,
@@ -623,53 +656,106 @@ export const serversApi = {
 
 // Inspector API
 export const inspectorApi = {
-  toolsList: (q: { server_id?: string; server_name?: string; mode?: "proxy"|"native"; refresh?: boolean }) => {
-    const qs = new URLSearchParams();
-    if (q.server_id) qs.set("server_id", q.server_id);
-    if (q.server_name) qs.set("server_name", q.server_name);
-    if (q.mode) qs.set("mode", q.mode);
-    if (q.refresh != null) qs.set("refresh", String(q.refresh));
-    return fetchApi(`/api/mcp/inspector/tool/list?${qs}`);
-  },
-  toolCall: (req: { tool: string; server_id?: string; server_name?: string; arguments?: Record<string, any>; mode?: "proxy"|"native"; timeout_ms?: number }) =>
-    fetchApi(`/api/mcp/inspector/tool/call`, { method: "POST", body: JSON.stringify(req) }),
-  toolCallStream: (q: { server_id?: string; server_name?: string; tool: string; mode?: "proxy"|"native" }) => {
-    const qs = new URLSearchParams();
-    if (q.server_id) qs.set("server_id", q.server_id);
-    if (q.server_name) qs.set("server_name", q.server_name);
-    if (q.tool) qs.set("tool", q.tool);
-    if (q.mode) qs.set("mode", q.mode);
-    return fetchApi(`/api/mcp/inspector/tool/call/stream?${qs}`);
-  },
-  toolCallCancel: (req: any) => fetchApi(`/api/mcp/inspector/tool/call/cancel`, { method: "POST", body: JSON.stringify(req) }),
-  resourcesList: (q: { server_id?: string; server_name?: string; mode?: "proxy"|"native"; refresh?: boolean }) => {
-    const qs = new URLSearchParams();
-    if (q.server_id) qs.set("server_id", q.server_id);
-    if (q.server_name) qs.set("server_name", q.server_name);
-    if (q.mode) qs.set("mode", q.mode);
-    if (q.refresh != null) qs.set("refresh", String(q.refresh));
-    return fetchApi(`/api/mcp/inspector/resource/list?${qs}`);
-  },
-  resourceRead: (q: { uri: string; server_id?: string; server_name?: string; mode?: "proxy"|"native" }) => {
-    const qs = new URLSearchParams({ uri: q.uri });
-    if (q.server_id) qs.set("server_id", q.server_id);
-    if (q.server_name) qs.set("server_name", q.server_name);
-    if (q.mode) qs.set("mode", q.mode);
-    return fetchApi(`/api/mcp/inspector/resource/read?${qs}`);
-  },
-  promptsList: (q: { server_id?: string; server_name?: string; mode?: "proxy"|"native"; refresh?: boolean }) => {
-    const qs = new URLSearchParams();
-    if (q.server_id) qs.set("server_id", q.server_id);
-    if (q.server_name) qs.set("server_name", q.server_name);
-    if (q.mode) qs.set("mode", q.mode);
-    if (q.refresh != null) qs.set("refresh", String(q.refresh));
-    return fetchApi(`/api/mcp/inspector/prompt/list?${qs}`);
-  },
-  promptGet: (req: { name: string; server_id?: string; server_name?: string; arguments?: Record<string, any>; mode?: "proxy"|"native" }) =>
-    fetchApi(`/api/mcp/inspector/prompt/get`, { method: "POST", body: JSON.stringify(req) }),
-  callsRecent: () => fetchApi(`/api/mcp/inspector/calls/recent`),
-  callsDetails: (q: { id: string }) => fetchApi(`/api/mcp/inspector/calls/details?id=${encodeURIComponent(q.id)}`),
-  callsClear: () => fetchApi(`/api/mcp/inspector/calls/clear`, { method: "POST", body: JSON.stringify({}) }),
+	toolsList: (q: {
+		server_id?: string;
+		server_name?: string;
+		mode?: "proxy" | "native";
+		refresh?: boolean;
+	}) => {
+		const qs = new URLSearchParams();
+		if (q.server_id) qs.set("server_id", q.server_id);
+		if (q.server_name) qs.set("server_name", q.server_name);
+		if (q.mode) qs.set("mode", q.mode);
+		if (q.refresh != null) qs.set("refresh", String(q.refresh));
+		return fetchApi(`/api/mcp/inspector/tool/list?${qs}`);
+	},
+	toolCall: (req: {
+		tool: string;
+		server_id?: string;
+		server_name?: string;
+		arguments?: Record<string, any>;
+		mode?: "proxy" | "native";
+		timeout_ms?: number;
+	}) =>
+		fetchApi(`/api/mcp/inspector/tool/call`, {
+			method: "POST",
+			body: JSON.stringify(req),
+		}),
+	toolCallStream: (q: {
+		server_id?: string;
+		server_name?: string;
+		tool: string;
+		mode?: "proxy" | "native";
+	}) => {
+		const qs = new URLSearchParams();
+		if (q.server_id) qs.set("server_id", q.server_id);
+		if (q.server_name) qs.set("server_name", q.server_name);
+		if (q.tool) qs.set("tool", q.tool);
+		if (q.mode) qs.set("mode", q.mode);
+		return fetchApi(`/api/mcp/inspector/tool/call/stream?${qs}`);
+	},
+	toolCallCancel: (req: any) =>
+		fetchApi(`/api/mcp/inspector/tool/call/cancel`, {
+			method: "POST",
+			body: JSON.stringify(req),
+		}),
+	resourcesList: (q: {
+		server_id?: string;
+		server_name?: string;
+		mode?: "proxy" | "native";
+		refresh?: boolean;
+	}) => {
+		const qs = new URLSearchParams();
+		if (q.server_id) qs.set("server_id", q.server_id);
+		if (q.server_name) qs.set("server_name", q.server_name);
+		if (q.mode) qs.set("mode", q.mode);
+		if (q.refresh != null) qs.set("refresh", String(q.refresh));
+		return fetchApi(`/api/mcp/inspector/resource/list?${qs}`);
+	},
+	resourceRead: (q: {
+		uri: string;
+		server_id?: string;
+		server_name?: string;
+		mode?: "proxy" | "native";
+	}) => {
+		const qs = new URLSearchParams({ uri: q.uri });
+		if (q.server_id) qs.set("server_id", q.server_id);
+		if (q.server_name) qs.set("server_name", q.server_name);
+		if (q.mode) qs.set("mode", q.mode);
+		return fetchApi(`/api/mcp/inspector/resource/read?${qs}`);
+	},
+	promptsList: (q: {
+		server_id?: string;
+		server_name?: string;
+		mode?: "proxy" | "native";
+		refresh?: boolean;
+	}) => {
+		const qs = new URLSearchParams();
+		if (q.server_id) qs.set("server_id", q.server_id);
+		if (q.server_name) qs.set("server_name", q.server_name);
+		if (q.mode) qs.set("mode", q.mode);
+		if (q.refresh != null) qs.set("refresh", String(q.refresh));
+		return fetchApi(`/api/mcp/inspector/prompt/list?${qs}`);
+	},
+	promptGet: (req: {
+		name: string;
+		server_id?: string;
+		server_name?: string;
+		arguments?: Record<string, any>;
+		mode?: "proxy" | "native";
+	}) =>
+		fetchApi(`/api/mcp/inspector/prompt/get`, {
+			method: "POST",
+			body: JSON.stringify(req),
+		}),
+	callsRecent: () => fetchApi(`/api/mcp/inspector/calls/recent`),
+	callsDetails: (q: { id: string }) =>
+		fetchApi(`/api/mcp/inspector/calls/details?id=${encodeURIComponent(q.id)}`),
+	callsClear: () =>
+		fetchApi(`/api/mcp/inspector/calls/clear`, {
+			method: "POST",
+			body: JSON.stringify({}),
+		}),
 };
 
 // Tools Management API
@@ -1131,7 +1217,7 @@ export const configSuitsApi = {
 		const response = await fetchApi<ApiWrapper<any>>(
 			`/api/mcp/profile/update`,
 			{
-				method: "PUT",
+				method: "POST",
 				body: JSON.stringify(payload),
 			},
 		);
@@ -1267,7 +1353,7 @@ export const configSuitsApi = {
 		endpoint: "servers" | "tools" | "resources" | "prompts",
 		suitId: string,
 		componentId: string,
-		action: "enable" | "disable",
+		action: "enable" | "disable" | "remove",
 	) =>
 		fetchApi<ApiResponse<null>>(`/api/mcp/profile/${endpoint}/manage`, {
 			method: "POST",
@@ -1298,11 +1384,13 @@ export const configSuitsApi = {
 		configSuitsApi._manageComponent("servers", suitId, serverId, "enable"),
 	disableServer: (suitId: string, serverId: string) =>
 		configSuitsApi._manageComponent("servers", suitId, serverId, "disable"),
+	removeServer: (suitId: string, serverId: string) =>
+		configSuitsApi._manageComponent("servers", suitId, serverId, "remove"),
 	// Some backends only support single-id manage for servers; do per-id with best-effort batching
 	bulkServers: async (
 		suitId: string,
 		ids: string[],
-		action: "enable" | "disable",
+		action: "enable" | "disable" | "remove",
 	) =>
 		executeBatchOperation(ids, (id) =>
 			configSuitsApi._manageComponent("servers", suitId, id, action),
@@ -1344,7 +1432,9 @@ export class NotificationsService {
 
 		const wsUrl = resolveWebSocketUrl();
 		if (!wsUrl) {
-			console.warn("WebSocket URL could not be resolved; skipping connection attempt");
+			console.warn(
+				"WebSocket URL could not be resolved; skipping connection attempt",
+			);
 			return;
 		}
 		console.log(`Connecting to WebSocket at ${wsUrl}`);

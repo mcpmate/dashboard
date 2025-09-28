@@ -1,13 +1,14 @@
 import {
-    Activity,
-    Bug,
-    ChevronLeft,
-    ChevronRight,
-    LayoutDashboard,
-    Server,
-    Settings,
-    Sliders,
-    Users,
+	Activity,
+	Bug,
+	ChevronLeft,
+	ChevronRight,
+	LayoutDashboard,
+	Server,
+	Settings,
+	Sliders,
+	Store,
+	Users,
 } from "lucide-react";
 import type React from "react";
 import { NavLink } from "react-router-dom";
@@ -47,7 +48,11 @@ function SidebarLink({ to, icon, children }: SidebarLinkProps) {
 	);
 }
 
-function ExternalSidebarLink({ href, icon, children }: ExternalSidebarLinkProps) {
+function ExternalSidebarLink({
+	href,
+	icon,
+	children,
+}: ExternalSidebarLinkProps) {
 	return (
 		<a
 			href={href}
@@ -66,7 +71,9 @@ function ExternalSidebarLink({ href, icon, children }: ExternalSidebarLinkProps)
 }
 
 export function Sidebar() {
-	const { sidebarOpen, toggleSidebar } = useAppStore();
+	const sidebarOpen = useAppStore((state) => state.sidebarOpen);
+	const toggleSidebar = useAppStore((state) => state.toggleSidebar);
+	const showApiDocsMenu = useAppStore((state) => state.dashboardSettings.showApiDocsMenu);
 
 	return (
 		<div
@@ -76,27 +83,27 @@ export function Sidebar() {
 				sidebarOpen ? "w-64" : "w-16",
 			)}
 		>
-            <div className="flex h-16 items-center justify-between px-4">
-                <div
-                    className={cn(
-                        "flex items-center gap-2",
-                        sidebarOpen ? "justify-between w-full" : "justify-center",
-                    )}
-                >
-                    {/* Brand: show logo + title when expanded; only logo when collapsed */}
-                    <img
-                        src="https://mcpmate.io/logo.svg"
-                        alt="MCPMate"
-                        className={cn(
-                            "h-6 w-6 object-contain transition",
-                            // In dark mode, invert to white for visibility
-                            "dark:invert dark:brightness-0",
-                            !sidebarOpen && "mx-auto",
-                        )}
-                    />
-                    {sidebarOpen && (
-                        <span className="font-bold text-xl dark:text-white">MCPMate</span>
-                    )}
+			<div className="flex h-16 items-center justify-between px-4">
+				<div
+					className={cn(
+						"flex items-center gap-2",
+						sidebarOpen ? "justify-between w-full" : "justify-center",
+					)}
+				>
+					{/* Brand: show logo + title when expanded; only logo when collapsed */}
+					<img
+						src="https://mcpmate.io/logo.svg"
+						alt="MCPMate"
+						className={cn(
+							"h-6 w-6 object-contain transition",
+							// In dark mode, invert to white for visibility
+							"dark:invert dark:brightness-0",
+							!sidebarOpen && "mx-auto",
+						)}
+					/>
+					{sidebarOpen && (
+						<span className="font-bold text-xl dark:text-white">MCPMate</span>
+					)}
 					<Button
 						variant="ghost"
 						size="icon"
@@ -126,28 +133,37 @@ export function Sidebar() {
 					{sidebarOpen && "Dashboard"}
 				</SidebarLink>
 
-        <SidebarLink to="/profiles" icon={<Sliders size={20} />}>
-            {sidebarOpen && "Profiles"}
-        </SidebarLink>
+				<SidebarLink to="/profiles" icon={<Sliders size={20} />}>
+					{sidebarOpen && "Profiles"}
+				</SidebarLink>
 
-        <SidebarLink to="/clients" icon={<Users size={20} />}>
-            {sidebarOpen && "Clients"}
-        </SidebarLink>
+				<SidebarLink to="/clients" icon={<Users size={20} />}>
+					{sidebarOpen && "Clients"}
+				</SidebarLink>
+
+				<SidebarLink to="/market" icon={<Store size={20} />}>
+					{sidebarOpen && "Market"}
+				</SidebarLink>
 
 				<SidebarLink to="/servers" icon={<Server size={20} />}>
 					{sidebarOpen && "Servers"}
 				</SidebarLink>
 
-        {/* Tools removed per feedback */}
+				{/* Tools removed per feedback */}
 
 				<SidebarLink to="/runtime" icon={<Activity size={20} />}>
 					{sidebarOpen && "Runtime"}
 				</SidebarLink>
 
 				<div className="mt-auto">
-        <ExternalSidebarLink href="http://127.0.0.1:8080/docs" icon={<Bug size={20} />}>
-            {sidebarOpen && "API Docs"}
-        </ExternalSidebarLink>
+					{showApiDocsMenu && (
+						<ExternalSidebarLink
+							href="http://127.0.0.1:8080/docs"
+							icon={<Bug size={20} />}
+						>
+							{sidebarOpen && "API Docs"}
+						</ExternalSidebarLink>
+					)}
 
 					<SidebarLink to="/settings" icon={<Settings size={20} />}>
 						{sidebarOpen && "Settings"}

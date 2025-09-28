@@ -1,21 +1,19 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { Layout } from "./components/layout/layout";
-import { ConfigPage } from "./pages/config/config-page";
-import { ConfigPresetPage } from "./pages/config/config-preset-page";
-import { ConfigSuitDetailPage } from "./pages/config/config-suit-detail-page";
+import { ClientDetailPage } from "./pages/clients/client-detail-page";
+import { ClientsPage } from "./pages/clients/clients-page";
+import { ProfilePage } from "./pages/profile/profile-page";
+import { ProfilePresetPage } from "./pages/profile/profile-preset-page";
+import { ProfileSuitDetailPage } from "./pages/profile/profile-suit-detail-page";
 import { DashboardPage } from "./pages/dashboard/dashboard-page";
-
+import { MarketPage } from "./pages/market/market-page";
 import { NotFoundPage } from "./pages/not-found-page";
 import { RuntimePage } from "./pages/runtime/runtime-page";
 import { InstanceDetailPage } from "./pages/servers/instance-detail-page";
 import { ServerDetailPage } from "./pages/servers/server-detail-page";
 import { ServerListPage } from "./pages/servers/server-list-page";
 import { SettingsPage } from "./pages/settings/settings-page";
-// Tools page removed
-// import { ToolsPage } from "./pages/tools/tools-page";
-import { ClientsPage } from "./pages/clients/clients-page";
-import { ClientDetailPage } from "./pages/clients/client-detail-page";
 
 // Initialize the query client
 const queryClient = new QueryClient({
@@ -35,26 +33,40 @@ function App() {
 				<Routes>
 					<Route path="/" element={<Layout />}>
 						<Route index element={<DashboardPage />} />
-                    {/* New canonical routes */}
-                    <Route path="profiles" element={<ConfigPage />} />
+						{/* New canonical routes */}
+						<Route path="profiles" element={<ProfilePage />} />
+						<Route
+							path="profiles/presets/:presetId"
+							element={<ProfilePresetPage />}
+						/>
+						<Route path="profiles/:suitId" element={<ProfileSuitDetailPage />} />
+						{/* Back-compat: redirect old routes */}
+						<Route
+							path="config"
+							element={<Navigate to="/profiles" replace />}
+						/>
 						<Route
 							path="config/presets/:presetId"
-							element={<ConfigPresetPage />}
+							element={<LegacyPresetRedirect />}
 						/>
-                    {/* Back-compat: redirect old routes */}
-                    <Route path="config" element={<Navigate to="/profiles" replace />} />
-                    <Route path="config/suits/:suitId" element={<Navigate to="/profiles/:suitId" replace />} />
-                    <Route path="config/profiles/:suitId" element={<Navigate to="/profiles/:suitId" replace />} />
-                    <Route path="profiles/:suitId" element={<ConfigSuitDetailPage />} />
+						<Route
+							path="config/suits/:suitId"
+							element={<LegacySuitRedirect />}
+						/>
+						<Route
+							path="config/profiles/:suitId"
+							element={<LegacySuitRedirect />}
+						/>
+						<Route path="market" element={<MarketPage />} />
 						<Route path="servers" element={<ServerListPage />} />
 						<Route path="servers/:serverId" element={<ServerDetailPage />} />
 						<Route
 							path="servers/:serverId/instances/:instanceId"
 							element={<InstanceDetailPage />}
 						/>
-                    {/* Tools route removed */}
-                    <Route path="clients" element={<ClientsPage />} />
-                    <Route path="clients/:identifier" element={<ClientDetailPage />} />
+						{/* Tools route removed */}
+						<Route path="clients" element={<ClientsPage />} />
+						<Route path="clients/:identifier" element={<ClientDetailPage />} />
 						<Route path="runtime" element={<RuntimePage />} />
 						<Route path="settings" element={<SettingsPage />} />
 
@@ -65,6 +77,16 @@ function App() {
 			</BrowserRouter>
 		</QueryClientProvider>
 	);
+}
+
+function LegacyPresetRedirect() {
+	const { presetId } = useParams();
+	return <Navigate to={`/profiles/presets/${presetId ?? ""}`} replace />;
+}
+
+function LegacySuitRedirect() {
+	const { suitId } = useParams();
+	return <Navigate to={`/profiles/${suitId ?? ""}`} replace />;
 }
 
 export default App;

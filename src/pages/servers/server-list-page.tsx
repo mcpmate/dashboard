@@ -3,7 +3,6 @@ import {
 	AlertCircle,
 	Bug,
 	Edit,
-	Eye,
 	Plus,
 	Power,
 	PowerOff,
@@ -11,7 +10,7 @@ import {
 	Trash,
 } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { ErrorDisplay } from "../../components/error-display";
 import { ServerFormDrawer } from "../../components/server-form-drawer";
@@ -24,8 +23,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import { notifyError, notifySuccess } from "../../lib/notify";
 import { configSuitsApi, serversApi } from "../../lib/api";
+import { notifyError, notifySuccess } from "../../lib/notify";
+import { useAppStore } from "../../lib/store";
 import type {
 	MCPServerConfig,
 	ServerDetail,
@@ -63,6 +63,11 @@ export function ServerListPage() {
 	const [pending, setPending] = useState<Record<string, boolean>>({});
 
 	const queryClient = useQueryClient();
+
+	// Get enableServerDebug setting
+	const enableServerDebug = useAppStore(
+		(state) => state.dashboardSettings.enableServerDebug,
+	);
 
 	const {
 		data: serverListResponse,
@@ -338,7 +343,7 @@ export function ServerListPage() {
 				</CardHeader>
 				<CardContent className="p-4 pt-0">
 					<div className="flex flex-col gap-3">
-						<div className="flex justify-between items-center mt-4">
+						<div className="flex justify-between items-center">
 							<div className="flex gap-2">
 								<Button
 									size="sm"
@@ -387,23 +392,25 @@ export function ServerListPage() {
 								</div>
 							</div>
 							<div className="flex gap-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
-								<Button
-									size="sm"
-									variant="outline"
-									className="gap-1"
-									onClick={(ev) => {
-										ev.stopPropagation();
-										const targetChannel =
-											profileRefs.length > 0 ? "proxy" : "native";
-										if (typeof window !== "undefined") {
-											const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
-											window.open(url, "_blank", "noopener,noreferrer");
-										}
-									}}
-									title="Open debug view"
-								>
-									<Bug className="h-4 w-4" /> Debug
-								</Button>
+								{enableServerDebug && (
+									<Button
+										size="sm"
+										variant="outline"
+										className="gap-1"
+										onClick={(ev) => {
+											ev.stopPropagation();
+											const targetChannel =
+												profileRefs.length > 0 ? "proxy" : "native";
+											if (typeof window !== "undefined") {
+												const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
+												window.open(url, "_blank", "noopener,noreferrer");
+											}
+										}}
+										title="Open debug view"
+									>
+										<Bug className="h-4 w-4" /> Debug
+									</Button>
+								)}
 							</div>
 						</div>
 					</div>
@@ -512,7 +519,7 @@ export function ServerListPage() {
 				{/* Actions moved to page header; remove action card */}
 			</div>
 
-			{isError && (
+			{isError && enableServerDebug && (
 				<Button onClick={toggleDebugInfo} variant="outline" size="sm">
 					<AlertCircle className="mr-2 h-4 w-4" />
 					{debugInfo ? "Hide Debug" : "Debug"}
