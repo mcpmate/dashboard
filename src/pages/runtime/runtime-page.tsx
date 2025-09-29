@@ -53,7 +53,7 @@ export function RuntimePage() {
 	// Mutations
 	const resetAllM = useMutation<{ success: boolean }, Error, void>({
 		mutationFn: async () => runtimeApi.resetCache("all"),
-	onSuccess: () => {
+		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["runtimeCache"] });
 			notifySuccess("Caches reset", "All runtime caches cleared.");
 			setConfirm(null);
@@ -63,7 +63,7 @@ export function RuntimePage() {
 
 	const resetOneM = useMutation<ClearCacheResponse, Error, "uv" | "bun">({
 		mutationFn: async (kind) => runtimeApi.resetCache(kind),
-	onSuccess: (_data, kind) => {
+		onSuccess: (_data, kind) => {
 			qc.invalidateQueries({ queryKey: ["runtimeCache"] });
 			notifySuccess("Cache reset", `${kind.toUpperCase()} cache cleared.`);
 			setConfirm(null);
@@ -74,20 +74,21 @@ export function RuntimePage() {
 	const installM = useMutation<InstallResponse, Error, "uv" | "bun">({
 		mutationFn: async (kind) =>
 			runtimeApi.install({ runtime_type: kind, verbose: true }),
-	onSuccess: (data, kind) => {
+		onSuccess: (data, kind) => {
 			qc.invalidateQueries({ queryKey: ["runtimeStatus"] });
-			notifySuccess("Install complete", `${kind.toUpperCase()}: ${data.message}`);
+			notifySuccess(
+				"Install complete",
+				`${kind.toUpperCase()}: ${data.message}`,
+			);
 			setConfirm(null);
 		},
 		onError: (e) => notifyError("Install failed", e.message),
 	});
 
-  // Capabilities cache reset button removed per latest requirement
+	// Capabilities cache reset button removed per latest requirement
 
-  const isBusy =
-    resetAllM.isPending ||
-    resetOneM.isPending ||
-    installM.isPending;
+	const isBusy =
+		resetAllM.isPending || resetOneM.isPending || installM.isPending;
 
 	const status = runtimeStatusQ.data as RuntimeStatusResponse | undefined;
 	const cache = runtimeCacheQ.data as RuntimeCacheResponse | undefined;
@@ -98,7 +99,7 @@ export function RuntimePage() {
 	const kinds: Array<"uv" | "bun"> = ["uv", "bun"];
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
 					Runtime
@@ -119,108 +120,111 @@ export function RuntimePage() {
 			</div>
 
 			{runtimeStatusQ.isLoading || runtimeCacheQ.isLoading ? (
-						<div className="space-y-2">
-							{[0, 1].map((i) => (
-								<div
-									key={i}
-									className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
-								>
-									<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-									<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-								</div>
-							))}
+				<div className="space-y-2">
+					{[0, 1].map((i) => (
+						<div
+							key={i}
+							className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
+						>
+							<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+							<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
 						</div>
-					) : (
-						<div className="grid gap-4 md:grid-cols-2">
-							{kinds.map((key) => {
-								const st = status?.[key];
-								const c = cache?.[key];
-								const statusStr = st?.available ? "running" : "stopped";
-								const p = st?.path ? st.path.replace(/\\/g, "/") : "";
-								const folder = p.includes("/")
-									? p.slice(0, p.lastIndexOf("/"))
-									: "";
+					))}
+				</div>
+			) : (
+				<div className="grid gap-4 md:grid-cols-2">
+					{kinds.map((key) => {
+						const st = status?.[key];
+						const c = cache?.[key];
+						const statusStr = st?.available ? "running" : "stopped";
+						const p = st?.path ? st.path.replace(/\\/g, "/") : "";
+						const folder = p.includes("/")
+							? p.slice(0, p.lastIndexOf("/"))
+							: "";
 
-								return (
-									<div key={key} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:border-primary/40 hover:shadow-md dark:border-slate-800 dark:bg-slate-950">
-										<div className="flex items-center justify-between mb-2">
-											<div className="flex items-center gap-2">
-												<Wrench className="h-4 w-4 text-slate-500" />
-												<div className="font-semibold uppercase">{key}</div>
-											</div>
-											<StatusBadge status={statusStr} />
-										</div>
-
-										<div className="space-y-1 text-sm">
-											<div className="flex items-center justify-between">
-												<span className="text-slate-500">Version</span>
-												<span>{st?.version || "N/A"}</span>
-											</div>
-											{folder ? (
-												<div className="flex items-center justify-between">
-													<span className="text-slate-500">Folder</span>
-													<span className="truncate max-w-[60%]" title={folder}>
-														{folder}
-													</span>
-												</div>
-											) : null}
-											<div className="flex items-center justify-between">
-												<span className="text-slate-500">Message</span>
-												<span
-													className="truncate max-w-[60%]"
-													title={st?.message || ""}
-												>
-													{st?.message || "—"}
-												</span>
-											</div>
-
-											<div className="mt-3 font-medium">Cache</div>
-											<div className="flex items-center justify-between">
-												<span className="text-slate-500">Size</span>
-												<span>{formatBytes(c?.size_bytes || 0)}</span>
-											</div>
-											<div className="flex items-center justify-between">
-												<span className="text-slate-500">Packages</span>
-												<span>{c?.package_count ?? 0}</span>
-											</div>
-											<div className="flex items-center justify-between">
-												<span className="text-slate-500">Last Modified</span>
-												<span>
-													{c?.last_modified
-														? formatRelativeTime(c.last_modified)
-														: "—"}
-												</span>
-											</div>
-										</div>
-
-										<div className="mt-4 flex items-center gap-2">
-											<Button
-												size="sm"
-												disabled={installM.isPending}
-												onClick={() => setConfirm({ type: "install", key })}
-											>
-												<Wrench
-													className={`mr-2 h-4 w-4 ${installM.isPending ? "animate-spin" : ""}`}
-												/>
-												Install / Repair
-											</Button>
-											<Button
-												variant="outline"
-												size="sm"
-												disabled={resetOneM.isPending}
-												onClick={() => setConfirm({ type: "resetOne", key })}
-											>
-												<RefreshCw
-													className={`mr-2 h-4 w-4 ${resetOneM.isPending ? "animate-spin" : ""}`}
-												/>
-												Reset Cache
-											</Button>
-										</div>
+						return (
+							<div
+								key={key}
+								className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:border-primary/40 hover:shadow-md dark:border-slate-800 dark:bg-slate-950"
+							>
+								<div className="flex items-center justify-between mb-2">
+									<div className="flex items-center gap-2">
+										<Wrench className="h-4 w-4 text-slate-500" />
+										<div className="font-semibold uppercase">{key}</div>
 									</div>
-								);
-							})}
-						</div>
-					)}
+									<StatusBadge status={statusStr} />
+								</div>
+
+								<div className="space-y-1 text-sm">
+									<div className="flex items-center justify-between">
+										<span className="text-slate-500">Version</span>
+										<span>{st?.version || "N/A"}</span>
+									</div>
+									{folder ? (
+										<div className="flex items-center justify-between">
+											<span className="text-slate-500">Folder</span>
+											<span className="truncate max-w-[60%]" title={folder}>
+												{folder}
+											</span>
+										</div>
+									) : null}
+									<div className="flex items-center justify-between">
+										<span className="text-slate-500">Message</span>
+										<span
+											className="truncate max-w-[60%]"
+											title={st?.message || ""}
+										>
+											{st?.message || "—"}
+										</span>
+									</div>
+
+									<div className="mt-3 font-medium">Cache</div>
+									<div className="flex items-center justify-between">
+										<span className="text-slate-500">Size</span>
+										<span>{formatBytes(c?.size_bytes || 0)}</span>
+									</div>
+									<div className="flex items-center justify-between">
+										<span className="text-slate-500">Packages</span>
+										<span>{c?.package_count ?? 0}</span>
+									</div>
+									<div className="flex items-center justify-between">
+										<span className="text-slate-500">Last Modified</span>
+										<span>
+											{c?.last_modified
+												? formatRelativeTime(c.last_modified)
+												: "—"}
+										</span>
+									</div>
+								</div>
+
+								<div className="mt-4 flex items-center gap-2">
+									<Button
+										size="sm"
+										disabled={installM.isPending}
+										onClick={() => setConfirm({ type: "install", key })}
+									>
+										<Wrench
+											className={`mr-2 h-4 w-4 ${installM.isPending ? "animate-spin" : ""}`}
+										/>
+										Install / Repair
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={resetOneM.isPending}
+										onClick={() => setConfirm({ type: "resetOne", key })}
+									>
+										<RefreshCw
+											className={`mr-2 h-4 w-4 ${resetOneM.isPending ? "animate-spin" : ""}`}
+										/>
+										Reset Cache
+									</Button>
+								</div>
+							</div>
+						);
+					})}
+				</div>
+			)}
 
 			{/* Capabilities Cache */}
 			<Card>
@@ -234,7 +238,7 @@ export function RuntimePage() {
 							<div className="h-5 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
 						</div>
 					) : capStats ? (
-						<div className="space-y-3 text-sm">
+						<div className="space-y-4 text-sm">
 							<div className="grid gap-2 md:grid-cols-2">
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">DB Path</span>
@@ -317,7 +321,7 @@ export function RuntimePage() {
 								</div>
 							</div>
 
-                  {/* Reset Capabilities button removed as requested */}
+							{/* Reset Capabilities button removed as requested */}
 						</div>
 					) : (
 						<p className="text-sm text-slate-500">No data.</p>
@@ -325,52 +329,52 @@ export function RuntimePage() {
 				</CardContent>
 			</Card>
 			{/* Global confirmation dialog */}
-        <ConfirmDialog
-          isOpen={confirm !== null}
-          onClose={() => setConfirm(null)}
-          onConfirm={async () => {
-            if (!confirm) return;
-            if (confirm.type === "resetAll") {
-              resetAllM.mutate();
-            } else if (confirm.type === "resetOne") {
-              resetOneM.mutate(confirm.key);
-            } else if (confirm.type === "install") {
-              installM.mutate(confirm.key);
-            }
-          }}
-          title={
-            confirm?.type === "resetAll"
-              ? "Reset all runtime caches?"
-              : confirm?.type === "resetOne"
-                ? `Reset ${confirm.key.toUpperCase()} cache?`
-                : confirm?.type === "install"
-                  ? `Install/Repair ${confirm.key.toUpperCase()} runtime?`
-                  : "Confirm"
-          }
-          description={
-            confirm?.type === "resetAll"
-              ? "This will clear all runtime caches. Continue?"
-              : confirm?.type === "resetOne"
-                ? `This will clear ${confirm.key.toUpperCase()} cache. Continue?`
-                : confirm?.type === "install"
-                  ? `This will install or repair ${confirm.key.toUpperCase()} on the server. Continue?`
-                  : ""
-          }
-          confirmLabel={
-            confirm?.type === "install" ? "Install / Repair" : "Confirm"
-          }
-          cancelLabel="Cancel"
-          variant={confirm?.type === "install" ? "default" : "destructive"}
-          isLoading={
-            confirm?.type === "resetAll"
-              ? resetAllM.isPending
-              : confirm?.type === "resetOne"
-                ? resetOneM.isPending
-                : confirm?.type === "install"
-                  ? installM.isPending
-                  : false
-          }
-        />
+			<ConfirmDialog
+				isOpen={confirm !== null}
+				onClose={() => setConfirm(null)}
+				onConfirm={async () => {
+					if (!confirm) return;
+					if (confirm.type === "resetAll") {
+						resetAllM.mutate();
+					} else if (confirm.type === "resetOne") {
+						resetOneM.mutate(confirm.key);
+					} else if (confirm.type === "install") {
+						installM.mutate(confirm.key);
+					}
+				}}
+				title={
+					confirm?.type === "resetAll"
+						? "Reset all runtime caches?"
+						: confirm?.type === "resetOne"
+							? `Reset ${confirm.key.toUpperCase()} cache?`
+							: confirm?.type === "install"
+								? `Install/Repair ${confirm.key.toUpperCase()} runtime?`
+								: "Confirm"
+				}
+				description={
+					confirm?.type === "resetAll"
+						? "This will clear all runtime caches. Continue?"
+						: confirm?.type === "resetOne"
+							? `This will clear ${confirm.key.toUpperCase()} cache. Continue?`
+							: confirm?.type === "install"
+								? `This will install or repair ${confirm.key.toUpperCase()} on the server. Continue?`
+								: ""
+				}
+				confirmLabel={
+					confirm?.type === "install" ? "Install / Repair" : "Confirm"
+				}
+				cancelLabel="Cancel"
+				variant={confirm?.type === "install" ? "default" : "destructive"}
+				isLoading={
+					confirm?.type === "resetAll"
+						? resetAllM.isPending
+						: confirm?.type === "resetOne"
+							? resetOneM.isPending
+							: confirm?.type === "install"
+								? installM.isPending
+								: false
+				}
+			/>
 		</div>
 	);
 }

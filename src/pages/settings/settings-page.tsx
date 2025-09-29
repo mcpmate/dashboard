@@ -52,7 +52,7 @@ export function SettingsPage() {
 		"justify-start px-3 py-2 text-left text-sm font-medium text-slate-600 data-[state=active]:text-emerald-700 dark:text-slate-300";
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<h2 className="text-3xl font-bold tracking-tight">Settings</h2>
 
 			<Tabs
@@ -90,7 +90,7 @@ export function SettingsPage() {
 									Baseline preferences for the main workspace views.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="space-y-6">
+							<CardContent className="space-y-4">
 								<div className="space-y-2">
 									<Label htmlFor="default-view">Default View</Label>
 									<Select
@@ -138,7 +138,7 @@ export function SettingsPage() {
 									Customize the look and feel of the dashboard.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="space-y-6">
+							<CardContent className="space-y-4">
 								<div className="space-y-4">
 									<div className="flex items-center justify-between gap-4">
 										<div className="space-y-0.5">
@@ -247,7 +247,7 @@ export function SettingsPage() {
 									Configure default rollout and backup behavior for client apps.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="space-y-6">
+							<CardContent className="space-y-4">
 								<div className="space-y-2">
 									<Label htmlFor="client-mode">Client Application Mode</Label>
 									<Select
@@ -348,7 +348,8 @@ export function SettingsPage() {
 											Open Debug Views In New Window
 										</h3>
 										<p className="text-sm text-slate-500">
-											When enabled, Debug buttons launch a separate tab instead of navigating the current view.
+											When enabled, Debug buttons launch a separate tab instead
+											of navigating the current view.
 										</p>
 									</div>
 									<Switch
@@ -478,7 +479,7 @@ function MarketBlacklistCard({ entries, onRestore }: MarketBlacklistCardProps) {
 						</p>
 					</div>
 				) : (
-					<div className="flex-1 space-y-3 overflow-y-auto pr-1">
+					<div className="flex-1 space-y-4 overflow-y-auto pr-1">
 						{filteredEntries.map((entry) => {
 							const hiddenDate = new Date(entry.hiddenAt);
 							const hiddenLabel = Number.isNaN(hiddenDate.getTime())

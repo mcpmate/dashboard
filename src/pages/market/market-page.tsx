@@ -390,7 +390,7 @@ function MarketCard({ server, installed, onPreview, onHide }: MarketCardProps) {
 				supportsPreview ? "cursor-pointer" : "cursor-not-allowed opacity-95",
 			)}
 		>
-			<CardHeader className="space-y-3 p-4 pb-3">
+			<CardHeader className="space-y-4 p-4 pb-3">
 				<div className="flex items-start justify-between gap-3">
 					<div className="space-y-2">
 						<div className="flex flex-wrap items-center gap-2">
@@ -1475,13 +1475,13 @@ function MarketPreviewDrawer({
 													)}
 
 													{descriptorList.length > 0 ? (
-														<div className="space-y-3">
+														<div className="space-y-4">
 															<Label className="text-sm font-medium">
 																{selectedRemote?.source === "package"
 																	? "Environment Variables"
 																	: "Headers"}
 															</Label>
-															<div className="space-y-3">
+															<div className="space-y-4">
 																{descriptorList.map((descriptor) => (
 																	<div
 																		key={descriptor.name}

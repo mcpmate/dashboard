@@ -334,7 +334,9 @@ export function SuitFormDrawer({
 			}
 			// 选择所有归属于Profile的服务器（不考虑启用状态）
 			// 这里管理的是归属关系，不是启用状态
-			const allProfileServers = suitServersResponse.servers.map((server) => server.id);
+			const allProfileServers = suitServersResponse.servers.map(
+				(server) => server.id,
+			);
 			setSelectedServerIds(allProfileServers);
 			setSelectionInitialized(true);
 		} else if (mode === "create" && !selectionInitialized) {
@@ -980,7 +982,7 @@ export function SuitFormDrawer({
 				</DrawerHeader>
 
 				<form onSubmit={handleSubmit} className="flex h-full flex-col">
-					<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-6">
+					<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
 						<div className="flex flex-wrap items-center gap-4">
 							{steps.map((item, index) => {
 								const isActive = step === item.id;
@@ -1042,7 +1044,7 @@ export function SuitFormDrawer({
 						</div>
 
 						{step === "details" && (
-							<div className="space-y-6">
+							<div className="space-y-4">
 								<div className="flex items-center gap-4">
 									<Label
 										htmlFor={nameId}
@@ -1089,13 +1091,14 @@ export function SuitFormDrawer({
 						)}
 						{step === "servers" && (
 							<div className="flex flex-col flex-1 space-y-4">
-							<div className="text-center">
-								<p className="text-xs text-muted-foreground">
-									Choose which servers belong to this profile. Server enable/disable status is managed separately.{" "}
-									{selectedServerCount} servers assigned, {totalServerCount}{" "}
-									available servers
-								</p>
-							</div>
+								<div className="text-center">
+									<p className="text-xs text-muted-foreground">
+										Choose which servers belong to this profile. Server
+										enable/disable status is managed separately.{" "}
+										{selectedServerCount} servers assigned, {totalServerCount}{" "}
+										available servers
+									</p>
+								</div>
 
 								<div className="flex-1 flex">
 									{isServersStepLoading ? (

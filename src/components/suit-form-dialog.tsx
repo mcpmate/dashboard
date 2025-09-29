@@ -101,28 +101,38 @@ export function SuitFormDialog({
 	const createMutation = useMutation({
 		mutationFn: (data: CreateConfigSuitRequest) =>
 			configSuitsApi.createSuit(data),
-	onSuccess: () => {
+		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-		notifySuccess("Created", "Profile created successfully");
+			notifySuccess("Created", "Profile created successfully");
 			onOpenChange(false);
 			resetForm();
 			onSuccess?.();
 		},
-		onError: (error) => { notifyError("Create failed", `Failed to create profile: ${error instanceof Error ? error.message : String(error)}`); },
+		onError: (error) => {
+			notifyError(
+				"Create failed",
+				`Failed to create profile: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	// Update mutation
 	const updateMutation = useMutation({
 		mutationFn: ({ id, data }: { id: string; data: UpdateConfigSuitRequest }) =>
 			configSuitsApi.updateSuit(id, data),
-	onSuccess: () => {
+		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			queryClient.invalidateQueries({ queryKey: ["configSuit", suit?.id] });
-		notifySuccess("Updated", "Profile updated successfully");
+			notifySuccess("Updated", "Profile updated successfully");
 			onOpenChange(false);
 			onSuccess?.();
 		},
-		onError: (error) => { notifyError("Update failed", `Failed to update profile: ${error instanceof Error ? error.message : String(error)}`); },
+		onError: (error) => {
+			notifyError(
+				"Update failed",
+				`Failed to update profile: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	const resetForm = () => {
@@ -141,7 +151,10 @@ export function SuitFormDialog({
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 
-		if (!formData.name.trim()) { notifyError("Validation failed", "Name is required"); return; }
+		if (!formData.name.trim()) {
+			notifyError("Validation failed", "Name is required");
+			return;
+		}
 
 		if (mode === "create") {
 			const createData: CreateConfigSuitRequest = {
@@ -152,7 +165,10 @@ export function SuitFormDialog({
 				priority: formData.priority,
 				is_active: formData.is_active,
 				is_default: formData.is_default,
-				clone_from_id: formData.clone_from_id && formData.clone_from_id !== "none" ? formData.clone_from_id : undefined,
+				clone_from_id:
+					formData.clone_from_id && formData.clone_from_id !== "none"
+						? formData.clone_from_id
+						: undefined,
 			};
 			createMutation.mutate(createData);
 		} else if (suit) {
@@ -212,7 +228,7 @@ export function SuitFormDialog({
 					</DialogDescription>
 				</DialogHeader>
 
-				<form onSubmit={handleSubmit} className="space-y-6">
+				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="grid gap-4">
 						{/* Name Field */}
 						<div className="space-y-2">

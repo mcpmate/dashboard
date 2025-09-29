@@ -195,19 +195,30 @@ const TransferPanel: React.FC<TransferPanelProps> = ({
 										)}
 									</div>
 									{onItemInfo && (
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											className="h-6 w-6 p-0"
+										<span
+											role="button"
+											tabIndex={disabled || loading ? -1 : 0}
+											aria-label="View server details"
+											className={`flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+												disabled || loading ? "pointer-events-none opacity-40" : "cursor-pointer"
+											}`}
 											onClick={(e) => {
 												e.stopPropagation();
-												onItemInfo(item);
+												if (!disabled && !loading) {
+													onItemInfo(item);
+												}
 											}}
-											disabled={disabled || loading}
+											onKeyDown={(e) => {
+												if (disabled || loading) return;
+												if (e.key === "Enter" || e.key === " ") {
+													e.preventDefault();
+													e.stopPropagation();
+													onItemInfo(item);
+												}
+											}}
 										>
 											<Info className="h-3 w-3" />
-										</Button>
+										</span>
 									)}
 								</button>
 							);

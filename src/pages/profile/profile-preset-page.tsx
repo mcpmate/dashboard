@@ -3,11 +3,11 @@ import { Check, Save, Trash2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
 } from "../../components/ui/card";
 import { configApi } from "../../lib/api";
 
@@ -59,7 +59,7 @@ export function ProfilePresetPage() {
 	});
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<div className="flex items-center">
 					<h2 className="text-2xl font-bold tracking-tight">
@@ -101,12 +101,12 @@ export function ProfilePresetPage() {
 
 			{isLoading ? (
 				<Card>
-					<CardContent className="p-6">
+					<CardContent className="p-4">
 						<div className="h-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 					</CardContent>
 				</Card>
 			) : (
-				<div className="grid gap-6">
+				<div className="grid gap-4">
 					<Card>
 						<CardHeader>
 							<CardTitle>Basic Information</CardTitle>

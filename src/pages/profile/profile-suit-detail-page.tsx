@@ -590,7 +590,7 @@ export function ProfileSuitDetailPage() {
 
 			{!suitId ? (
 				<Card>
-					<CardContent className="p-6">
+					<CardContent className="p-4">
 						<p className="text-center text-slate-500">
 							Profile ID not provided
 						</p>
@@ -598,7 +598,7 @@ export function ProfileSuitDetailPage() {
 				</Card>
 			) : isLoadingSuit ? (
 				<Card>
-					<CardContent className="p-6">
+					<CardContent className="p-4">
 						<div className="h-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 					</CardContent>
 				</Card>
@@ -625,9 +625,9 @@ export function ProfileSuitDetailPage() {
 					</TabsList>
 
 					<TabsContent value="overview">
-						<div className="grid gap-6">
+						<div className="grid gap-4">
 							<Card>
-								<CardContent className="p-6">
+								<CardContent className="p-4">
 									<div className="flex flex-col gap-4">
 										<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 											<div className="flex flex-wrap items-start gap-4">
@@ -1152,7 +1152,7 @@ export function ProfileSuitDetailPage() {
 												placeholder="Search by URI..."
 												value={resourceQuery}
 												onChange={(e) => setResourceQuery(e.target.value)}
-												className="w-56"
+												className="w-48"
 											/>
 											<Select
 												value={resourceStatus}
@@ -1433,7 +1433,7 @@ export function ProfileSuitDetailPage() {
 				</Tabs>
 			) : (
 				<Card>
-					<CardContent className="p-6">
+					<CardContent className="p-4">
 						<p className="text-center text-slate-500">Profile not found</p>
 					</CardContent>
 				</Card>

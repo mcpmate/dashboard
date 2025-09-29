@@ -441,7 +441,7 @@ export function ServerListPage() {
 	};
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			{/* Page header */}
 			<div className="flex items-center justify-between gap-4">
 				<h2 className="text-3xl font-bold tracking-tight">Servers</h2>

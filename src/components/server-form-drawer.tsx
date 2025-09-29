@@ -522,7 +522,7 @@ export function ServerFormDrawer({
 
 						{enableImportTab && !isEditing ? (
 							<TabsContent value="import">
-								<div className="space-y-3 py-4">
+								<div className="space-y-4 py-4">
 									<Textarea
 										rows={12}
 										value={importText}

@@ -426,7 +426,7 @@ export function ServerDetailPage() {
 	const runtimeStatus = server?.status ?? (serverEnabled ? "idle" : "disabled");
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
 				<div className="flex items-center gap-3">
 					<h2 className="text-3xl font-bold tracking-tight">
@@ -532,14 +532,14 @@ export function ServerDetailPage() {
 						<TabsContent value="overview">
 							{isLoading ? (
 								<Card>
-									<CardContent className="p-6">
+									<CardContent className="p-4">
 										<div className="h-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
 									</CardContent>
 								</Card>
 							) : (
 								<div className="grid gap-4">
 									<Card>
-										<CardContent className="p-6">
+										<CardContent className="p-4">
 											<div className="flex flex-col gap-4">
 												<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 													<div className="flex flex-wrap items-start gap-4">
@@ -1047,7 +1047,7 @@ function InspectorDebugSection({
 		<Tabs
 			value={tab}
 			onValueChange={(v) => setTab(v as "results" | "logs")}
-			className="w-full space-y-3"
+			className="w-full space-y-4"
 		>
 			<div className="flex items-center justify-between gap-2 flex-wrap">
 				<TabsList className="flex flex-wrap gap-2">
@@ -1095,7 +1095,7 @@ function InspectorDebugSection({
 				)}
 			</div>
 
-			<TabsContent value="results" className="space-y-3">
+			<TabsContent value="results" className="space-y-4">
 				<Card className="min-h-[220px]">
 					<CardHeader className="px-4 pt-4 pb-0">
 						{state.lastFetched ? (
@@ -1138,7 +1138,7 @@ function InspectorDebugSection({
 				</Card>
 			</TabsContent>
 
-			<TabsContent value="logs" className="space-y-3">
+			<TabsContent value="logs" className="space-y-4">
 				<Card className="min-h-[220px]">
 					<CardContent className="space-y-2 p-4 max-h-[60vh] overflow-auto">
 						{sectionLogs.length === 0 ? (

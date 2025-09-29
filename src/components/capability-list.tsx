@@ -168,7 +168,7 @@ export function CapabilityList<T = any>({
 					))}
 				</div>
 			) : data.length ? (
-				<ul className="text-sm space-y-3">
+				<ul className="text-sm space-y-4">
 					{data.map((m, idx) => {
 						const item = (items as any[])[idx];
 						const id = getId ? getId(item) : String(idx);

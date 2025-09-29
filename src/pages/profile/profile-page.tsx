@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 import {
 	Activity,
-	Check,
 	Plus,
 	RefreshCw,
 	Server,
@@ -14,7 +13,7 @@ import {
 	Wrench,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -22,12 +21,15 @@ import {
 	Card,
 	CardContent,
 	CardDescription,
+	CardFooter,
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
+import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
+import { useAppStore } from "../../lib/store";
 import type {
 	ConfigSuit,
 	InstanceSummary,
@@ -45,10 +47,31 @@ type SuitStats = {
 	enabledPrompts: number;
 };
 
+function formatSuitDisplayName(
+	name?: string | null,
+	fallback?: string,
+): string {
+	const raw = typeof name === "string" ? name.trim() : "";
+	if (raw.length > 0) {
+		return raw
+			.split(/\s+/)
+			.map((word) =>
+				word.length > 0
+					? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+					: word,
+			)
+			.join(" ");
+	}
+	return fallback ?? "Untitled Profile";
+}
+
 export function ProfilePage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [isNewSuitDialogOpen, setIsNewSuitDialogOpen] = useState(false);
+	const defaultView = useAppStore(
+		(state) => state.dashboardSettings.defaultView,
+	);
 
 	const {
 		data: suitsResponse,
@@ -370,8 +393,206 @@ export function ProfilePage() {
 			return sum;
 		}, 0);
 
+	const getSuitStats = (index: number) => {
+		const statsQuery = suitStatQueries[index];
+		const stats = statsQuery?.data;
+		const statsLoading = Boolean(
+			statsQuery?.isFetching || statsQuery?.isLoading,
+		);
+		const formatCount = (enabled?: number, total?: number) => {
+			if (statsLoading) return "...";
+			const safeEnabled = typeof enabled === "number" ? enabled : 0;
+			const safeTotal = typeof total === "number" ? total : 0;
+			return `${safeEnabled}/${safeTotal}`;
+		};
+		return { stats, statsLoading, formatCount };
+	};
+
+	const isTogglePending =
+		activateSuitMutation.isPending || deactivateSuitMutation.isPending;
+
+	const renderSuitListItem = (suit: ConfigSuit, index: number) => {
+		const { stats, formatCount } = getSuitStats(index);
+		const displayName = formatSuitDisplayName(suit.name, suit.id);
+		const avatarInitial = displayName.charAt(0).toUpperCase() || "P";
+
+		return (
+			<div
+				key={suit.id}
+				className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950"
+				role="button"
+				tabIndex={0}
+				onClick={() => navigate(`/profiles/${suit.id}`)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						navigate(`/profiles/${suit.id}`);
+					}
+				}}
+			>
+				<div className="flex items-center gap-3">
+					<Avatar className="h-11 w-11 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+						<AvatarFallback>{avatarInitial}</AvatarFallback>
+					</Avatar>
+					<div className="space-y-2">
+						<div className="flex items-center gap-2">
+							<h3 className="font-medium text-sm leading-tight">
+								{displayName}
+							</h3>
+							{suit.is_default && <Badge variant="outline">Default</Badge>}
+						</div>
+						{suit.description && (
+							<p className="text-sm text-slate-500">{suit.description}</p>
+						)}
+						<div className="flex flex-wrap gap-4 text-xs text-slate-400">
+							<span>Multi-select: {suit.multi_select ? "Yes" : "No"}</span>
+							<span>Priority: {suit.priority}</span>
+						</div>
+						<div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
+							<span>
+								Servers:{" "}
+								{formatCount(stats?.enabledServers, stats?.totalServers)}
+							</span>
+							<span>
+								Tools: {formatCount(stats?.enabledTools, stats?.totalTools)}
+							</span>
+							<span>
+								Resources:{" "}
+								{formatCount(stats?.enabledResources, stats?.totalResources)}
+							</span>
+							<span>
+								Prompts:{" "}
+								{formatCount(stats?.enabledPrompts, stats?.totalPrompts)}
+							</span>
+						</div>
+					</div>
+				</div>
+				<div className="flex items-center gap-2">
+					{!suit.is_default && (
+						<Switch
+							checked={suit.is_active}
+							onCheckedChange={() => handleSuitToggle(suit)}
+							disabled={isTogglePending}
+							onClick={(e) => e.stopPropagation()}
+						/>
+					)}
+					<Badge variant={suit.is_active ? "default" : "secondary"}>
+						{suit.suit_type}
+					</Badge>
+				</div>
+			</div>
+		);
+	};
+
+	const renderSuitCard = (suit: ConfigSuit, index: number) => {
+		const { stats, statsLoading, formatCount } = getSuitStats(index);
+		const displayName = formatSuitDisplayName(suit.name, suit.id);
+		const avatarInitial = displayName.charAt(0).toUpperCase() || "P";
+		const statItems = [
+			{
+				label: "Servers",
+				value: formatCount(stats?.enabledServers, stats?.totalServers),
+			},
+			{
+				label: "Tools",
+				value: formatCount(stats?.enabledTools, stats?.totalTools),
+			},
+			{
+				label: "Resources",
+				value: formatCount(stats?.enabledResources, stats?.totalResources),
+			},
+			{
+				label: "Prompts",
+				value: formatCount(stats?.enabledPrompts, stats?.totalPrompts),
+			},
+		];
+
+		return (
+			<Card
+				key={suit.id}
+				className="group flex h-full cursor-pointer flex-col overflow-hidden border border-slate-200 transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800"
+				role="button"
+				tabIndex={0}
+				onClick={() => navigate(`/profiles/${suit.id}`)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						navigate(`/profiles/${suit.id}`);
+					}
+				}}
+			>
+				<CardHeader className="p-4 pb-2">
+					<div className="flex items-start justify-between gap-3">
+						<div className="flex items-start gap-3">
+							<Avatar className="h-12 w-12 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-lg font-semibold">
+								<AvatarFallback>{avatarInitial}</AvatarFallback>
+							</Avatar>
+							<div className="space-y-2">
+								<CardTitle className="text-lg font-semibold leading-tight">
+									{displayName}
+								</CardTitle>
+								{suit.description && (
+									<CardDescription className="text-sm text-slate-500">
+										{suit.description}
+									</CardDescription>
+								)}
+								<div className="flex flex-col gap-1 text-xs text-muted-foreground">
+									<span>Multi-select: {suit.multi_select ? "Yes" : "No"}</span>
+									<span>Priority: {suit.priority}</span>
+								</div>
+							</div>
+						</div>
+						{suit.is_default && (
+							<Badge variant="outline" className="shrink-0">
+								Default
+							</Badge>
+						)}
+					</div>
+				</CardHeader>
+				<CardContent className="flex flex-1 flex-col gap-3 px-4 pb-4 pt-2">
+					<div className="grid grid-cols-4 gap-x-6 gap-y-1">
+						{statItems.map((item) => (
+							<span
+								key={`label-${item.label}`}
+								className="text-xs uppercase tracking-wide text-muted-foreground/80"
+							>
+								{item.label}
+							</span>
+						))}
+						{statItems.map((item) => (
+							<span
+								key={`value-${item.label}`}
+								className="text-sm font-semibold text-slate-900 dark:text-slate-100"
+							>
+								{item.value}
+							</span>
+						))}
+					</div>
+					{statsLoading && (
+						<p className="text-xs text-muted-foreground">Updating stats...</p>
+					)}
+				</CardContent>
+				<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0">
+					<Badge variant={suit.is_active ? "default" : "secondary"}>
+						{suit.suit_type}
+					</Badge>
+					<div className="flex items-center gap-3">
+						{!suit.is_default && (
+							<Switch
+								checked={suit.is_active}
+								onCheckedChange={() => handleSuitToggle(suit)}
+								disabled={isTogglePending}
+								onClick={(e) => e.stopPropagation()}
+							/>
+						)}
+					</div>
+				</CardFooter>
+			</Card>
+		);
+	};
+
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			{/* Debug Error Display */}
 			{suitsError && (
 				<div className="bg-red-50 border border-red-200 rounded-md p-4">
@@ -401,7 +622,7 @@ export function ProfilePage() {
 				</div>
 			</div>
 
-			<div className="grid gap-6">
+			<div className="grid gap-4">
 				<div>
 					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
 						{/* Active Profiles */}
@@ -425,7 +646,7 @@ export function ProfilePage() {
 										<div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
 											{activeSuits.length}/{suits.length}
 										</div>
-										<CardDescription className="text-xs text-muted-foreground">
+										<CardDescription className="text-sm text-muted-foreground">
 											active profiles
 										</CardDescription>
 									</>
@@ -523,140 +744,69 @@ export function ProfilePage() {
 				</div>
 
 				{isLoadingSuits ? (
-					<div className="space-y-4">
-						{["s1", "s2", "s3"].map((id) => (
-							<div
-								key={`loading-suit-${id}`}
-								className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
-							>
-								<div className="space-y-1">
-									<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-									<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-								</div>
-								<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-							</div>
-						))}
-					</div>
-				) : orderedSuits.length > 0 ? (
-					<div className="space-y-4">
-						{orderedSuits.map((suit: ConfigSuit, index) => {
-							const statsQuery = suitStatQueries[index];
-							const stats = statsQuery?.data;
-							const statsLoading =
-								statsQuery?.isFetching || statsQuery?.isLoading;
-							const formatCount = (enabled?: number, total?: number) => {
-								if (statsLoading) return "...";
-								const safeEnabled = typeof enabled === "number" ? enabled : 0;
-								const safeTotal = typeof total === "number" ? total : 0;
-								return `${safeEnabled}/${safeTotal}`;
-							};
-
-							return (
+					defaultView === "grid" ? (
+						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+							{Array.from({ length: 6 }).map((_, index) => (
+								<Card
+									key={`loading-grid-${index}`}
+									className="animate-pulse border border-slate-200 dark:border-slate-800"
+								>
+									<CardHeader className="space-y-2">
+										<div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-800"></div>
+										<div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800"></div>
+									</CardHeader>
+									<CardContent className="space-y-4">
+										<div className="grid grid-cols-4 gap-x-6 gap-y-2">
+											{Array.from({ length: 4 }).map((__, statIndex) => (
+												<div
+													key={`loading-grid-label-${statIndex}`}
+													className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-800"
+												></div>
+											))}
+											{Array.from({ length: 4 }).map((__, statIndex) => (
+												<div
+													key={`loading-grid-value-${statIndex}`}
+													className="h-5 w-20 rounded bg-slate-200 dark:bg-slate-800"
+												></div>
+											))}
+										</div>
+									</CardContent>
+									<CardFooter className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+										<div className="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+										<div className="flex items-center gap-2">
+											<div className="h-3 w-14 rounded bg-slate-200 dark:bg-slate-800"></div>
+											<div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-800"></div>
+										</div>
+									</CardFooter>
+								</Card>
+							))}
+						</div>
+					) : (
+						<div className="space-y-4">
+							{["s1", "s2", "s3"].map((id) => (
 								<div
-									key={suit.id}
-									className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 cursor-pointer transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950"
-									role="button"
-									tabIndex={0}
-									onClick={() => navigate(`/profiles/${suit.id}`)}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" || e.key === " ") {
-											e.preventDefault();
-											navigate(`/profiles/${suit.id}`);
-										}
-									}}
+									key={`loading-suit-${id}`}
+									className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
 								>
 									<div className="space-y-1">
-										<div className="flex items-center gap-2">
-											<h3 className="font-medium text-sm">
-												{suit.name
-													.split(" ")
-													.map(
-														(word: string) =>
-															word.charAt(0).toUpperCase() +
-															word.slice(1).toLowerCase(),
-													)
-													.join(" ")}
-											</h3>
-											<Badge variant={suit.is_active ? "default" : "secondary"}>
-												{suit.suit_type}
-											</Badge>
-											{suit.is_active && !suit.is_default && (
-												<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-													<Check className="mr-1 h-3 w-3" />
-													Active
-												</span>
-											)}
-											{suit.is_default && (
-												<Badge variant="outline">Default</Badge>
-											)}
-										</div>
-										{suit.description && (
-											<p className="text-sm text-slate-500">
-												{suit.description}
-											</p>
-										)}
-										<div className="flex flex-col gap-1 text-xs text-slate-400">
-											<div className="flex flex-wrap items-center gap-4">
-												<span>Priority: {suit.priority}</span>
-												<span>
-													Multi-select: {suit.multi_select ? "Yes" : "No"}
-												</span>
-											</div>
-											<div className="flex flex-wrap items-center gap-4">
-												<span>
-													Servers:{" "}
-													{formatCount(
-														stats?.enabledServers,
-														stats?.totalServers,
-													)}
-												</span>
-												<span>
-													Tools:{" "}
-													{formatCount(stats?.enabledTools, stats?.totalTools)}
-												</span>
-												<span>
-													Resources:{" "}
-													{formatCount(
-														stats?.enabledResources,
-														stats?.totalResources,
-													)}
-												</span>
-												<span>
-													Prompts:{" "}
-													{formatCount(
-														stats?.enabledPrompts,
-														stats?.totalPrompts,
-													)}
-												</span>
-											</div>
-										</div>
+										<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+										<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									</div>
-									<div className="flex items-center gap-2">
-										{!suit.is_default && (
-											<Switch
-												checked={suit.is_active}
-												onCheckedChange={() => handleSuitToggle(suit)}
-												disabled={
-													activateSuitMutation.isPending ||
-													deactivateSuitMutation.isPending
-												}
-												onClick={(e) => e.stopPropagation()}
-											/>
-										)}
-										<Link
-											to={`/profiles/${suit.id}`}
-											onClick={(e) => e.stopPropagation()}
-										>
-											<Button variant="outline" size="sm">
-												<Settings className="mr-2 h-4 w-4" />
-												Configure
-											</Button>
-										</Link>
-									</div>
+									<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 								</div>
-							);
-						})}
-					</div>
+							))}
+						</div>
+					)
+				) : orderedSuits.length > 0 ? (
+					defaultView === "grid" ? (
+						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+							{orderedSuits.map(renderSuitCard)}
+						</div>
+					) : (
+						<div className="space-y-4">
+							{orderedSuits.map(renderSuitListItem)}
+						</div>
+					)
 				) : (
 					<div className="text-center py-8">
 						<Settings className="mx-auto h-12 w-12 text-slate-400 mb-4" />
