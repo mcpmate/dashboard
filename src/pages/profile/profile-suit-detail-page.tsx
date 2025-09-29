@@ -74,18 +74,26 @@ export function ProfileSuitDetailPage() {
 	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState("overview");
 
-	// Get enableServerDebug setting
+	// Developer toggles
 	const enableServerDebug = useAppStore(
 		(state) => state.dashboardSettings.enableServerDebug,
+	);
+	const openDebugInNewWindow = useAppStore(
+		(state) => state.dashboardSettings.openDebugInNewWindow,
 	);
 
 	const openDebug = (
 		targetServerId: string,
 		channel: "proxy" | "native" = "proxy",
 	) => {
-		if (typeof window === "undefined") return;
 		const url = `/servers/${encodeURIComponent(targetServerId)}?view=debug&channel=${channel}`;
-		window.open(url, "_blank", "noopener,noreferrer");
+		if (openDebugInNewWindow) {
+			if (typeof window !== "undefined") {
+				window.open(url, "_blank", "noopener,noreferrer");
+			}
+			return;
+		}
+		navigate(url);
 	};
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);

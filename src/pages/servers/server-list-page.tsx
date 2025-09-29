@@ -64,9 +64,12 @@ export function ServerListPage() {
 
 	const queryClient = useQueryClient();
 
-	// Get enableServerDebug setting
+	// Developer toggles
 	const enableServerDebug = useAppStore(
 		(state) => state.dashboardSettings.enableServerDebug,
+	);
+	const openDebugInNewWindow = useAppStore(
+		(state) => state.dashboardSettings.openDebugInNewWindow,
 	);
 
 	const {
@@ -401,10 +404,14 @@ export function ServerListPage() {
 											ev.stopPropagation();
 											const targetChannel =
 												profileRefs.length > 0 ? "proxy" : "native";
-											if (typeof window !== "undefined") {
-												const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
-												window.open(url, "_blank", "noopener,noreferrer");
+											const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
+											if (openDebugInNewWindow) {
+												if (typeof window !== "undefined") {
+													window.open(url, "_blank", "noopener,noreferrer");
+												}
+												return;
 											}
+											navigate(url);
 										}}
 										title="Open debug view"
 									>

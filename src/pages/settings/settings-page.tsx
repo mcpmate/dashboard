@@ -345,6 +345,23 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
+											Open Debug Views In New Window
+										</h3>
+										<p className="text-sm text-slate-500">
+											When enabled, Debug buttons launch a separate tab instead of navigating the current view.
+										</p>
+									</div>
+									<Switch
+										checked={dashboardSettings.openDebugInNewWindow}
+										onCheckedChange={(checked) =>
+											setDashboardSetting("openDebugInNewWindow", checked)
+										}
+									/>
+								</div>
+
+								<div className="flex items-center justify-between gap-4">
+									<div>
+										<h3 className="text-base font-medium">
 											Show API Docs Menu
 										</h3>
 										<p className="text-sm text-slate-500">
