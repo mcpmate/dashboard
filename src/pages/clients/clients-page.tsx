@@ -179,17 +179,16 @@ export function ClientsPage() {
 					<div className="flex flex-wrap items-center gap-2">
 						{detectedBadge}
 						{quickLinks.map((link) => (
-							<Button
+							<button
 								key={`${identifier}-${link.label}`}
-								size="icon"
-								variant="ghost"
-								className="h-5 w-10"
+								type="button"
+								className="inline-flex items-center justify-center rounded-full border border-transparent bg-transparent h-5 w-5 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:text-slate-500 dark:hover:text-slate-300"
 								onClick={(event) => handleQuickLink(event, link.url!)}
 								title={link.label}
 							>
 								<link.icon className="w-4" />
 								<span className="sr-only">{link.label}</span>
-							</Button>
+							</button>
 						))}
 					</div>
 				}

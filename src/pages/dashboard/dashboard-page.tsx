@@ -116,15 +116,15 @@ export function DashboardPage() {
 		<div className="space-y-4">
 			<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
 				<Link to="/runtime" className="block h-full">
-					<Card className="h-full min-h-[160px] hover:border-primary/40 transition-colors cursor-pointer">
-						<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
+						<CardHeader className="flex flex-row items-center justify-between space-y-0">
 							<CardTitle className="text-sm font-medium">
 								System Status
 							</CardTitle>
 							<Activity className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<div className="flex items-center justify-between">
 									<CardDescription>Status</CardDescription>
 									{isLoadingSystem ? (
@@ -159,17 +159,17 @@ export function DashboardPage() {
 				</Link>
 
 				<Link to="/profiles" className="block h-full">
-					<Card className="h-full min-h-[160px] hover:border-primary/40 transition-colors cursor-pointer">
-						<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
+						<CardHeader className="flex flex-row items-center justify-between space-y-0">
 							<CardTitle className="text-sm font-medium">
 								Current Suit
 							</CardTitle>
 							<Sliders className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								{isLoadingConfig ? (
-									<div className="space-y-2">
+									<div className="space-y-1.5">
 										<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 										<div className="h-5 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									</div>
@@ -202,19 +202,19 @@ export function DashboardPage() {
 				</Link>
 
 				<Link to="/servers" className="block h-full">
-					<Card className="h-full min-h-[160px] hover:border-primary/40 transition-colors cursor-pointer">
-						<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
+						<CardHeader className="flex flex-row items-center justify-between space-y-0">
 							<CardTitle className="text-sm font-medium">Servers</CardTitle>
 							<Server className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<div className="flex items-center justify-between">
 									<CardDescription>Total Servers</CardDescription>
 									{isLoadingServers ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
-										<span className="text-2xl font-bold">
+										<span className="text-sm font-medium">
 											{servers?.servers?.length || 0}
 										</span>
 									)}
@@ -224,7 +224,7 @@ export function DashboardPage() {
 									{isLoadingServers ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
-										<span className="text-2xl font-bold">
+										<span className="text-sm font-medium">
 											{connectedServers}
 										</span>
 									)}
@@ -235,19 +235,19 @@ export function DashboardPage() {
 				</Link>
 
 				<Link to="/clients" className="block h-full">
-					<Card className="h-full min-h-[160px] hover:border-primary/40 transition-colors cursor-pointer">
-						<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
+						<CardHeader className="flex flex-row items-center justify-between space-y-0">
 							<CardTitle className="text-sm font-medium">Clients</CardTitle>
 							<Users className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
-							<div className="space-y-2">
+							<div className="space-y-1.5">
 								<div className="flex items-center justify-between">
 									<CardDescription>Total Clients</CardDescription>
 									{isLoadingClients ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
-										<span className="text-2xl font-bold">{totalClients}</span>
+										<span className="text-sm font-medium">{totalClients}</span>
 									)}
 								</div>
 								<div className="flex items-center justify-between">
@@ -255,7 +255,9 @@ export function DashboardPage() {
 									{isLoadingClients ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
-										<span className="text-2xl font-bold">{managedClients}</span>
+										<span className="text-sm font-medium">
+											{managedClients}
+										</span>
 									)}
 								</div>
 							</div>
@@ -266,7 +268,7 @@ export function DashboardPage() {
 
 			<div className="grid gap-4 md:grid-cols-2">
 				<Link to="/runtime" className="block col-span-1 md:col-span-2 h-full">
-					<Card className="hover:border-primary/40 transition-colors cursor-pointer">
+					<Card className="hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
 						<CardHeader>
 							<CardTitle>System Performance</CardTitle>
 						</CardHeader>
@@ -275,11 +277,16 @@ export function DashboardPage() {
 								<ResponsiveContainer width="100%" height="100%">
 									<LineChart
 										data={metricsHistory}
-										margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+										margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
 									>
 										<CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-										<XAxis dataKey="time" stroke="#9ca3af" fontSize={12} />
-										<YAxis stroke="#9ca3af" fontSize={12} />
+										<XAxis
+											dataKey="time"
+											stroke="#9ca3af"
+											fontSize={12}
+											height={30}
+										/>
+										<YAxis stroke="#9ca3af" fontSize={12} width={40} />
 										<Tooltip
 											contentStyle={{
 												backgroundColor: "#1f2937",

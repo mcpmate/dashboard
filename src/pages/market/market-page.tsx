@@ -1,12 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	ArrowUp,
-	ExternalLink,
-	EyeOff,
-	Loader2,
-	Plug,
-	ShieldCheck,
-} from "lucide-react";
+import { ArrowUp, ExternalLink, EyeOff, Loader2, Plug } from "lucide-react";
 import {
 	useCallback,
 	useEffect,
@@ -16,6 +9,14 @@ import {
 	useState,
 } from "react";
 
+import { Avatar, AvatarFallback } from "../../components/ui/avatar";
+import {
+	Card,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "../../components/ui/card";
 import { ErrorDisplay } from "../../components/error-display";
 import { Pagination } from "../../components/pagination";
 import {
@@ -27,13 +28,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "../../components/ui/card";
 import {
 	Drawer,
 	DrawerContent,
@@ -66,7 +60,6 @@ import { cn, formatRelativeTime, truncate } from "../../lib/utils";
 
 interface MarketCardProps {
 	server: RegistryServerEntry;
-	installed: boolean;
 	onPreview: (server: RegistryServerEntry) => void;
 	onHide: (server: RegistryServerEntry) => void;
 }
@@ -337,7 +330,7 @@ function formatArgsMultiline(args: string[]): string {
 		.join("\n");
 }
 
-function MarketCard({ server, installed, onPreview, onHide }: MarketCardProps) {
+function MarketCard({ server, onPreview, onHide }: MarketCardProps) {
 	const official = getOfficialMeta(server);
 	const transportBadges = useMemo(() => {
 		const set = new Set(
@@ -386,40 +379,45 @@ function MarketCard({ server, installed, onPreview, onHide }: MarketCardProps) {
 				}
 			}}
 			className={cn(
-				"flex h-full flex-col justify-between border border-slate-200/70 bg-white shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:border-primary/40 hover:shadow-md dark:border-slate-800/70 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]",
+				"group flex h-full cursor-pointer flex-col overflow-hidden border border-slate-200 transition-all duration-200 hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800",
 				supportsPreview ? "cursor-pointer" : "cursor-not-allowed opacity-95",
 			)}
 		>
-			<CardHeader className="space-y-4 p-4 pb-3">
-				<div className="flex items-start justify-between gap-3">
-					<div className="space-y-2">
-						<div className="flex flex-wrap items-center gap-2">
+			<CardHeader className="p-4">
+				<div className="grid grid-cols-[1fr_auto] gap-3 items-start">
+					<div className="flex items-start gap-3 min-w-0">
+						<Avatar className="h-12 w-12 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-lg font-semibold">
+							<AvatarFallback>
+								{displayName.charAt(0).toUpperCase()}
+							</AvatarFallback>
+						</Avatar>
+						<div className="flex-1 space-y-2 min-w-0">
 							<CardTitle
-								className="text-lg font-semibold text-slate-900 dark:text-slate-50 truncate"
+								className="text-lg font-semibold leading-tight truncate"
 								title={displayName}
 							>
 								{displayName}
 							</CardTitle>
-							{installed ? (
-								<Badge
-									variant="secondary"
-									className="flex items-center gap-1 text-xs font-medium"
-								>
-									<ShieldCheck className="h-3 w-3" />
-									Installed
-								</Badge>
-							) : null}
-						</div>
-						<div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-							<span>{`Version ${server.version}`}</span>
-							{relativeTimestamp ? (
-								<span>Updated {relativeTimestamp}</span>
-							) : null}
+							{/* 版本和更新时间行 */}
+							<div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+								<span>{`Version ${server.version}`}</span>
+								{relativeTimestamp ? (
+									<span>Updated {relativeTimestamp}</span>
+								) : null}
+							</div>
+							{/* 描述行 */}
+							<div className="h-15 flex items-start">
+								<CardDescription className="text-sm text-slate-500 line-clamp-3 leading-5">
+									{truncate(server.description, 320) || "N/A"}
+								</CardDescription>
+							</div>
 						</div>
 					</div>
-					<div className="flex flex-col items-end gap-2">
-						{transportBadges.length > 0 ? (
-							<div className="flex flex-wrap justify-end gap-1">
+
+					{/* 右上角传输类型标签 */}
+					{transportBadges.length > 0 && (
+						<div className="flex justify-end items-start pt-1">
+							<div className="flex flex-row-reverse gap-1 flex-nowrap">
 								{transportBadges.map((type) => (
 									<Badge
 										key={type}
@@ -431,42 +429,37 @@ function MarketCard({ server, installed, onPreview, onHide }: MarketCardProps) {
 									</Badge>
 								))}
 							</div>
-						) : null}
-					</div>
+						</div>
+					)}
 				</div>
-				<CardDescription
-					className="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
-					style={{
-						display: "-webkit-box",
-						WebkitLineClamp: 2,
-						WebkitBoxOrient: "vertical",
-						overflow: "hidden",
-					}}
-				>
-					{truncate(server.description, 240)}
-				</CardDescription>
 			</CardHeader>
-			<CardContent className="flex flex-1 flex-col gap-4 p-4 pt-0">
-				<div className="mt-auto flex w-full items-center justify-between gap-3">
-					<button
-						type="button"
-						onClick={(event) => {
-							event.stopPropagation();
-							onHide(server);
-						}}
-						onKeyDown={(event) => {
-							if (event.key === "Enter" || event.key === " ") {
-								event.preventDefault();
+
+			<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0 mt-auto">
+				<div className="flex items-center gap-3">
+					<div className="w-12"></div>
+					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={(event) => {
 								event.stopPropagation();
 								onHide(server);
-							}
-						}}
-						className="inline-flex items-center justify-center rounded-full border border-transparent bg-transparent p-2 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:text-slate-500 dark:hover:text-slate-300"
-						title="Hide this server"
-					>
-						<EyeOff className="h-4 w-4" />
-						<span className="sr-only">Hide server</span>
-					</button>
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "Enter" || event.key === " ") {
+									event.preventDefault();
+									event.stopPropagation();
+									onHide(server);
+								}
+							}}
+							className="inline-flex items-center justify-center rounded-full border border-transparent bg-transparent h-5 w-5 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:text-slate-500 dark:hover:text-slate-300"
+							title="Hide this server"
+						>
+							<EyeOff className="h-4 w-4" />
+							<span className="sr-only">Hide server</span>
+						</button>
+					</div>
+				</div>
+				<div className="flex items-center gap-3">
 					<button
 						type="button"
 						onClick={(event) => {
@@ -497,7 +490,7 @@ function MarketCard({ server, installed, onPreview, onHide }: MarketCardProps) {
 							}
 						}}
 						className={cn(
-							"inline-flex items-center justify-center rounded-full border border-transparent bg-transparent p-2 text-primary transition hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+							"inline-flex items-center justify-center rounded-full border border-transparent bg-transparent h-5 w-5 text-primary transition hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
 							!server.repository?.url && !server.websiteUrl
 								? "cursor-not-allowed opacity-60"
 								: "",
@@ -509,7 +502,7 @@ function MarketCard({ server, installed, onPreview, onHide }: MarketCardProps) {
 						<span className="sr-only">Open project site</span>
 					</button>
 				</div>
-			</CardContent>
+			</CardFooter>
 		</Card>
 	);
 }
@@ -535,23 +528,6 @@ export function MarketPage() {
 		limit: 9,
 		onReset: handlePaginationReset,
 	});
-
-	const installedQuery = useQuery({
-		queryKey: ["market", "installed"],
-		queryFn: serversApi.getAll,
-		staleTime: 1000 * 30,
-	});
-
-	const installedIds = useMemo(() => {
-		const set = new Set<string>();
-		installedQuery.data?.servers.forEach((server) => {
-			const registryId = server.registry_server_id;
-			if (registryId) {
-				set.add(registryId);
-			}
-		});
-		return set;
-	}, [installedQuery.data]);
 
 	const registryQuery = useQuery({
 		queryKey: ["market", "registry", debouncedSearch, pagination.currentPage],
@@ -629,6 +605,7 @@ export function MarketPage() {
 	}, [servers, sort]);
 
 	const isInitialLoading = registryQuery.isLoading && !registryQuery.data;
+	const isPageLoading = registryQuery.isFetching && registryQuery.data;
 	const isEmpty = !isInitialLoading && sortedServers.length === 0;
 	const fetchError =
 		registryQuery.error instanceof Error ? registryQuery.error : undefined;
@@ -697,7 +674,6 @@ export function MarketPage() {
 	};
 
 	const handleImported = () => {
-		installedQuery.refetch();
 		handleRefresh();
 	};
 
@@ -775,13 +751,39 @@ export function MarketPage() {
 
 				{isInitialLoading ? (
 					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-						{Array.from({ length: 6 }, (_, index) => {
+						{Array.from({ length: 9 }, (_, index) => {
 							const uniqueKey = `skeleton-card-${Date.now()}-${index}`;
 							return (
-								<div
+								<Card
 									key={uniqueKey}
-									className="h-64 rounded-2xl border border-slate-200/80 bg-white shadow-sm animate-pulse dark:border-slate-800 dark:bg-slate-950"
-								/>
+									className="group flex h-full cursor-pointer flex-col overflow-hidden border border-slate-200 transition-all duration-200 hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800"
+								>
+									<CardHeader className="p-4">
+										<div className="grid grid-cols-1 grid-rows-1">
+											<div className="flex items-start gap-3 col-start-1 row-start-1">
+												<div className="h-12 w-12 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+												<div className="flex-1 space-y-2">
+													<div className="h-5 w-3/4 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+													<div className="h-3 w-1/2 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+													<div className="h-3 w-full rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+													<div className="h-3 w-2/3 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+												</div>
+											</div>
+											<div className="col-start-1 row-start-1 flex justify-end items-start pt-1 pr-1">
+												<div className="h-6 w-16 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+											</div>
+										</div>
+									</CardHeader>
+									<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0 mt-auto">
+										<div className="flex items-center gap-3">
+											<div className="w-12"></div>
+											<div className="h-5 w-5 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+										</div>
+										<div className="flex items-center gap-3">
+											<div className="h-5 w-5 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+										</div>
+									</CardFooter>
+								</Card>
 							);
 						})}
 					</div>
@@ -795,31 +797,36 @@ export function MarketPage() {
 				) : null}
 
 				{!isInitialLoading && !isEmpty ? (
-					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-						{sortedServers.map((server) => {
-							const official = getOfficialMeta(server);
-							const installed = official?.serverId
-								? installedIds.has(official.serverId)
-								: false;
-							return (
-								<MarketCard
-									key={`${server.name}-${server.version}`}
-									server={server}
-									installed={installed}
-									onPreview={handleOpenDrawer}
-									onHide={handleHideServer}
-								/>
-							);
-						})}
+					<div className="relative">
+						{isPageLoading ? (
+							<div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-slate-950/80">
+								<div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-lg dark:bg-slate-800">
+									<Loader2 className="h-4 w-4 animate-spin" />
+									<span className="text-sm font-medium">Loading...</span>
+								</div>
+							</div>
+						) : null}
+						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+							{sortedServers.map((server) => {
+								return (
+									<MarketCard
+										key={`${server.name}-${server.version}`}
+										server={server}
+										onPreview={handleOpenDrawer}
+										onHide={handleHideServer}
+									/>
+								);
+							})}
+						</div>
 					</div>
 				) : null}
 
-				{!isInitialLoading && !isEmpty ? (
+				{!isEmpty ? (
 					<Pagination
 						currentPage={pagination.currentPage}
 						hasPreviousPage={pagination.hasPreviousPage}
 						hasNextPage={pagination.hasNextPage}
-						isLoading={registryQuery.isFetching}
+						isLoading={isInitialLoading || isPageLoading}
 						itemsPerPage={pagination.itemsPerPage}
 						currentPageItemCount={sortedServers.length}
 						onPreviousPage={handlePreviousPage}

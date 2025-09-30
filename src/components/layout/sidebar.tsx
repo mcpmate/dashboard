@@ -1,5 +1,6 @@
 import {
 	Activity,
+	AppWindow,
 	Bug,
 	ChevronLeft,
 	ChevronRight,
@@ -8,7 +9,6 @@ import {
 	Settings,
 	Sliders,
 	Store,
-	Users,
 } from "lucide-react";
 import type React from "react";
 import { NavLink } from "react-router-dom";
@@ -139,7 +139,7 @@ export function Sidebar() {
 					{sidebarOpen && "Profiles"}
 				</SidebarLink>
 
-				<SidebarLink to="/clients" icon={<Users size={20} />}>
+				<SidebarLink to="/clients" icon={<AppWindow size={20} />}>
 					{sidebarOpen && "Clients"}
 				</SidebarLink>
 

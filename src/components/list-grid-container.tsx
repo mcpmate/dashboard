@@ -24,7 +24,7 @@ export function ListGridContainer({
 			<div
 				className={
 					defaultView === "grid"
-						? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+						? "grid gap-4 md:grid-cols-2 xl:grid-cols-3"
 						: "space-y-4"
 				}
 			>
@@ -41,7 +41,7 @@ export function ListGridContainer({
 		<div
 			className={
 				defaultView === "grid"
-					? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+					? "grid gap-4 md:grid-cols-2 xl:grid-cols-3"
 					: "space-y-4"
 			}
 		>
@@ -66,7 +66,7 @@ export function EntityListItem({
 	return (
 		<button
 			type="button"
-			className={`flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)] ${className}`}
+			className={`flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-all duration-200 hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)] ${className}`}
 			onClick={onClick}
 			onKeyDown={onKeyDown}
 		>
@@ -91,7 +91,7 @@ export function EntityCard({
 	return (
 		<button
 			type="button"
-			className={`group overflow-hidden cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] hover:border-primary/40 transition-shadow hover:shadow-lg dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)] ${className}`}
+			className={`group overflow-hidden cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] hover:border-primary/40 transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)] ${className}`}
 			onClick={onClick}
 			onKeyDown={onKeyDown}
 		>
