@@ -121,8 +121,8 @@ export function SettingsPage() {
 											<SelectValue placeholder="Select application mode" />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="express">Express Mode</SelectItem>
-											<SelectItem value="expert">Expert Mode (WIP)</SelectItem>
+											<SelectItem value="express">Express Mode (WIP)</SelectItem>
+											<SelectItem value="expert">Expert Mode</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>

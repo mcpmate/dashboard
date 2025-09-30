@@ -9,18 +9,12 @@ import {
 } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "../../components/ui/card";
+import { Card, CardContent } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
 import { PageLayout, EmptyState } from "../../components/page-layout";
 import { ListGridContainer } from "../../components/list-grid-container";
 import { StatsCards } from "../../components/stats-cards";
+import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
 import { clientsApi } from "../../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
@@ -170,69 +164,18 @@ export function ClientsPage() {
 		};
 
 		return (
-			<Card
+			<EntityCard
 				key={`client-card-${identifier}`}
-				className="group flex h-full cursor-pointer flex-col overflow-hidden border border-slate-200 transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800"
-				role="button"
-				tabIndex={0}
-				onClick={() => navigate(`/clients/${encodeURIComponent(identifier)}`)}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						navigate(`/clients/${encodeURIComponent(identifier)}`);
-					}
+				id={identifier}
+				title={displayName}
+				description={description}
+				avatar={{
+					src: client.logo_url,
+					alt: displayName,
+					fallback: avatarInitial,
 				}}
-			>
-				<CardHeader className="p-4 pb-2 space-y-3">
-					<div className="flex items-start gap-3">
-						<Avatar className="h-12 w-12 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-lg font-semibold">
-							{client.logo_url ? (
-								<AvatarImage src={client.logo_url} alt={displayName} />
-							) : null}
-							<AvatarFallback>{avatarInitial}</AvatarFallback>
-						</Avatar>
-						<div className="space-y-2">
-							<CardTitle className="text-lg font-semibold leading-tight">
-								{displayName}
-							</CardTitle>
-							<div className="min-h-[2.5rem]">
-								{description ? (
-									<CardDescription className="text-sm leading-snug text-muted-foreground line-clamp-2">
-										{description}
-									</CardDescription>
-								) : (
-									<CardDescription
-										className="text-sm leading-snug opacity-0 select-none"
-										aria-hidden="true"
-									>
-										placeholder
-									</CardDescription>
-								)}
-							</div>
-						</div>
-					</div>
-				</CardHeader>
-				<CardContent className="flex flex-1 flex-col gap-3 px-4 pb-4 pt-2">
-					<div className="grid grid-cols-4 gap-x-6 gap-y-1">
-						{statItems.map((item) => (
-							<span
-								key={`client-label-${identifier}-${item.label}`}
-								className="text-xs uppercase tracking-wide text-muted-foreground/80"
-							>
-								{item.label}
-							</span>
-						))}
-						{statItems.map((item) => (
-							<span
-								key={`client-value-${identifier}-${item.label}`}
-								className="text-sm font-semibold text-slate-900 dark:text-slate-100"
-							>
-								{item.value}
-							</span>
-						))}
-					</div>
-				</CardContent>
-				<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0">
+				stats={statItems}
+				bottomLeft={
 					<div className="flex flex-wrap items-center gap-2">
 						{detectedBadge}
 						{quickLinks.map((link) => (
@@ -240,6 +183,7 @@ export function ClientsPage() {
 								key={`${identifier}-${link.label}`}
 								size="icon"
 								variant="ghost"
+								className="h-5 w-10"
 								onClick={(event) => handleQuickLink(event, link.url!)}
 								title={link.label}
 							>
@@ -248,6 +192,8 @@ export function ClientsPage() {
 							</Button>
 						))}
 					</div>
+				}
+				bottomRight={
 					<Switch
 						checked={client.managed}
 						onCheckedChange={(checked) =>
@@ -256,8 +202,9 @@ export function ClientsPage() {
 						onClick={(e) => e.stopPropagation()}
 						disabled={manageMutation.isPending}
 					/>
-				</CardFooter>
-			</Card>
+				}
+				onClick={() => navigate(`/clients/${encodeURIComponent(identifier)}`)}
+			/>
 		);
 	};
 

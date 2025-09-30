@@ -17,19 +17,17 @@ import { useNavigate } from "react-router-dom";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { Switch } from "../../components/ui/switch";
 import {
 	Card,
 	CardContent,
-	CardDescription,
 	CardFooter,
 	CardHeader,
-	CardTitle,
 } from "../../components/ui/card";
-import { Switch } from "../../components/ui/switch";
-import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { PageLayout, EmptyState } from "../../components/page-layout";
 import { ListGridContainer } from "../../components/list-grid-container";
 import { StatsCards } from "../../components/stats-cards";
+import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
@@ -475,7 +473,7 @@ export function ProfilePage() {
 	};
 
 	const renderSuitCard = (suit: ConfigSuit, index: number) => {
-		const { stats, statsLoading, formatCount } = getSuitStats(index);
+		const { stats, formatCount } = getSuitStats(index);
 		const displayName = formatSuitDisplayName(suit.name, suit.id);
 		const avatarInitial = displayName.charAt(0).toUpperCase() || "P";
 		const statItems = [
@@ -498,86 +496,39 @@ export function ProfilePage() {
 		];
 
 		return (
-			<Card
+			<EntityCard
 				key={suit.id}
-				className="group flex h-full cursor-pointer flex-col overflow-hidden border border-slate-200 transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800"
-				role="button"
-				tabIndex={0}
-				onClick={() => navigate(`/profiles/${suit.id}`)}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						navigate(`/profiles/${suit.id}`);
-					}
+				id={suit.id}
+				title={displayName}
+				description={suit.description}
+				avatar={{
+					fallback: avatarInitial,
 				}}
-			>
-				<CardHeader className="p-4 pb-2">
-					<div className="flex items-start justify-between gap-3">
-						<div className="flex items-start gap-3">
-							<Avatar className="h-12 w-12 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-lg font-semibold">
-								<AvatarFallback>{avatarInitial}</AvatarFallback>
-							</Avatar>
-							<div className="space-y-2">
-								<CardTitle className="text-lg font-semibold leading-tight">
-									{displayName}
-								</CardTitle>
-								{suit.description && (
-									<CardDescription className="text-sm text-slate-500">
-										{suit.description}
-									</CardDescription>
-								)}
-								<div className="flex flex-col gap-1 text-xs text-muted-foreground">
-									<span>Multi-select: {suit.multi_select ? "Yes" : "No"}</span>
-									<span>Priority: {suit.priority}</span>
-								</div>
-							</div>
-						</div>
-						{suit.is_default && (
-							<Badge variant="outline" className="shrink-0">
-								Default
-							</Badge>
-						)}
-					</div>
-				</CardHeader>
-				<CardContent className="flex flex-1 flex-col gap-3 px-4 pb-4 pt-2">
-					<div className="grid grid-cols-4 gap-x-6 gap-y-1">
-						{statItems.map((item) => (
-							<span
-								key={`label-${item.label}`}
-								className="text-xs uppercase tracking-wide text-muted-foreground/80"
-							>
-								{item.label}
-							</span>
-						))}
-						{statItems.map((item) => (
-							<span
-								key={`value-${item.label}`}
-								className="text-sm font-semibold text-slate-900 dark:text-slate-100"
-							>
-								{item.value}
-							</span>
-						))}
-					</div>
-					{statsLoading && (
-						<p className="text-xs text-muted-foreground">Updating stats...</p>
-					)}
-				</CardContent>
-				<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0">
+				topRightBadge={
+					suit.is_default ? (
+						<Badge variant="outline" className="shrink-0">
+							Default
+						</Badge>
+					) : undefined
+				}
+				stats={statItems}
+				bottomLeft={
 					<Badge variant={suit.is_active ? "default" : "secondary"}>
 						{suit.suit_type}
 					</Badge>
-					<div className="flex items-center gap-3">
-						{!suit.is_default && (
-							<Switch
-								checked={suit.is_active}
-								onCheckedChange={() => handleSuitToggle(suit)}
-								disabled={isTogglePending}
-								onClick={(e) => e.stopPropagation()}
-							/>
-						)}
-					</div>
-				</CardFooter>
-			</Card>
+				}
+				bottomRight={
+					!suit.is_default ? (
+						<Switch
+							checked={suit.is_active}
+							onCheckedChange={() => handleSuitToggle(suit)}
+							disabled={isTogglePending}
+							onClick={(e) => e.stopPropagation()}
+						/>
+					) : undefined
+				}
+				onClick={() => navigate(`/profiles/${suit.id}`)}
+			/>
 		);
 	};
 

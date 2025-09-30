@@ -1,19 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	AlertCircle,
-	Bug,
-	Edit,
-	Plug,
-	Plus,
-	Power,
-	PowerOff,
-	RefreshCw,
-	Server,
-	Trash,
-} from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, Bug, Plug, Plus, RefreshCw, Server } from "lucide-react";
+
 import { ConfirmDialog } from "../../components/confirm-dialog";
+import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
 import { ErrorDisplay } from "../../components/error-display";
 import { ListGridContainer } from "../../components/list-grid-container";
@@ -25,10 +16,11 @@ import { Button } from "../../components/ui/button";
 import {
 	Card,
 	CardContent,
-	CardDescription,
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import { Switch } from "../../components/ui/switch";
+
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
@@ -55,37 +47,6 @@ function getInstanceCount(server: ServerSummary): number {
 
 	// Default to 0 if no instance information is available
 	return 0;
-}
-
-// Hook to get server capability statistics
-function useServerCapabilityStats(serverId: string) {
-	const toolsQuery = useQuery({
-		queryKey: ["server-cap", "tools", serverId],
-		queryFn: () => serversApi.listTools(serverId),
-		enabled: false, // 默认不启用，只在需要时调用
-	});
-
-	const resourcesQuery = useQuery({
-		queryKey: ["server-cap", "resources", serverId],
-		queryFn: () => serversApi.listResources(serverId),
-		enabled: false,
-	});
-
-	const promptsQuery = useQuery({
-		queryKey: ["server-cap", "prompts", serverId],
-		queryFn: () => serversApi.listPrompts(serverId),
-		enabled: false,
-	});
-
-	return {
-		tools: toolsQuery.data?.items?.length ?? 0,
-		resources: resourcesQuery.data?.items?.length ?? 0,
-		prompts: promptsQuery.data?.items?.length ?? 0,
-		isLoading:
-			toolsQuery.isLoading ||
-			resourcesQuery.isLoading ||
-			promptsQuery.isLoading,
-	};
 }
 
 function getCapabilityDetails(server: ServerSummary): string {
@@ -197,16 +158,6 @@ export function ServerListPage() {
 		staleTime: 30000,
 	});
 
-	// Server details query
-	const getServerDetails = async (serverId: string) => {
-		try {
-			return await serversApi.getServer(serverId);
-		} catch (error) {
-			console.error(`Error fetching server details for ${serverId}:`, error);
-			return null;
-		}
-	};
-
 	// Enable/disable server
 	async function toggleServerAsync(
 		serverId: string,
@@ -287,19 +238,6 @@ export function ServerListPage() {
 		setIsAddServerOpen(false);
 	};
 
-	// Handle edit server
-	const handleEditServer = async (serverId: string) => {
-		const serverDetails = await getServerDetails(serverId);
-		if (serverDetails) {
-			setEditingServer(serverDetails);
-		} else {
-			notifyError(
-				"Fetch failed",
-				`Unable to get details for server ${serverId}`,
-			);
-		}
-	};
-
 	// Handle update server
 	const handleUpdateServer = async (config: Partial<MCPServerConfig>) => {
 		if (editingServer) {
@@ -378,6 +316,54 @@ export function ServerListPage() {
 		} finally {
 			setIsTogglePending(false);
 		}
+	};
+
+	const getServerDescription = (server: ServerSummary) => {
+		const profileRefs = profileUsage?.[server.id] ?? [];
+
+		let firstLine = "";
+		const serverType = server.server_type || server.kind || "";
+
+		if (
+			serverType.toLowerCase().includes("stdio") ||
+			serverType.toLowerCase().includes("process")
+		) {
+			// STDIO 类型：显示简化的命令信息
+			firstLine = `stdio://${server.name || server.id}`;
+		} else if (serverType.toLowerCase().includes("http")) {
+			// HTTP 类型：显示 URL
+			firstLine = `http://localhost:3000/${server.id}`;
+		} else if (serverType.toLowerCase().includes("sse")) {
+			// SSE 类型：显示 URL
+			firstLine = `sse://localhost:3000/${server.id}`;
+		} else {
+			// 默认类型
+			firstLine = `Server: ${server.name || server.id}`;
+		}
+
+		// 第二行：关联的 profiles，使用 title case
+		const profileNames =
+			profileRefs.length > 0
+				? profileRefs
+						.map(
+							(name) =>
+								name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
+						)
+						.join(", ")
+				: " - ";
+		const secondLine = `Profiles: ${profileNames}`;
+
+		// 返回两行显示的 React 元素
+		return (
+			<div className="space-y-1">
+				<div className="text-sm text-slate-500 truncate" title={firstLine}>
+					{firstLine}
+				</div>
+				<div className="text-sm text-slate-500 truncate" title={secondLine}>
+					{secondLine}
+				</div>
+			</div>
+		);
 	};
 
 	const getConnectionTypeTags = (server: ServerSummary) => {
@@ -526,45 +512,27 @@ export function ServerListPage() {
 	};
 
 	const renderServerCard = (server: ServerSummary) => {
-		const profileRefs = profileUsage?.[server.id] ?? [];
+		const serverInitial = (server.name || server.id || "S")
+			.slice(0, 1)
+			.toUpperCase();
+
 		return (
-			<Card
+			<EntityCard
 				key={server.id}
-				className="group overflow-hidden cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] hover:border-primary/40 transition-shadow hover:shadow-lg dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]"
-				role="button"
-				tabIndex={0}
-				onClick={(e) => {
-					const target = e.target as HTMLElement;
-					if (target.closest('button, a, input, [role="switch"]')) return;
-					navigate(`/servers/${encodeURIComponent(server.id)}`);
+				id={server.id}
+				title={server.name}
+				description={getServerDescription(server)}
+				avatar={{
+					fallback: serverInitial,
 				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						navigate(`/servers/${encodeURIComponent(server.id)}`);
-					}
-				}}
-			>
-				<CardHeader className="p-4 flex flex-row justify-between items-start">
-					<div className="flex items-start gap-3">
-						<div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-lg font-semibold">
-							{(server.name || server.id || "S").slice(0, 1).toUpperCase()}
-						</div>
-						<div>
-							<CardTitle className="text-xl leading-tight">
-								{server.name}
-							</CardTitle>
-							<CardDescription className="flex flex-col mt-1 space-y-1">
-								<span>
-									Type: {server.server_type || server.kind || "Unknown"}
-								</span>
-								<span>Instances: {getInstanceCount(server)}</span>
-								{server.enabled !== undefined ? (
-									<span>Status: {server.enabled ? "Enabled" : "Disabled"}</span>
-								) : null}
-							</CardDescription>
-						</div>
-					</div>
+				topRightBadge={getConnectionTypeTags(server)}
+				stats={[
+					{ label: "Tools", value: "0" },
+					{ label: "Prompts", value: "0" },
+					{ label: "Resources", value: "0" },
+					{ label: "R/Template", value: "0" },
+				]}
+				bottomLeft={
 					<StatusBadge
 						status={server.status}
 						instances={server.instances}
@@ -573,86 +541,23 @@ export function ServerListPage() {
 						)}
 						isServerEnabled={server.enabled}
 					/>
-				</CardHeader>
-				<CardContent className="p-4 pt-0">
-					<div className="flex flex-col gap-3">
-						<div className="flex justify-between items-center">
-							<div className="flex gap-2">
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={(ev) => {
-										ev.stopPropagation();
-										toggleServerAsync(
-											server.id,
-											!server.enabled,
-											false, // TODO: Add sync to all clients
-										);
-									}}
-									disabled={!!pending[server.id]}
-									title={server.enabled ? "Disable Server" : "Enable Server"}
-								>
-									{server.enabled ? (
-										<PowerOff className="h-4 w-4" />
-									) : (
-										<Power className="h-4 w-4" />
-									)}
-								</Button>
-								<div className="flex gap-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={(ev) => {
-											ev.stopPropagation();
-											handleEditServer(server.id);
-										}}
-										title="Edit server configuration"
-									>
-										<Edit className="h-4 w-4" />
-									</Button>
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={(ev) => {
-											ev.stopPropagation();
-											setDeletingServer(server.id);
-											setIsDeleteConfirmOpen(true);
-										}}
-										title="Delete server"
-									>
-										<Trash className="h-4 w-4" />
-									</Button>
-								</div>
-							</div>
-							<div className="flex gap-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity">
-								{enableServerDebug && (
-									<Button
-										size="sm"
-										variant="outline"
-										className="gap-1"
-										onClick={(ev) => {
-											ev.stopPropagation();
-											const targetChannel =
-												profileRefs.length > 0 ? "proxy" : "native";
-											const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
-											if (openDebugInNewWindow) {
-												if (typeof window !== "undefined") {
-													window.open(url, "_blank", "noopener,noreferrer");
-												}
-												return;
-											}
-											navigate(url);
-										}}
-										title="Open debug view"
-									>
-										<Bug className="h-4 w-4" /> Debug
-									</Button>
-								)}
-							</div>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
+				}
+				bottomRight={
+					<Switch
+						checked={server.enabled || false}
+						onCheckedChange={(checked) => {
+							toggleServerAsync(
+								server.id,
+								checked,
+								false, // TODO: Add sync to all clients
+							);
+						}}
+						disabled={!!pending[server.id]}
+						onClick={(e) => e.stopPropagation()}
+					/>
+				}
+				onClick={() => navigate(`/servers/${encodeURIComponent(server.id)}`)}
+			/>
 		);
 	};
 
@@ -704,7 +609,10 @@ export function ServerListPage() {
 	const loadingSkeleton =
 		defaultView === "grid"
 			? Array.from({ length: 6 }, (_, index) => (
-					<Card key={`loading-grid-${index}`} className="overflow-hidden">
+					<Card
+						key={`loading-grid-skeleton-${Date.now()}-${index}`}
+						className="overflow-hidden"
+					>
 						<CardHeader className="p-4">
 							<div className="h-6 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 							<div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
@@ -719,7 +627,7 @@ export function ServerListPage() {
 				))
 			: Array.from({ length: 3 }, (_, index) => (
 					<div
-						key={`loading-suit-${index}`}
+						key={`loading-list-skeleton-${Date.now()}-${index}`}
 						className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
 					>
 						<div className="flex items-center gap-3">
