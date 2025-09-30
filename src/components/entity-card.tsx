@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
+import { CachedAvatar } from "../components/cached-avatar";
 import {
 	Card,
 	CardContent,
@@ -80,14 +80,13 @@ export function EntityCard({
 			<CardHeader className="p-4 pb-2">
 				<div className="grid grid-cols-1 grid-rows-1">
 					<div className="flex items-start gap-3 col-start-1 row-start-1">
-						<Avatar className="h-12 w-12 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-lg font-semibold">
-							{avatar?.src && (
-								<AvatarImage src={avatar.src} alt={avatar.alt || title} />
-							)}
-							<AvatarFallback>
-								{avatar?.fallback || title.charAt(0).toUpperCase()}
-							</AvatarFallback>
-						</Avatar>
+						<CachedAvatar
+							src={avatar?.src}
+							alt={avatar?.alt || title}
+							fallback={avatar?.fallback || title}
+							size="lg"
+							className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 font-semibold"
+						/>
 						<div className="flex-1 space-y-2">
 							<CardTitle className="text-lg font-semibold leading-tight">
 								{title}
@@ -112,7 +111,7 @@ export function EntityCard({
 
 			{stats.length > 0 && (
 				<CardContent className="flex flex-1 flex-col gap-2 px-4 pb-4 pt-2">
-					<div className="flex items-start gap-2">
+					<div className="flex items-start gap-3">
 						<div className="w-12"></div>
 						<div className="flex-1 grid grid-cols-4 gap-x-6 gap-y-1">
 							{stats.map((item) => (
