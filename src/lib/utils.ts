@@ -111,7 +111,8 @@ export function getStatusVariant(
 /**
  * Truncate a string if it's too long
  */
-export function truncate(str: string, length: number) {
+export function truncate(str: string | undefined | null, length: number) {
+	if (!str || typeof str !== 'string') return "N/A";
 	if (str.length <= length) return str;
-	return str.slice(0, length) + "...";
+	return `${str.slice(0, length)}...`;
 }

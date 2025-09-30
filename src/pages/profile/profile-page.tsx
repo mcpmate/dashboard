@@ -29,9 +29,11 @@ import { ListGridContainer } from "../../components/list-grid-container";
 import { StatsCards } from "../../components/stats-cards";
 import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
+import { PageToolbar } from "../../components/ui/page-toolbar";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
+import { createToolbarConfig } from "../../lib/toolbar-configs";
 import type {
 	ConfigSuit,
 	InstanceSummary,
@@ -74,6 +76,12 @@ export function ProfilePage() {
 	const defaultView = useAppStore(
 		(state) => state.dashboardSettings.defaultView,
 	);
+	const setDashboardSetting = useAppStore((state) => state.setDashboardSetting);
+
+	// 搜索和排序状态
+	const [search, setSearch] = useState("");
+	const [sort, setSort] = useState("name");
+	const [expanded, setExpanded] = useState(false);
 
 	const {
 		data: suitsResponse,
@@ -532,6 +540,52 @@ export function ProfilePage() {
 		);
 	};
 
+	// 搜索和排序逻辑
+	const filteredAndSortedSuits = useMemo(() => {
+		if (!suits.length) return [];
+
+		let filtered = suits;
+
+		// 搜索过滤
+		if (search.trim()) {
+			const searchLower = search.toLowerCase();
+			filtered = filtered.filter((suit) => {
+				const name =
+					formatSuitDisplayName(suit.name, suit.id)?.toLowerCase() || "";
+				const description = suit.description?.toLowerCase() || "";
+				return name.includes(searchLower) || description.includes(searchLower);
+			});
+		}
+
+		// 排序
+		filtered.sort((a, b) => {
+			switch (sort) {
+				case "name": {
+					const nameA = formatSuitDisplayName(a.name, a.id) || "";
+					const nameB = formatSuitDisplayName(b.name, b.id) || "";
+					return nameA.localeCompare(nameB);
+				}
+				case "updated": {
+					const updatedA = (a as any).updated_at || 0;
+					const updatedB = (b as any).updated_at || 0;
+					return new Date(updatedB).getTime() - new Date(updatedA).getTime();
+				}
+				case "created": {
+					const createdA = (a as any).created_at || 0;
+					const createdB = (b as any).created_at || 0;
+					return new Date(createdB).getTime() - new Date(createdA).getTime();
+				}
+				default:
+					return 0;
+			}
+		});
+
+		// 保持默认套件在前的顺序
+		const defaults = filtered.filter((suit) => suit.is_default);
+		const others = filtered.filter((suit) => !suit.is_default);
+		return [...defaults, ...others];
+	}, [suits, search, sort]);
+
 	// Prepare stats cards data
 	const statsCards = [
 		{
@@ -623,6 +677,62 @@ export function ProfilePage() {
 					</div>
 				));
 
+	// 工具栏配置
+	const toolbarConfig = createToolbarConfig("profiles", {
+		search: {
+			placeholder: "Search profiles...",
+		},
+		viewMode: {
+			enabled: true,
+			defaultMode: defaultView as "grid" | "list",
+		},
+	});
+
+	// 工具栏状态
+	const toolbarState = {
+		search,
+		viewMode: defaultView,
+		sort,
+		expanded,
+	};
+
+	// 工具栏回调
+	const toolbarCallbacks = {
+		onSearchChange: setSearch,
+		onViewModeChange: (mode: "grid" | "list") => {
+			// 直接更新全局设置
+			setDashboardSetting("defaultView", mode);
+		},
+		onSortChange: setSort,
+		onExpandedChange: setExpanded,
+	};
+
+	// 操作按钮
+	const actions = (
+		<div className="flex items-center gap-2">
+			<Button
+				onClick={() => refetchSuits()}
+				disabled={isRefetchingSuits}
+				variant="outline"
+				size="sm"
+				className="h-9 w-9 p-0"
+				title="Refresh"
+			>
+				<RefreshCw
+					className={`h-4 w-4 ${isRefetchingSuits ? "animate-spin" : ""}`}
+				/>
+			</Button>
+			<Button
+				size="sm"
+				className="h-9 w-9 p-0"
+				onClick={() => setIsNewSuitDialogOpen(true)}
+				title="New Profile"
+			>
+				<Plus className="h-4 w-4" />
+			</Button>
+		</div>
+	);
+
 	// Prepare empty state
 	const emptyState = (
 		<Card>
@@ -650,26 +760,12 @@ export function ProfilePage() {
 		<PageLayout
 			title="Profiles"
 			headerActions={
-				<div className="flex items-center gap-2">
-					<Button
-						onClick={() => refetchSuits()}
-						disabled={isRefetchingSuits}
-						variant="outline"
-						size="sm"
-					>
-						<RefreshCw
-							className={`mr-2 h-4 w-4 ${isRefetchingSuits ? "animate-spin" : ""}`}
-						/>
-						Refresh
-					</Button>
-					<Button
-						size="sm"
-						onClick={() => setIsNewSuitDialogOpen(true)}
-						title="New Profile"
-					>
-						<Plus className="h-4 w-4" />
-					</Button>
-				</div>
+				<PageToolbar
+					config={toolbarConfig}
+					state={toolbarState}
+					callbacks={toolbarCallbacks}
+					actions={actions}
+				/>
 			}
 			statsCards={<StatsCards cards={statsCards} />}
 		>
@@ -683,11 +779,13 @@ export function ProfilePage() {
 			<ListGridContainer
 				loading={isLoadingSuits}
 				loadingSkeleton={loadingSkeleton}
-				emptyState={orderedSuits.length === 0 ? emptyState : undefined}
+				emptyState={
+					filteredAndSortedSuits.length === 0 ? emptyState : undefined
+				}
 			>
 				{defaultView === "grid"
-					? orderedSuits.map(renderSuitCard)
-					: orderedSuits.map(renderSuitListItem)}
+					? filteredAndSortedSuits.map(renderSuitCard)
+					: filteredAndSortedSuits.map(renderSuitListItem)}
 			</ListGridContainer>
 
 			{/* New Suit Drawer */}

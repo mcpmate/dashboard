@@ -66,25 +66,22 @@ export function useCursorPagination({
 	const currentCursor = cursorHistory[currentPage - 1];
 	const hasPreviousPage = currentPage > 1;
 
-	const goToNextPage = useCallback(
-		(nextCursor: string | undefined) => {
-			if (!hasNextPage) return;
+	const goToNextPage = useCallback((nextCursor: string | undefined) => {
+		if (!nextCursor) return;
 
-			setCurrentPage((prev) => {
-				const nextPage = prev + 1;
-				setCursorHistory((history) => {
-					const newHistory = [...history];
-					// Ensure we have the cursor for the next page
-					if (newHistory.length < nextPage) {
-						newHistory.push(nextCursor);
-					}
-					return newHistory;
-				});
-				return nextPage;
+		setCurrentPage((prev) => {
+			const nextPage = prev + 1;
+			setCursorHistory((history) => {
+				const newHistory = [...history];
+				// Ensure we have the cursor for the next page
+				if (newHistory.length < nextPage) {
+					newHistory.push(nextCursor);
+				}
+				return newHistory;
 			});
-		},
-		[hasNextPage],
-	);
+			return nextPage;
+		});
+	}, []);
 
 	const goToPreviousPage = useCallback(() => {
 		if (!hasPreviousPage) return;

@@ -547,7 +547,7 @@ export function MarketPage() {
 	useEffect(() => {
 		if (registryQuery.data?.metadata) {
 			pagination.setHasNextPage(
-				Boolean(registryQuery.data.metadata.next_cursor),
+				Boolean(registryQuery.data.metadata.nextCursor),
 			);
 		}
 	}, [registryQuery.data?.metadata, pagination.setHasNextPage]);
@@ -561,14 +561,24 @@ export function MarketPage() {
 		const dedup = new Map<string, RegistryServerEntry>();
 
 		// Process servers from current page
-		for (const server of registryQuery.data.servers) {
-			const key = getRegistryIdentity(server);
+		for (const serverEntry of registryQuery.data.servers) {
+			// Extract the actual server data from the nested structure
+			const server = serverEntry.server;
+			if (!server) continue;
+
+			// Create a flattened server object with _meta at the top level
+			const flattenedServer: RegistryServerEntry = {
+				...server,
+				_meta: serverEntry._meta,
+			};
+
+			const key = getRegistryIdentity(flattenedServer);
 			if (blacklistIds.has(key)) {
 				continue;
 			}
-			const official = getOfficialMeta(server);
+			const official = getOfficialMeta(flattenedServer);
 			if (!dedup.has(key)) {
-				dedup.set(key, server);
+				dedup.set(key, flattenedServer);
 				continue;
 			}
 			const existing = dedup.get(key);
@@ -580,7 +590,7 @@ export function MarketPage() {
 				candidateTs &&
 				Date.parse(candidateTs) > Date.parse(existingTs)
 			) {
-				dedup.set(key, server);
+				dedup.set(key, flattenedServer);
 			}
 		}
 		return Array.from(dedup.values());
@@ -605,7 +615,7 @@ export function MarketPage() {
 	}, [servers, sort]);
 
 	const isInitialLoading = registryQuery.isLoading && !registryQuery.data;
-	const isPageLoading = registryQuery.isFetching && registryQuery.data;
+	const isPageLoading = registryQuery.isFetching && Boolean(registryQuery.data);
 	const isEmpty = !isInitialLoading && sortedServers.length === 0;
 	const fetchError =
 		registryQuery.error instanceof Error ? registryQuery.error : undefined;
@@ -682,8 +692,8 @@ export function MarketPage() {
 	};
 
 	const handleNextPage = () => {
-		if (!registryQuery.data?.metadata?.next_cursor) return;
-		pagination.goToNextPage(registryQuery.data.metadata.next_cursor);
+		if (!registryQuery.data?.metadata?.nextCursor) return;
+		pagination.goToNextPage(registryQuery.data.metadata.nextCursor);
 		scrollToTop();
 	};
 

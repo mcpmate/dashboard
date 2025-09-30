@@ -1,32 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Globe, Plus, RefreshCw, ToggleLeft } from "lucide-react";
-import { type MouseEvent, useMemo, useState } from "react";
+import { type MouseEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-} from "../../components/ui/avatar";
+import { EntityCard } from "../../components/entity-card";
+import { EntityListItem } from "../../components/entity-list-item";
+import { ListGridContainer } from "../../components/list-grid-container";
+import { EmptyState, PageLayout } from "../../components/page-layout";
+import { StatsCards } from "../../components/stats-cards";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
+import { PageToolbar } from "../../components/ui/page-toolbar";
 import { Switch } from "../../components/ui/switch";
-import { PageLayout, EmptyState } from "../../components/page-layout";
-import { ListGridContainer } from "../../components/list-grid-container";
-import { StatsCards } from "../../components/stats-cards";
-import { EntityCard } from "../../components/entity-card";
-import { EntityListItem } from "../../components/entity-list-item";
+import { useEntityList } from "../../hooks/use-entity-list";
 import { clientsApi } from "../../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
+import { createToolbarConfig } from "../../lib/toolbar-configs";
 
 export function ClientsPage() {
 	const navigate = useNavigate();
 	const qc = useQueryClient();
 	const [refreshing, setRefreshing] = useState(false);
-	const defaultView = useAppStore(
-		(state) => state.dashboardSettings.defaultView,
-	);
+	const { defaultView, setDashboardSetting } = useAppStore((state) => ({
+		defaultView: state.dashboardSettings.defaultView,
+		setDashboardSetting: state.setDashboardSetting,
+	}));
 
 	const { data, isLoading, isRefetching, refetch } = useQuery({
 		queryKey: ["clients"],
@@ -41,22 +40,49 @@ export function ClientsPage() {
 	const detectedCount = clients.filter((c: any) => !!c.detected).length;
 	const managedCount = clients.filter((c: any) => !!c.managed).length;
 	const configuredCount = clients.filter((c: any) => !!c.has_mcp_config).length;
-	// Stable, user-friendly ordering: by display_name then identifier; not by status
-	const sortedClients = useMemo(() => {
-		const arr = [...clients];
-		arr.sort((a, b) => {
-			const an = (a.display_name || "").toLowerCase();
-			const bn = (b.display_name || "").toLowerCase();
-			if (an < bn) return -1;
-			if (an > bn) return 1;
-			const ai = (a.identifier || "").toLowerCase();
-			const bi = (b.identifier || "").toLowerCase();
-			if (ai < bi) return -1;
-			if (ai > bi) return 1;
-			return 0;
-		});
-		return arr;
-	}, [clients]);
+	// 转换数据格式以适配 Entity 接口
+	const clientsAsEntities = clients.map((client: any) => ({
+		id: client.identifier || client.display_name || "",
+		name: client.display_name || client.identifier || "",
+		description: client.description || "",
+		...client,
+	}));
+
+	// 使用统一的实体列表 hook
+	const {
+		filteredData: sortedClients,
+		search,
+		setSearch,
+		sort,
+		setSort,
+		stats,
+	} = useEntityList({
+		data: clientsAsEntities,
+		search: {
+			fields: [
+				{ key: "display_name", label: "Display Name", weight: 10 },
+				{ key: "identifier", label: "Identifier", weight: 8 },
+				{ key: "description", label: "Description", weight: 5 },
+			],
+			debounceMs: 300,
+		},
+		sort: {
+			options: [
+				{ value: "display_name", label: "Name", direction: "asc" as const },
+				{
+					value: "detected",
+					label: "Detection Status",
+					direction: "desc" as const,
+				},
+				{
+					value: "managed",
+					label: "Management Status",
+					direction: "desc" as const,
+				},
+			],
+			defaultSort: "display_name",
+		},
+	});
 
 	const manageMutation = useMutation({
 		mutationFn: async ({
@@ -246,7 +272,7 @@ export function ClientsPage() {
 	const loadingSkeleton =
 		defaultView === "grid"
 			? Array.from({ length: 6 }, (_, index) => (
-					<Card key={`client-skeleton-${index}`} className="p-4">
+					<Card key={`client-skeleton-grid-${index}`} className="p-4">
 						<div className="flex items-start gap-3">
 							<div className="h-12 w-12 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
 							<div className="flex-1 space-y-2">
@@ -257,7 +283,7 @@ export function ClientsPage() {
 						<div className="mt-4 grid grid-cols-2 gap-3">
 							{Array.from({ length: 4 }, (__, sIdx) => (
 								<div
-									key={`client-skeleton-stat-${index}-${sIdx}`}
+									key={`client-skeleton-stat-grid-${index}-${sIdx}`}
 									className="space-y-2"
 								>
 									<div className="h-3 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
@@ -296,41 +322,86 @@ export function ClientsPage() {
 		</Card>
 	);
 
+	// 工具栏配置
+	const toolbarConfig = createToolbarConfig("clients", {
+		search: {
+			placeholder: "Search clients...",
+		},
+		viewMode: {
+			enabled: true,
+			defaultMode: defaultView as "grid" | "list",
+		},
+	});
+
+	// 展开状态
+	const [expanded, setExpanded] = useState(false);
+
+	// 工具栏状态
+	const toolbarState = {
+		search,
+		viewMode: defaultView,
+		sort,
+		expanded,
+	};
+
+	// 工具栏回调
+	const toolbarCallbacks = {
+		onSearchChange: setSearch,
+		onViewModeChange: (mode: "grid" | "list") => {
+			// 直接更新全局设置
+			setDashboardSetting("defaultView", mode);
+		},
+		onSortChange: setSort,
+		onExpandedChange: setExpanded,
+	};
+
+	// 操作按钮
+	const actions = (
+		<div className="flex items-center gap-2">
+			<Button
+				onClick={handleRefresh}
+				disabled={isRefetching || refreshing}
+				variant="outline"
+				size="sm"
+				className="h-9 w-9 p-0"
+				onMouseUp={() =>
+					notifyInfo(
+						"Refresh triggered",
+						"Latest client state will sync to the list",
+					)
+				}
+				title="Refresh"
+			>
+				<RefreshCw
+					className={`h-4 w-4 ${isRefetching || refreshing ? "animate-spin" : ""}`}
+				/>
+			</Button>
+			<Button
+				size="sm"
+				className="h-9 w-9 p-0"
+				onClick={() =>
+					notifyInfo(
+						"Feature in Development",
+						"This feature is being implemented, please stay tuned",
+					)
+				}
+				title="Add Client"
+			>
+				<Plus className="h-4 w-4" />
+			</Button>
+		</div>
+	);
+
 	return (
 		<PageLayout
 			title="Clients"
 			headerActions={
-				<div className="flex items-center gap-2">
-					<Button
-						onClick={handleRefresh}
-						disabled={isRefetching || refreshing}
-						variant="outline"
-						size="sm"
-						onMouseUp={() =>
-							notifyInfo(
-								"Refresh triggered",
-								"Latest client state will sync to the list",
-							)
-						}
-					>
-						<RefreshCw
-							className={`mr-2 h-4 w-4 ${isRefetching || refreshing ? "animate-spin" : ""}`}
-						/>
-						Refresh
-					</Button>
-					<Button
-						size="sm"
-						onClick={() =>
-							notifyInfo(
-								"Feature in Development",
-								"This feature is being implemented, please stay tuned",
-							)
-						}
-						title="Add Client"
-					>
-						<Plus className="h-4 w-4" />
-					</Button>
-				</div>
+				<PageToolbar
+					config={toolbarConfig}
+					state={toolbarState}
+					callbacks={toolbarCallbacks}
+					actions={actions}
+				/>
 			}
 			statsCards={<StatsCards cards={statsCards} />}
 		>
@@ -343,6 +414,12 @@ export function ClientsPage() {
 					? sortedClients.map((client) => renderClientCard(client))
 					: sortedClients.map((client) => renderClientListItem(client))}
 			</ListGridContainer>
+
+			{/* 统计信息 - 移到页面底部 */}
+			<div className="text-xs text-slate-500 dark:text-slate-400 mt-4 text-center">
+				Showing {stats.showing} of {stats.filtered} clients (Total:{" "}
+				{stats.total})
+			</div>
 		</PageLayout>
 	);
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Bug, Plug, Plus, RefreshCw, Server } from "lucide-react";
@@ -20,10 +20,12 @@ import {
 	CardTitle,
 } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
+import { PageToolbar } from "../../components/ui/page-toolbar";
 
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
+import { createToolbarConfig } from "../../lib/toolbar-configs";
 import type {
 	MCPServerConfig,
 	ServerDetail,
@@ -81,12 +83,18 @@ export function ServerListPage() {
 	const [pending, setPending] = useState<Record<string, boolean>>({});
 	const [isTogglePending, setIsTogglePending] = useState(false);
 
+	// 搜索和排序状态
+	const [search, setSearch] = useState("");
+	const [sort, setSort] = useState("name");
+	const [expanded, setExpanded] = useState(false);
+
 	const queryClient = useQueryClient();
 
 	// View mode and developer toggles
 	const defaultView = useAppStore(
 		(state) => state.dashboardSettings.defaultView,
 	);
+	const setDashboardSetting = useAppStore((state) => state.setDashboardSetting);
 	const enableServerDebug = useAppStore(
 		(state) => state.dashboardSettings.enableServerDebug,
 	);
@@ -575,6 +583,43 @@ export function ServerListPage() {
 		}
 	};
 
+	// 搜索和排序逻辑
+	const filteredAndSortedServers = useMemo(() => {
+		if (!serverListResponse?.servers) return [];
+
+		let filtered = serverListResponse.servers;
+
+		// 搜索过滤
+		if (search.trim()) {
+			const searchLower = search.toLowerCase();
+			filtered = filtered.filter((server) => {
+				const name = server.name?.toLowerCase() || "";
+				const description = (server as any).description?.toLowerCase() || "";
+				return name.includes(searchLower) || description.includes(searchLower);
+			});
+		}
+
+		// 排序
+		filtered.sort((a, b) => {
+			switch (sort) {
+				case "name": {
+					const nameA = a.name || "";
+					const nameB = b.name || "";
+					return nameA.localeCompare(nameB);
+				}
+				case "status": {
+					const statusA = a.status || "";
+					const statusB = b.status || "";
+					return statusB.localeCompare(statusA);
+				}
+				default:
+					return 0;
+			}
+		});
+
+		return filtered;
+	}, [serverListResponse?.servers, search, sort]);
+
 	// Prepare stats cards data
 	const statsCards = [
 		{
@@ -641,6 +686,73 @@ export function ServerListPage() {
 					</div>
 				));
 
+	// 工具栏配置
+	const toolbarConfig = createToolbarConfig("servers", {
+		search: {
+			placeholder: "Search servers...",
+		},
+		viewMode: {
+			enabled: true,
+			defaultMode: defaultView as "grid" | "list",
+		},
+	});
+
+	// 工具栏状态
+	const toolbarState = {
+		search,
+		viewMode: defaultView,
+		sort,
+		expanded,
+	};
+
+	// 工具栏回调
+	const toolbarCallbacks = {
+		onSearchChange: setSearch,
+		onViewModeChange: (mode: "grid" | "list") => {
+			// 直接更新全局设置
+			setDashboardSetting("defaultView", mode);
+		},
+		onSortChange: setSort,
+		onExpandedChange: setExpanded,
+	};
+
+	// 操作按钮
+	const actions = (
+		<div className="flex items-center gap-2">
+			{isError && enableServerDebug && (
+				<Button
+					onClick={toggleDebugInfo}
+					variant="outline"
+					size="sm"
+					className="h-9 w-9 p-0"
+					title="Debug"
+				>
+					<AlertCircle className="h-4 w-4" />
+				</Button>
+			)}
+			<Button
+				onClick={() => refetch()}
+				disabled={isRefetching}
+				variant="outline"
+				size="sm"
+				className="h-9 w-9 p-0"
+				title="Refresh"
+			>
+				<RefreshCw
+					className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
+				/>
+			</Button>
+			<Button
+				onClick={() => setIsAddServerOpen(true)}
+				size="sm"
+				className="h-9 w-9 p-0"
+				title="Add Server"
+			>
+				<Plus className="h-4 w-4" />
+			</Button>
+		</div>
+	);
+
 	// Prepare empty state
 	const emptyState = (
 		<Card>
@@ -668,32 +780,12 @@ export function ServerListPage() {
 		<PageLayout
 			title="Servers"
 			headerActions={
-				<div className="flex items-center gap-2">
-					{isError && enableServerDebug && (
-						<Button onClick={toggleDebugInfo} variant="outline" size="sm">
-							<AlertCircle className="mr-2 h-4 w-4" />
-							{debugInfo ? "Hide Debug" : "Debug"}
-						</Button>
-					)}
-					<Button
-						onClick={() => refetch()}
-						disabled={isRefetching}
-						variant="outline"
-						size="sm"
-					>
-						<RefreshCw
-							className={`mr-2 h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
-						/>
-						Refresh
-					</Button>
-					<Button
-						onClick={() => setIsAddServerOpen(true)}
-						size="sm"
-						title="Add Server"
-					>
-						<Plus className="h-4 w-4" />
-					</Button>
-				</div>
+				<PageToolbar
+					config={toolbarConfig}
+					state={toolbarState}
+					callbacks={toolbarCallbacks}
+					actions={actions}
+				/>
 			}
 			statsCards={<StatsCards cards={statsCards} />}
 		>
@@ -740,12 +832,12 @@ export function ServerListPage() {
 				loading={isLoading}
 				loadingSkeleton={loadingSkeleton}
 				emptyState={
-					serverListResponse?.servers?.length === 0 ? emptyState : undefined
+					filteredAndSortedServers.length === 0 ? emptyState : undefined
 				}
 			>
 				{defaultView === "grid"
-					? serverListResponse?.servers?.map(renderServerCard)
-					: serverListResponse?.servers?.map(renderServerListItem)}
+					? filteredAndSortedServers.map(renderServerCard)
+					: filteredAndSortedServers.map(renderServerListItem)}
 			</ListGridContainer>
 
 			{/* Add server drawer */}
