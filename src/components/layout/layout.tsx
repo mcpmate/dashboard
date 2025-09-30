@@ -15,6 +15,9 @@ export function Layout() {
 				(theme === "system" &&
 					window.matchMedia("(prefers-color-scheme: dark)").matches);
 			document.documentElement.classList.toggle("dark", isDark);
+
+			// Set background color based on theme
+			document.body.style.backgroundColor = isDark ? "#0f0f0f" : "#f2f2f2";
 		};
 
 		apply();
@@ -23,6 +26,8 @@ export function Layout() {
 		const onChange = (e: MediaQueryListEvent) => {
 			if (theme === "system") {
 				document.documentElement.classList.toggle("dark", e.matches);
+				// Update background color when system theme changes
+				document.body.style.backgroundColor = e.matches ? "#0f0f0f" : "#f2f2f2";
 			}
 		};
 		if (theme === "system") {
@@ -76,7 +81,7 @@ export function Layout() {
 	}, [sidebarOpen, setSidebarOpen]);
 
 	return (
-		<div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+		<div className="min-h-screen">
 			<Sidebar />
 			<Header />
 			<main

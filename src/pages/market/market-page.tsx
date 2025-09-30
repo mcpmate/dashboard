@@ -695,8 +695,8 @@ export function MarketPage() {
 	return (
 		<>
 			<div className="space-y-4">
-				<div className="sticky top-0 z-10 -mx-1 rounded-b-xl bg-slate-50/95 px-1 backdrop-blur supports-[backdrop-filter]:bg-slate-50/70 dark:bg-slate-900/95 dark:supports-[backdrop-filter]:bg-slate-900/80">
-					<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+				<div className="sticky top-0 z-10 -mx-1 rounded-b-xl px-1 backdrop-blur">
+					<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 						<div className="space-y-1">
 							<h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
 								Market
@@ -711,14 +711,14 @@ export function MarketPage() {
 									value={search}
 									onChange={(event) => setSearch(event.target.value)}
 									placeholder="Search by server name"
-									className="w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-600"
+									className="h-9 w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-600"
 								/>
 							</div>
 							<Select
 								value={sort}
 								onValueChange={(value: SortOption) => setSort(value)}
 							>
-								<SelectTrigger className="w-full sm:w-[160px]">
+								<SelectTrigger className="h-9 w-full sm:w-[160px]">
 									<SelectValue placeholder="Sort" />
 								</SelectTrigger>
 								<SelectContent align="end">
@@ -728,6 +728,7 @@ export function MarketPage() {
 							</Select>
 							<Button
 								variant="outline"
+								size="sm"
 								onClick={handleRefresh}
 								className="gap-2"
 							>

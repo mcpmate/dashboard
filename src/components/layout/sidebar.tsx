@@ -98,7 +98,6 @@ export function Sidebar() {
 						alt="MCPMate"
 						className={cn(
 							"h-6 w-6 object-contain transition",
-							// In dark mode, invert to white for visibility
 							"dark:invert dark:brightness-0",
 							!sidebarOpen && "mx-auto",
 						)}
