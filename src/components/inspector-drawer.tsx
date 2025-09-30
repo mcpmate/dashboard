@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import {
 	Drawer,
@@ -83,6 +83,10 @@ export function InspectorDrawer({
 	);
 	const [submitting, setSubmitting] = useState(false);
 	const [result, setResult] = useState<any | null>(null);
+	const [callId, setCallId] = useState<string | null>(null);
+	const sseRef = useRef<EventSource | null>(null);
+	const [progressInfo, setProgressInfo] = useState<{ percent?: number; message?: string } | null>(null);
+	const [streamError, setStreamError] = useState<string | null>(null);
 
 	// Build mock from JSON Schema types
 	function mockOfType(t?: string): any {
@@ -263,6 +267,160 @@ export function InspectorDrawer({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open, item, kind]);
 
+	useEffect(() => {
+		if (!callId) {
+			return;
+		}
+		const es = new EventSource(
+			`/api/mcp/inspector/tool/call/stream?call_id=${encodeURIComponent(callId)}`,
+		);
+		sseRef.current = es;
+
+		const handleEvent = (type: string) => (event: MessageEvent) => {
+			try {
+				const payload = JSON.parse(event.data || "{}");
+				const data = payload.data ?? {};
+				switch (type) {
+					case "progress": {
+						const percent =
+							typeof data.percent === "number"
+								? data.percent
+								: typeof data.progress === "number"
+									? data.progress
+									: undefined;
+						setProgressInfo({
+							percent,
+							message: data.message,
+						});
+						onLog?.({
+							id: newLogId(),
+							timestamp: Date.now(),
+							channel: "inspector",
+							event: "success",
+							method: "tools/call",
+							mode,
+							message: data.message || "progress",
+							payload: data,
+						});
+						break;
+					}
+					case "log": {
+						onLog?.({
+							id: newLogId(),
+							timestamp: Date.now(),
+							channel: "inspector",
+							event: "success",
+							method: "tools/call",
+							mode,
+							message: data.message || data.level || "log",
+							payload: data,
+						});
+						break;
+					}
+					case "result": {
+						setProgressInfo(null);
+						setCallId(null);
+						if (sseRef.current) {
+							sseRef.current.close();
+							sseRef.current = null;
+						}
+						setSubmitting(false);
+						setResult(data.result ?? data);
+						notifySuccess("Inspector executed", "See response below");
+						onLog?.({
+							id: newLogId(),
+							timestamp: Date.now(),
+							channel: "inspector",
+							event: "success",
+							method: "tools/call",
+							mode,
+							payload: data,
+						});
+						break;
+					}
+					case "error": {
+						setProgressInfo(null);
+						setCallId(null);
+						if (sseRef.current) {
+							sseRef.current.close();
+							sseRef.current = null;
+						}
+						setSubmitting(false);
+						setStreamError(data.message || "Tool call failed");
+						onLog?.({
+							id: newLogId(),
+							timestamp: Date.now(),
+							channel: "inspector",
+							event: "error",
+							method: "tools/call",
+							mode,
+							payload: data,
+						});
+						notifyError("Inspector request failed", data.message || "Tool error");
+						break;
+					}
+					case "cancelled": {
+						setProgressInfo(null);
+						setCallId(null);
+						if (sseRef.current) {
+							sseRef.current.close();
+							sseRef.current = null;
+						}
+						setSubmitting(false);
+						setStreamError(data.reason || "Call cancelled");
+						onLog?.({
+							id: newLogId(),
+							timestamp: Date.now(),
+							channel: "inspector",
+							event: "error",
+							method: "tools/call",
+							mode,
+							message: data.reason || "cancelled",
+							payload: data,
+						});
+						break;
+					}
+				}
+			} catch (err) {
+				console.error("Failed to process inspector SSE", err);
+			}
+		};
+
+		["progress", "result", "error", "cancelled", "log"].forEach((eventName) => {
+			es.addEventListener(eventName, handleEvent(eventName));
+		});
+
+		es.onerror = () => {
+			setStreamError("Inspector stream disconnected");
+			setSubmitting(false);
+			setProgressInfo(null);
+			setCallId(null);
+			es.close();
+			sseRef.current = null;
+		};
+
+		return () => {
+			es.close();
+			sseRef.current = null;
+		};
+	}, [callId, mode, onLog, serverId, serverName]);
+
+	useEffect(() => {
+		if (!open) {
+			if (callId) {
+				inspectorApi
+					.toolCallCancel({ call_id: callId })
+					.catch(() => undefined);
+			}
+			if (sseRef.current) {
+				sseRef.current.close();
+				sseRef.current = null;
+			}
+			setCallId(null);
+			setProgressInfo(null);
+		}
+	}, [open, callId]);
+
 	function parseArgs(): Record<string, any> | undefined {
 		try {
 			const obj = JSON.parse(argsJson || "{}");
@@ -277,6 +435,16 @@ export function InspectorDrawer({
 	async function onSubmit() {
 		try {
 			setSubmitting(true);
+			setResult(null);
+			setStreamError(null);
+			setProgressInfo(null);
+			if (sseRef.current) {
+				sseRef.current.close();
+				sseRef.current = null;
+			}
+			if (callId) {
+				setCallId(null);
+			}
 			let resp: any = null;
 			const baseLog = {
 				id: newLogId(),
@@ -307,12 +475,40 @@ export function InspectorDrawer({
 					arguments: args,
 					timeout_ms: timeoutMs,
 				});
-				onLog?.({
-					...baseLog,
-					event: "success",
-					method: "tools/call",
-					payload: resp,
-				});
+				if (!resp?.success) {
+					throw new Error(
+						resp?.error ? String(resp.error) : "Tool call failed",
+					);
+				}
+				const data = resp.data ?? {};
+				if (data.result) {
+					setResult(data);
+					onLog?.({
+						...baseLog,
+						event: "success",
+						method: "tools/call",
+						payload: data,
+					});
+					notifySuccess("Inspector executed", "See response below");
+				} else if (data.call_id) {
+					setCallId(String(data.call_id));
+					onLog?.({
+						...baseLog,
+						event: "success",
+						method: "tools/call",
+						payload: data,
+						message: data.message || "accepted",
+					});
+				} else {
+					setResult(data);
+					onLog?.({
+						...baseLog,
+						event: "success",
+						method: "tools/call",
+						payload: data,
+					});
+					notifySuccess("Inspector executed", "See response below");
+				}
 			} else if (kind === "prompt") {
 				const args = useRaw ? parseArgs() : values;
 				if (args === undefined) return;
@@ -334,12 +530,20 @@ export function InspectorDrawer({
 					mode,
 					arguments: args,
 				});
+				if (!resp?.success) {
+					throw new Error(
+						resp?.error ? String(resp.error) : "Prompt get failed",
+					);
+				}
+				const data = resp.data ?? {};
+				setResult(data.result ?? data);
 				onLog?.({
 					...baseLog,
 					event: "success",
 					method: "prompts/get",
-					payload: resp,
+					payload: data,
 				});
+				notifySuccess("Inspector executed", "See response below");
 			} else {
 				onLog?.({
 					...baseLog,
@@ -353,15 +557,22 @@ export function InspectorDrawer({
 					server_name: serverName,
 					mode,
 				});
+				if (!resp?.success) {
+					throw new Error(
+						resp?.error ? String(resp.error) : "Resource read failed",
+					);
+				}
+				const data = resp.data ?? {};
+				setResult(data.result ?? data);
 				onLog?.({
 					...baseLog,
 					event: "success",
 					method: "resources/read",
-					payload: resp,
+					payload: data,
 				});
+				notifySuccess("Inspector executed", "See response below");
 			}
-			setResult(resp);
-			notifySuccess("Inspector executed", "See response below");
+			setSubmitting(false);
 		} catch (e) {
 			onLog?.({
 				id: newLogId(),
@@ -516,6 +727,22 @@ export function InspectorDrawer({
 									onChange={(e) => setArgsJson(e.target.value)}
 								/>
 							)}
+						</div>
+					) : null}
+
+					{progressInfo ? (
+						<div className="rounded border border-sky-200 bg-sky-50 dark:bg-slate-900/40 p-2 text-xs text-sky-700 dark:text-sky-300">
+							Progress:
+							{typeof progressInfo.percent === "number"
+								? ` ${progressInfo.percent.toFixed(1)}%`
+								: " updating"}
+							{progressInfo.message ? ` · ${progressInfo.message}` : ""}
+						</div>
+					) : null}
+
+					{streamError ? (
+						<div className="rounded border border-red-200 bg-red-50 dark:bg-red-900/30 p-2 text-xs text-red-700 dark:text-red-300">
+							{streamError}
 						</div>
 					) : null}
 

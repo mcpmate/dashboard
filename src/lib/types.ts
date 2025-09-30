@@ -578,6 +578,9 @@ export interface ClientTemplateMetadata {
   name?: string | null;
   version?: string | null;
   description?: string | null;
+  homepage_url?: string | null;
+  docs_url?: string | null;
+  support_url?: string | null;
 }
 
 export interface ClientInfo {
@@ -591,7 +594,10 @@ export interface ClientInfo {
   config_exists: boolean;
   has_mcp_config: boolean;
   supported_transports: string[];
-  supported_runtimes: string[];
+  description?: string | null;
+  homepage_url?: string | null;
+  docs_url?: string | null;
+  support_url?: string | null;
   config_type?: ClientConfigType | null;
   config_mode?: string | null;
   install_path?: string | null;
@@ -642,9 +648,13 @@ export interface ClientConfigData {
   last_modified?: string | null;
   managed: boolean;
   mcp_servers_count: number;
-  supported_runtimes: string[];
   supported_transports: string[];
   template?: ClientTemplateMetadata;
+  description?: string | null;
+  homepage_url?: string | null;
+  docs_url?: string | null;
+  support_url?: string | null;
+  logo_url?: string | null;
 }
 
 export interface ClientConfigResp {

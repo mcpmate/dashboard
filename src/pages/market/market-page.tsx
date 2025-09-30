@@ -386,7 +386,7 @@ function MarketCard({ server, installed, onPreview, onHide }: MarketCardProps) {
 				}
 			}}
 			className={cn(
-				"flex h-full flex-col justify-between border border-slate-200/70 bg-white shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:border-primary/40 hover:shadow-md dark:border-slate-800/70 dark:bg-slate-950",
+				"flex h-full flex-col justify-between border border-slate-200/70 bg-white shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 hover:border-primary/40 hover:shadow-md dark:border-slate-800/70 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]",
 				supportsPreview ? "cursor-pointer" : "cursor-not-allowed opacity-95",
 			)}
 		>

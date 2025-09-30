@@ -73,7 +73,9 @@ function ExternalSidebarLink({
 export function Sidebar() {
 	const sidebarOpen = useAppStore((state) => state.sidebarOpen);
 	const toggleSidebar = useAppStore((state) => state.toggleSidebar);
-	const showApiDocsMenu = useAppStore((state) => state.dashboardSettings.showApiDocsMenu);
+	const showApiDocsMenu = useAppStore(
+		(state) => state.dashboardSettings.showApiDocsMenu,
+	);
 
 	return (
 		<div
@@ -141,12 +143,12 @@ export function Sidebar() {
 					{sidebarOpen && "Clients"}
 				</SidebarLink>
 
-				<SidebarLink to="/market" icon={<Store size={20} />}>
-					{sidebarOpen && "Market"}
-				</SidebarLink>
-
 				<SidebarLink to="/servers" icon={<Server size={20} />}>
 					{sidebarOpen && "Servers"}
+				</SidebarLink>
+
+				<SidebarLink to="/market" icon={<Store size={20} />}>
+					{sidebarOpen && "Market"}
 				</SidebarLink>
 
 				{/* Tools removed per feedback */}

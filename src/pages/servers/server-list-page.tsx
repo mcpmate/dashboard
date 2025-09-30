@@ -7,6 +7,7 @@ import {
 	Power,
 	PowerOff,
 	RefreshCw,
+	Server,
 	Trash,
 } from "lucide-react";
 import { useState } from "react";
@@ -23,6 +24,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import {
+	PageLayout,
+	StatsCard,
+	EmptyState,
+} from "../../components/page-layout";
+import { ListGridContainer } from "../../components/list-grid-container";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
@@ -64,7 +71,10 @@ export function ServerListPage() {
 
 	const queryClient = useQueryClient();
 
-	// Developer toggles
+	// View mode and developer toggles
+	const defaultView = useAppStore(
+		(state) => state.dashboardSettings.defaultView,
+	);
 	const enableServerDebug = useAppStore(
 		(state) => state.dashboardSettings.enableServerDebug,
 	);
@@ -295,12 +305,121 @@ export function ServerListPage() {
 		}
 	};
 
+	const renderServerListItem = (server: ServerSummary) => {
+		const profileRefs = profileUsage?.[server.id] ?? [];
+		return (
+			<div
+				key={server.id}
+				className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]"
+				role="button"
+				tabIndex={0}
+				onClick={(e) => {
+					const target = e.target as HTMLElement;
+					if (target.closest('button, a, input, [role="switch"]')) return;
+					navigate(`/servers/${encodeURIComponent(server.id)}`);
+				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						navigate(`/servers/${encodeURIComponent(server.id)}`);
+					}
+				}}
+			>
+				<div className="flex items-center gap-3">
+					<div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-lg font-semibold">
+						{(server.name || server.id || "S").slice(0, 1).toUpperCase()}
+					</div>
+					<div className="space-y-2">
+						<div className="flex items-center gap-2">
+							<h3 className="font-medium text-sm leading-tight">
+								{server.name}
+							</h3>
+							<StatusBadge
+								status={server.status}
+								instances={server.instances}
+								blinkOnError={[
+									"error",
+									"unhealthy",
+									"stopped",
+									"failed",
+								].includes((server.status || "").toLowerCase())}
+								isServerEnabled={server.enabled}
+							/>
+						</div>
+						<div className="flex flex-wrap gap-4 text-xs text-slate-400">
+							<span>
+								Type: {server.server_type || server.kind || "Unknown"}
+							</span>
+							<span>Instances: {getInstanceCount(server)}</span>
+							{server.enabled !== undefined ? (
+								<span>Status: {server.enabled ? "Enabled" : "Disabled"}</span>
+							) : null}
+						</div>
+						{profileRefs.length > 0 && (
+							<div className="flex flex-wrap gap-1 text-xs text-slate-500">
+								<span>Profiles: {profileRefs.join(", ")}</span>
+							</div>
+						)}
+					</div>
+				</div>
+				<div className="flex items-center gap-2">
+					{enableServerDebug && (
+						<Button
+							size="sm"
+							variant="outline"
+							className="gap-1"
+							onClick={(ev) => {
+								ev.stopPropagation();
+								const targetChannel =
+									profileRefs.length > 0 ? "proxy" : "native";
+								const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
+								if (openDebugInNewWindow) {
+									if (typeof window !== "undefined") {
+										window.open(url, "_blank", "noopener,noreferrer");
+									}
+									return;
+								}
+								navigate(url);
+							}}
+							title="Open debug view"
+						>
+							<Bug className="h-4 w-4" /> Debug
+						</Button>
+					)}
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={(ev) => {
+							ev.stopPropagation();
+							setEditingServer(server as any);
+						}}
+						title="Edit server"
+					>
+						<Edit className="h-4 w-4" />
+					</Button>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={(ev) => {
+							ev.stopPropagation();
+							setDeletingServer(server.id);
+							setIsDeleteConfirmOpen(true);
+						}}
+						title="Delete server"
+					>
+						<Trash className="h-4 w-4" />
+					</Button>
+				</div>
+			</div>
+		);
+	};
+
 	const renderServerCard = (server: ServerSummary) => {
 		const profileRefs = profileUsage?.[server.id] ?? [];
 		return (
 			<Card
 				key={server.id}
-				className="group overflow-hidden cursor-pointer hover:border-primary/40 transition-shadow hover:shadow-lg"
+				className="group overflow-hidden cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] hover:border-primary/40 transition-shadow hover:shadow-lg dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]"
 				role="button"
 				tabIndex={0}
 				onClick={(e) => {
@@ -440,92 +559,129 @@ export function ServerListPage() {
 		}
 	};
 
-	return (
-		<div className="space-y-4">
-			{/* Page header */}
-			<div className="flex items-center justify-between gap-4">
-				<h2 className="text-3xl font-bold tracking-tight">Servers</h2>
-				{/* Right side header controls: sync toggle + actions in one row */}
-				<div className="flex items-center gap-3 whitespace-nowrap">
-					<div className="flex items-center gap-2">
-						<Button
-							onClick={() => refetch()}
-							disabled={isRefetching}
-							variant="outline"
-							size="sm"
-						>
-							<RefreshCw
-								className={`mr-2 h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
-							/>
-							Refresh
-						</Button>
-						<Button onClick={() => setIsAddServerOpen(true)} size="sm">
-							<Plus className="mr-2 h-4 w-4" />
-							Add Server
-						</Button>
+	// Prepare stats cards data
+	const statsCards = [
+		{
+			title: "Total Servers",
+			value: serverListResponse?.servers?.length || 0,
+			description: "registered",
+		},
+		{
+			title: "Enabled",
+			value: (serverListResponse?.servers || []).filter((s) => s.enabled)
+				.length,
+			description: "feature toggled",
+		},
+		{
+			title: "Connected",
+			value: (serverListResponse?.servers || []).filter(
+				(s) => String(s.status || "").toLowerCase() === "connected",
+			).length,
+			description: "active connections",
+		},
+		{
+			title: "Instances",
+			value: (serverListResponse?.servers || []).reduce(
+				(sum, s) => sum + (s.instances?.length || 0),
+				0,
+			),
+			description: "total across servers",
+		},
+	];
+
+	// Prepare loading skeleton
+	const loadingSkeleton =
+		defaultView === "grid"
+			? Array.from({ length: 6 }, (_, index) => (
+					<Card key={`loading-grid-${index}`} className="overflow-hidden">
+						<CardHeader className="p-4">
+							<div className="h-6 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+							<div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+						</CardHeader>
+						<CardContent className="p-4 pt-0">
+							<div className="mt-2 flex justify-between">
+								<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+								<div className="h-9 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+							</div>
+						</CardContent>
+					</Card>
+				))
+			: Array.from({ length: 3 }, (_, index) => (
+					<div
+						key={`loading-suit-${index}`}
+						className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
+					>
+						<div className="flex items-center gap-3">
+							<div className="h-11 w-11 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800"></div>
+							<div className="space-y-2">
+								<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+								<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+							</div>
+						</div>
+						<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 					</div>
+				));
+
+	// Prepare empty state
+	const emptyState = (
+		<Card>
+			<CardContent className="flex flex-col items-center justify-center p-6">
+				<EmptyState
+					icon={<Server className="h-12 w-12" />}
+					title="No servers found"
+					description="Add your first MCP server to get started"
+					action={
+						<Button
+							onClick={() => setIsAddServerOpen(true)}
+							size="sm"
+							className="mt-4"
+						>
+							<Plus className="mr-2 h-4 w-4" />
+							Add First Server
+						</Button>
+					}
+				/>
+			</CardContent>
+		</Card>
+	);
+
+	return (
+		<PageLayout
+			title="Servers"
+			headerActions={
+				<div className="flex items-center gap-2">
+					{isError && enableServerDebug && (
+						<Button onClick={toggleDebugInfo} variant="outline" size="sm">
+							<AlertCircle className="mr-2 h-4 w-4" />
+							{debugInfo ? "Hide Debug" : "Debug"}
+						</Button>
+					)}
+					<Button
+						onClick={() => refetch()}
+						disabled={isRefetching}
+						variant="outline"
+						size="sm"
+					>
+						<RefreshCw
+							className={`mr-2 h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
+						/>
+						Refresh
+					</Button>
+					<Button onClick={() => setIsAddServerOpen(true)} size="sm">
+						<Plus className="mr-2 h-4 w-4" />
+						Add Server
+					</Button>
 				</div>
-			</div>
-
-			{/* Summary cards row */}
-			<div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-				<Card className="flex flex-col">
-					<CardHeader className="pb-2">
-						<CardTitle className="text-sm">Total Servers</CardTitle>
-					</CardHeader>
-					<CardContent className="pt-0">
-						<div className="text-2xl font-bold">
-							{serverListResponse?.servers?.length || 0}
-						</div>
-						<CardDescription>registered</CardDescription>
-					</CardContent>
-				</Card>
-				<Card className="flex flex-col">
-					<CardHeader className="pb-2">
-						<CardTitle className="text-sm">Enabled</CardTitle>
-					</CardHeader>
-					<CardContent className="pt-0">
-						<div className="text-2xl font-bold">
-							{
-								(serverListResponse?.servers || []).filter((s) => s.enabled)
-									.length
-							}
-						</div>
-						<CardDescription>feature toggled</CardDescription>
-					</CardContent>
-				</Card>
-				<Card className="flex flex-col">
-					<CardHeader className="pb-2">
-						<CardTitle className="text-sm">Connected</CardTitle>
-					</CardHeader>
-					<CardContent className="pt-0">
-						<div className="text-2xl font-bold">
-							{
-								(serverListResponse?.servers || []).filter(
-									(s) => String(s.status || "").toLowerCase() === "connected",
-								).length
-							}
-						</div>
-						<CardDescription>active connections</CardDescription>
-					</CardContent>
-				</Card>
-				<Card className="flex flex-col">
-					<CardHeader className="pb-2">
-						<CardTitle className="text-sm">Instances</CardTitle>
-					</CardHeader>
-					<CardContent className="pt-0">
-						<div className="text-2xl font-bold">
-							{(serverListResponse?.servers || []).reduce(
-								(sum, s) => sum + (s.instances?.length || 0),
-								0,
-							)}
-						</div>
-						<CardDescription>total across servers</CardDescription>
-					</CardContent>
-				</Card>
-				{/* Actions moved to page header; remove action card */}
-			</div>
-
+			}
+			statsCards={statsCards.map((stat) => (
+				<StatsCard
+					key={stat.title}
+					title={stat.title}
+					value={stat.value}
+					description={stat.description}
+				/>
+			))}
+		>
 			{isError && enableServerDebug && (
 				<Button onClick={toggleDebugInfo} variant="outline" size="sm">
 					<AlertCircle className="mr-2 h-4 w-4" />
@@ -565,48 +721,17 @@ export function ServerListPage() {
 				</Card>
 			)}
 
-			{/* List container card for consistency */}
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{isLoading ? (
-					// Loading skeleton
-					Array.from({ length: 6 }).map((_, i) => (
-						<Card key={i} className="overflow-hidden">
-							<CardHeader className="p-4">
-								<div className="h-6 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-								<div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-							</CardHeader>
-							<CardContent className="p-4 pt-0">
-								<div className="mt-2 flex justify-between">
-									<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-									<div className="h-9 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-								</div>
-							</CardContent>
-						</Card>
-					))
-				) : serverListResponse?.servers?.length ? (
-					serverListResponse.servers.map(renderServerCard)
-				) : (
-					<div className="col-span-full">
-						<Card>
-							<CardContent className="flex flex-col items-center justify-center p-6">
-								<p className="mb-2 text-center text-slate-500">
-									{isError
-										? "Failed to load servers, please check the error message above."
-										: "No servers found. Please ensure the backend service is running and servers are configured."}
-								</p>
-								<Button
-									onClick={() => setIsAddServerOpen(true)}
-									size="sm"
-									className="mt-4"
-								>
-									<Plus className="mr-2 h-4 w-4" />
-									Add First Server
-								</Button>
-							</CardContent>
-						</Card>
-					</div>
-				)}
-			</div>
+			<ListGridContainer
+				loading={isLoading}
+				loadingSkeleton={loadingSkeleton}
+				emptyState={
+					serverListResponse?.servers?.length === 0 ? emptyState : undefined
+				}
+			>
+				{defaultView === "grid"
+					? serverListResponse?.servers?.map(renderServerCard)
+					: serverListResponse?.servers?.map(renderServerListItem)}
+			</ListGridContainer>
 
 			{/* Add server drawer */}
 			<ServerFormDrawer
@@ -650,6 +775,6 @@ export function ServerListPage() {
 				isLoading={isDeleteLoading}
 				error={deleteError}
 			/>
-		</div>
+		</PageLayout>
 	);
 }

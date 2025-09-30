@@ -50,13 +50,16 @@ import {
 	DrawerDescription,
 } from "../../components/ui/drawer";
 import {
+	BookOpen,
+	Eye,
+	Globe,
+	LifeBuoy,
+	MoreHorizontal,
 	RefreshCw,
 	RotateCcw,
+	SlidersHorizontal,
 	Trash2,
 	Upload,
-	MoreHorizontal,
-	SlidersHorizontal,
-	Eye,
 } from "lucide-react";
 import {
 	Avatar,
@@ -130,6 +133,48 @@ export function ClientDetailPage() {
 		() => backups.filter((b) => b.identifier === identifier),
 		[backups, identifier],
 	);
+
+	const templateMeta = configDetails?.template;
+	const detailDescription =
+		configDetails?.description ??
+		templateMeta?.description ??
+		"";
+	const detailHomepageUrl =
+		configDetails?.homepage_url ??
+		templateMeta?.homepage_url ??
+		"";
+	const detailDocsUrl =
+		configDetails?.docs_url ??
+		templateMeta?.docs_url ??
+		"";
+	const detailSupportUrl =
+		configDetails?.support_url ??
+		templateMeta?.support_url ??
+		"";
+	const detailQuickLinks = useMemo(
+		() =>
+			[
+				detailHomepageUrl
+					? { label: "Homepage", url: detailHomepageUrl, icon: Globe }
+					: null,
+				detailDocsUrl
+					? { label: "Docs", url: detailDocsUrl, icon: BookOpen }
+					: null,
+				detailSupportUrl
+					? { label: "Support", url: detailSupportUrl, icon: LifeBuoy }
+					: null,
+			].filter(Boolean) as { label: string; url: string; icon: typeof Globe }[],
+		[detailHomepageUrl, detailDocsUrl, detailSupportUrl],
+	);
+
+	const handleDetailLinkClick = (url: string) => {
+		if (!url) return;
+		try {
+			window.open(url, "_blank", "noopener,noreferrer");
+		} catch {
+			/* noop */
+		}
+	};
 
 	const { data: policyData, refetch: refetchPolicy } = useQuery({
 		queryKey: ["client-policy", identifier],
@@ -318,9 +363,9 @@ export function ClientDetailPage() {
 								<>
 									<CardHeader className="flex flex-row items-center gap-3 pb-0">
 										<Avatar className="h-12 w-12">
-											{(configDetails as any)?.logo_url ? (
+											{configDetails.logo_url ? (
 												<AvatarImage
-													src={(configDetails as any).logo_url}
+													src={configDetails.logo_url}
 													alt={displayName || identifier}
 												/>
 											) : null}
@@ -337,7 +382,27 @@ export function ClientDetailPage() {
 											<div className="text-xs text-slate-500">{identifier}</div>
 										</div>
 									</CardHeader>
-									<CardContent className="text-sm pt-4">
+									<CardContent className="text-sm pt-4 space-y-4">
+										{detailDescription ? (
+											<p className="text-muted-foreground leading-snug max-w-3xl">
+												{detailDescription}
+											</p>
+										) : null}
+										{detailQuickLinks.length > 0 ? (
+											<div className="flex flex-wrap gap-2">
+												{detailQuickLinks.map((link) => (
+													<Button
+														key={`detail-link-${link.label}`}
+														variant="outline"
+														size="sm"
+														onClick={() => handleDetailLinkClick(link.url)}
+													>
+														<link.icon className="mr-2 h-4 w-4" />
+														{link.label}
+													</Button>
+												))}
+											</div>
+										) : null}
 										<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 											<div>
 												Config Path:{" "}
@@ -346,7 +411,7 @@ export function ClientDetailPage() {
 												</span>
 											</div>
 											<div>
-												Managed: {String((configDetails as any).managed)}
+												Managed: {String(configDetails.managed)}
 											</div>
 											<div>
 												Servers detected: {configDetails.mcp_servers_count ?? 0}

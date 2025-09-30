@@ -27,6 +27,12 @@ import {
 } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
+import {
+	PageLayout,
+	StatsCard,
+	EmptyState,
+} from "../../components/page-layout";
+import { ListGridContainer } from "../../components/list-grid-container";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
@@ -419,7 +425,7 @@ export function ProfilePage() {
 		return (
 			<div
 				key={suit.id}
-				className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950"
+				className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]"
 				role="button"
 				tabIndex={0}
 				onClick={() => navigate(`/profiles/${suit.id}`)}
@@ -591,19 +597,125 @@ export function ProfilePage() {
 		);
 	};
 
-	return (
-		<div className="space-y-4">
-			{/* Debug Error Display */}
-			{suitsError && (
-				<div className="bg-red-50 border border-red-200 rounded-md p-4">
-					<h3 className="text-red-800 font-medium">Error loading profiles:</h3>
-					<p className="text-red-600 text-sm mt-1">{String(suitsError)}</p>
-				</div>
-			)}
+	// Prepare stats cards data
+	const statsCards = [
+		{
+			title: "Profiles",
+			value: isLoadingSuits ? "..." : `${activeSuits.length}/${suits.length}`,
+			description: "active profiles",
+			icon: <Settings className="h-4 w-4 text-emerald-600" />,
+		},
+		{
+			title: "Servers",
+			value:
+				activeSuitServersQueries.some((query) => query.isLoading) ||
+				isLoadingSuits
+					? "..."
+					: `${enabledServersCount}/${totalServersInSuit}`,
+			description: "running",
+			icon: <Server className="h-4 w-4 text-blue-600" />,
+		},
+		{
+			title: "Tools",
+			value:
+				activeSuitToolsQueries.some((query) => query.isLoading) ||
+				isLoadingSuits
+					? "..."
+					: `${enabledToolsCount}/${totalToolsInSuit}`,
+			description: "enabled",
+			icon: <Wrench className="h-4 w-4 text-purple-600" />,
+		},
+		{
+			title: "Instances",
+			value:
+				isLoadingAllServers ||
+				activeSuitServersQueries.some((query) => query.isLoading) ||
+				isLoadingSuits
+					? "..."
+					: `${readyInstances}/${totalInstances}`,
+			description: "ready",
+			icon: <Activity className="h-4 w-4 text-orange-600" />,
+		},
+	];
 
-			<div className="flex items-center justify-between">
-				<h2 className="text-3xl font-bold tracking-tight">Profiles</h2>
-				<div className="flex gap-2">
+	// Prepare loading skeleton
+	const loadingSkeleton =
+		defaultView === "grid"
+			? Array.from({ length: 6 }, (_, index) => (
+					<Card
+						key={`loading-grid-${index}`}
+						className="animate-pulse border border-slate-200 dark:border-slate-800"
+					>
+						<CardHeader className="space-y-2">
+							<div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-800"></div>
+							<div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800"></div>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="grid grid-cols-4 gap-x-6 gap-y-2">
+								{Array.from({ length: 4 }, (__, statIndex) => (
+									<div
+										key={`loading-grid-label-${index}-${statIndex}`}
+										className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-800"
+									></div>
+								))}
+								{Array.from({ length: 4 }, (__, statIndex) => (
+									<div
+										key={`loading-grid-value-${index}-${statIndex}`}
+										className="h-5 w-20 rounded bg-slate-200 dark:bg-slate-800"
+									></div>
+								))}
+							</div>
+						</CardContent>
+						<CardFooter className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+							<div className="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+							<div className="flex items-center gap-2">
+								<div className="h-3 w-14 rounded bg-slate-200 dark:bg-slate-800"></div>
+								<div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-800"></div>
+							</div>
+						</CardFooter>
+					</Card>
+				))
+			: Array.from({ length: 3 }, (_, id) => (
+					<div
+						key={`loading-suit-${id}`}
+						className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
+					>
+						<div className="space-y-1">
+							<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+							<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+						</div>
+						<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+					</div>
+				));
+
+	// Prepare empty state
+	const emptyState = (
+		<Card>
+			<CardContent className="flex flex-col items-center justify-center p-6">
+				<EmptyState
+					icon={<Settings className="h-12 w-12" />}
+					title="No profiles found"
+					description="Profiles help organize and manage your MCP servers, tools, and resources"
+					action={
+						<Button
+							onClick={() => setIsNewSuitDialogOpen(true)}
+							size="sm"
+							className="mt-4"
+						>
+							<Plus className="mr-2 h-4 w-4" />
+							Create First Profile
+						</Button>
+					}
+				/>
+			</CardContent>
+		</Card>
+	);
+
+	return (
+		<PageLayout
+			title="Profiles"
+			headerActions={
+				<div className="flex items-center gap-2">
 					<Button
 						onClick={() => refetchSuits()}
 						disabled={isRefetchingSuits}
@@ -620,204 +732,33 @@ export function ProfilePage() {
 						New Profile
 					</Button>
 				</div>
-			</div>
-
-			<div className="grid gap-4">
-				<div>
-					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-						{/* Active Profiles */}
-						<Card className="flex flex-col justify-between">
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">
-										Profiles
-									</CardTitle>
-									<Settings className="h-4 w-4 text-emerald-600" />
-								</div>
-							</CardHeader>
-							<CardContent className="pt-0">
-								{isLoadingSuits ? (
-									<div className="animate-pulse space-y-1">
-										<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
-										<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
-									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-											{activeSuits.length}/{suits.length}
-										</div>
-										<CardDescription className="text-sm text-muted-foreground">
-											active profiles
-										</CardDescription>
-									</>
-								)}
-							</CardContent>
-						</Card>
-
-						{/* Servers Status */}
-						<Card className="flex flex-col justify-between">
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">Servers</CardTitle>
-									<Server className="h-4 w-4 text-blue-600" />
-								</div>
-							</CardHeader>
-							<CardContent className="pt-0">
-								{activeSuitServersQueries.some((query) => query.isLoading) ||
-								isLoadingSuits ? (
-									<div className="animate-pulse space-y-1">
-										<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
-										<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
-									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-											{enabledServersCount}/{totalServersInSuit}
-										</div>
-										<CardDescription className="text-xs text-muted-foreground">
-											running
-										</CardDescription>
-									</>
-								)}
-							</CardContent>
-						</Card>
-
-						{/* Tools Status */}
-						<Card className="flex flex-col justify-between">
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">Tools</CardTitle>
-									<Wrench className="h-4 w-4 text-purple-600" />
-								</div>
-							</CardHeader>
-							<CardContent className="pt-0">
-								{activeSuitToolsQueries.some((query) => query.isLoading) ||
-								isLoadingSuits ? (
-									<div className="animate-pulse space-y-1">
-										<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
-										<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
-									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-											{enabledToolsCount}/{totalToolsInSuit}
-										</div>
-										<CardDescription className="text-xs text-muted-foreground">
-											enabled
-										</CardDescription>
-									</>
-								)}
-							</CardContent>
-						</Card>
-
-						{/* Instances Status */}
-						<Card className="flex flex-col justify-between">
-							<CardHeader className="pb-2">
-								<div className="flex items-center justify-between">
-									<CardTitle className="text-sm font-medium">
-										Instances
-									</CardTitle>
-									<Activity className="h-4 w-4 text-orange-600" />
-								</div>
-							</CardHeader>
-							<CardContent className="pt-0">
-								{isLoadingAllServers ||
-								activeSuitServersQueries.some((query) => query.isLoading) ||
-								isLoadingSuits ? (
-									<div className="animate-pulse space-y-1">
-										<div className="h-8 w-16 rounded bg-slate-200 dark:bg-slate-800" />
-										<div className="h-4 w-20 rounded bg-slate-200 dark:bg-slate-800" />
-									</div>
-								) : (
-									<>
-										<div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-											{readyInstances}/{totalInstances}
-										</div>
-										<CardDescription className="text-xs text-muted-foreground">
-											ready
-										</CardDescription>
-									</>
-								)}
-							</CardContent>
-						</Card>
-					</div>
+			}
+			statsCards={statsCards.map((stat) => (
+				<StatsCard
+					key={stat.title}
+					title={stat.title}
+					value={stat.value}
+					description={stat.description}
+					icon={stat.icon}
+				/>
+			))}
+		>
+			{suitsError && (
+				<div className="bg-red-50 border border-red-200 rounded-md p-4">
+					<h3 className="text-red-800 font-medium">Error loading profiles:</h3>
+					<p className="text-red-600 text-sm mt-1">{String(suitsError)}</p>
 				</div>
+			)}
 
-				{isLoadingSuits ? (
-					defaultView === "grid" ? (
-						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-							{Array.from({ length: 6 }).map((_, index) => (
-								<Card
-									key={`loading-grid-${index}`}
-									className="animate-pulse border border-slate-200 dark:border-slate-800"
-								>
-									<CardHeader className="space-y-2">
-										<div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-800"></div>
-										<div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800"></div>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										<div className="grid grid-cols-4 gap-x-6 gap-y-2">
-											{Array.from({ length: 4 }).map((__, statIndex) => (
-												<div
-													key={`loading-grid-label-${statIndex}`}
-													className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-800"
-												></div>
-											))}
-											{Array.from({ length: 4 }).map((__, statIndex) => (
-												<div
-													key={`loading-grid-value-${statIndex}`}
-													className="h-5 w-20 rounded bg-slate-200 dark:bg-slate-800"
-												></div>
-											))}
-										</div>
-									</CardContent>
-									<CardFooter className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
-										<div className="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-800"></div>
-										<div className="flex items-center gap-2">
-											<div className="h-3 w-14 rounded bg-slate-200 dark:bg-slate-800"></div>
-											<div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-800"></div>
-										</div>
-									</CardFooter>
-								</Card>
-							))}
-						</div>
-					) : (
-						<div className="space-y-4">
-							{["s1", "s2", "s3"].map((id) => (
-								<div
-									key={`loading-suit-${id}`}
-									className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
-								>
-									<div className="space-y-1">
-										<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-										<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-									</div>
-									<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-								</div>
-							))}
-						</div>
-					)
-				) : orderedSuits.length > 0 ? (
-					defaultView === "grid" ? (
-						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-							{orderedSuits.map(renderSuitCard)}
-						</div>
-					) : (
-						<div className="space-y-4">
-							{orderedSuits.map(renderSuitListItem)}
-						</div>
-					)
-				) : (
-					<div className="text-center py-8">
-						<Settings className="mx-auto h-12 w-12 text-slate-400 mb-4" />
-						<p className="text-slate-500 mb-2">No profiles found</p>
-						<p className="text-sm text-slate-400">
-							Profiles help organize and manage your MCP servers, tools, and
-							resources
-						</p>
-					</div>
-				)}
-			</div>
+			<ListGridContainer
+				loading={isLoadingSuits}
+				loadingSkeleton={loadingSkeleton}
+				emptyState={orderedSuits.length === 0 ? emptyState : undefined}
+			>
+				{defaultView === "grid"
+					? orderedSuits.map(renderSuitCard)
+					: orderedSuits.map(renderSuitListItem)}
+			</ListGridContainer>
 
 			{/* New Suit Drawer */}
 			<SuitFormDrawer
@@ -829,6 +770,6 @@ export function ProfilePage() {
 					refetchSuits();
 				}}
 			/>
-		</div>
+		</PageLayout>
 	);
 }
