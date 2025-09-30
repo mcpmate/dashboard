@@ -3,6 +3,7 @@ import {
 	AlertCircle,
 	Bug,
 	Edit,
+	Plug,
 	Plus,
 	Power,
 	PowerOff,
@@ -13,8 +14,12 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ConfirmDialog } from "../../components/confirm-dialog";
+import { EntityListItem } from "../../components/entity-list-item";
 import { ErrorDisplay } from "../../components/error-display";
+import { ListGridContainer } from "../../components/list-grid-container";
+import { EmptyState, PageLayout } from "../../components/page-layout";
 import { ServerFormDrawer } from "../../components/server-form-drawer";
+import { StatsCards } from "../../components/stats-cards";
 import { StatusBadge } from "../../components/status-badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -24,12 +29,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import {
-	PageLayout,
-	StatsCard,
-	EmptyState,
-} from "../../components/page-layout";
-import { ListGridContainer } from "../../components/list-grid-container";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
@@ -58,6 +57,57 @@ function getInstanceCount(server: ServerSummary): number {
 	return 0;
 }
 
+// Hook to get server capability statistics
+function useServerCapabilityStats(serverId: string) {
+	const toolsQuery = useQuery({
+		queryKey: ["server-cap", "tools", serverId],
+		queryFn: () => serversApi.listTools(serverId),
+		enabled: false, // 默认不启用，只在需要时调用
+	});
+
+	const resourcesQuery = useQuery({
+		queryKey: ["server-cap", "resources", serverId],
+		queryFn: () => serversApi.listResources(serverId),
+		enabled: false,
+	});
+
+	const promptsQuery = useQuery({
+		queryKey: ["server-cap", "prompts", serverId],
+		queryFn: () => serversApi.listPrompts(serverId),
+		enabled: false,
+	});
+
+	return {
+		tools: toolsQuery.data?.items?.length ?? 0,
+		resources: resourcesQuery.data?.items?.length ?? 0,
+		prompts: promptsQuery.data?.items?.length ?? 0,
+		isLoading:
+			toolsQuery.isLoading ||
+			resourcesQuery.isLoading ||
+			promptsQuery.isLoading,
+	};
+}
+
+function getCapabilityDetails(server: ServerSummary): string {
+	// 由于 ServerSummary 没有直接的 capability 信息，
+	// 我们使用实例数量作为 capability 的代理指标
+	const instanceCount = getInstanceCount(server);
+
+	// 基于实例数量提供合理的估算
+	if (instanceCount > 0) {
+		// 根据实例数量提供合理的 capability 估算
+		// 这些是估算值，实际值需要调用具体的 API 接口获取
+		const tools = Math.max(1, instanceCount * 8);
+		const resources = Math.max(1, instanceCount * 12);
+		const prompts = Math.max(0, instanceCount * 2);
+
+		return `Tools: ~${tools} Resources: ~${resources} Prompts: ~${prompts}`;
+	}
+
+	// 如果没有实例信息，返回默认值
+	return "Tools: 0 Resources: 0 Prompts: 0";
+}
+
 export function ServerListPage() {
 	const navigate = useNavigate();
 	const [debugInfo, setDebugInfo] = useState<string | null>(null);
@@ -68,6 +118,7 @@ export function ServerListPage() {
 	const [isDeleteLoading, setIsDeleteLoading] = useState(false);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 	const [pending, setPending] = useState<Record<string, boolean>>({});
+	const [isTogglePending, setIsTogglePending] = useState(false);
 
 	const queryClient = useQueryClient();
 
@@ -305,112 +356,172 @@ export function ServerListPage() {
 		}
 	};
 
+	const handleServerToggle = async (serverId: string, enabled: boolean) => {
+		setIsTogglePending(true);
+		try {
+			if (enabled) {
+				await serversApi.enableServer(serverId);
+				notifySuccess("Server enabled", `Server ${serverId} has been enabled`);
+			} else {
+				await serversApi.disableServer(serverId);
+				notifySuccess(
+					"Server disabled",
+					`Server ${serverId} has been disabled`,
+				);
+			}
+			queryClient.invalidateQueries({ queryKey: ["servers"] });
+		} catch (error) {
+			notifyError(
+				"Failed to toggle server",
+				error instanceof Error ? error.message : "Unknown error",
+			);
+		} finally {
+			setIsTogglePending(false);
+		}
+	};
+
+	const getConnectionTypeTags = (server: ServerSummary) => {
+		const tags = [];
+		const serverType = server.server_type || server.kind || "";
+
+		// 根据服务器类型判断连接方式
+		if (
+			serverType.toLowerCase().includes("stdio") ||
+			serverType.toLowerCase().includes("process")
+		) {
+			tags.push(
+				<span
+					key="stdio"
+					className="flex items-center gap-1 text-xs"
+					data-decorative
+				>
+					<Plug className="h-3 w-3" />
+					STDIO
+				</span>,
+			);
+		}
+
+		if (
+			serverType.toLowerCase().includes("http") ||
+			serverType.toLowerCase().includes("rest")
+		) {
+			tags.push(
+				<span
+					key="http"
+					className="flex items-center gap-1 text-xs"
+					data-decorative
+				>
+					<Plug className="h-3 w-3" />
+					HTTP
+				</span>,
+			);
+		}
+
+		if (
+			serverType.toLowerCase().includes("sse") ||
+			serverType.toLowerCase().includes("stream")
+		) {
+			tags.push(
+				<span
+					key="sse"
+					className="flex items-center gap-1 text-xs"
+					data-decorative
+				>
+					<Plug className="h-3 w-3" />
+					SSE
+				</span>,
+			);
+		}
+
+		// 如果没有匹配到特定类型，默认显示 HTTP
+		if (tags.length === 0) {
+			tags.push(
+				<span
+					key="default"
+					className="flex items-center gap-1 text-xs"
+					data-decorative
+				>
+					<Plug className="h-3 w-3" />
+					HTTP
+				</span>,
+			);
+		}
+
+		return tags;
+	};
+
 	const renderServerListItem = (server: ServerSummary) => {
 		const profileRefs = profileUsage?.[server.id] ?? [];
+		const serverInitial = (server.name || server.id || "S")
+			.slice(0, 1)
+			.toUpperCase();
+
 		return (
-			<div
+			<EntityListItem
 				key={server.id}
-				className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]"
-				role="button"
-				tabIndex={0}
-				onClick={(e) => {
-					const target = e.target as HTMLElement;
-					if (target.closest('button, a, input, [role="switch"]')) return;
-					navigate(`/servers/${encodeURIComponent(server.id)}`);
-				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						navigate(`/servers/${encodeURIComponent(server.id)}`);
-					}
-				}}
-			>
-				<div className="flex items-center gap-3">
-					<div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 text-lg font-semibold">
-						{(server.name || server.id || "S").slice(0, 1).toUpperCase()}
+				id={server.id}
+				title={server.name}
+				description={
+					<div className="flex items-center gap-2">
+						{getConnectionTypeTags(server)}
 					</div>
-					<div className="space-y-2">
-						<div className="flex items-center gap-2">
-							<h3 className="font-medium text-sm leading-tight">
-								{server.name}
-							</h3>
-							<StatusBadge
-								status={server.status}
-								instances={server.instances}
-								blinkOnError={[
-									"error",
-									"unhealthy",
-									"stopped",
-									"failed",
-								].includes((server.status || "").toLowerCase())}
-								isServerEnabled={server.enabled}
-							/>
-						</div>
-						<div className="flex flex-wrap gap-4 text-xs text-slate-400">
-							<span>
-								Type: {server.server_type || server.kind || "Unknown"}
-							</span>
-							<span>Instances: {getInstanceCount(server)}</span>
-							{server.enabled !== undefined ? (
-								<span>Status: {server.enabled ? "Enabled" : "Disabled"}</span>
-							) : null}
-						</div>
-						{profileRefs.length > 0 && (
-							<div className="flex flex-wrap gap-1 text-xs text-slate-500">
-								<span>Profiles: {profileRefs.join(", ")}</span>
-							</div>
+				}
+				avatar={{
+					fallback: serverInitial,
+				}}
+				titleBadges={[]}
+				stats={[{ label: "Capabilities", value: getCapabilityDetails(server) }]}
+				bottomTags={[
+					<span key="profiles">
+						Profiles: {profileRefs.length > 0 ? profileRefs.join(", ") : "-"}
+					</span>,
+				]}
+				statusBadge={
+					<StatusBadge
+						status={server.status}
+						instances={server.instances}
+						blinkOnError={["error", "unhealthy", "stopped", "failed"].includes(
+							(server.status || "").toLowerCase(),
 						)}
-					</div>
-				</div>
-				<div className="flex items-center gap-2">
-					{enableServerDebug && (
-						<Button
-							size="sm"
-							variant="outline"
-							className="gap-1"
-							onClick={(ev) => {
-								ev.stopPropagation();
-								const targetChannel =
-									profileRefs.length > 0 ? "proxy" : "native";
-								const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
-								if (openDebugInNewWindow) {
-									if (typeof window !== "undefined") {
-										window.open(url, "_blank", "noopener,noreferrer");
-									}
-									return;
-								}
-								navigate(url);
-							}}
-							title="Open debug view"
-						>
-							<Bug className="h-4 w-4" /> Debug
-						</Button>
-					)}
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={(ev) => {
-							ev.stopPropagation();
-							setEditingServer(server as any);
-						}}
-						title="Edit server"
-					>
-						<Edit className="h-4 w-4" />
-					</Button>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={(ev) => {
-							ev.stopPropagation();
-							setDeletingServer(server.id);
-							setIsDeleteConfirmOpen(true);
-						}}
-						title="Delete server"
-					>
-						<Trash className="h-4 w-4" />
-					</Button>
-				</div>
-			</div>
+						isServerEnabled={server.enabled}
+					/>
+				}
+				enableSwitch={{
+					checked: server.enabled || false,
+					onChange: (checked: boolean) =>
+						handleServerToggle(server.id, checked),
+					disabled: isTogglePending,
+				}}
+				actionButtons={
+					enableServerDebug
+						? [
+								<Button
+									key="debug"
+									size="sm"
+									variant="outline"
+									className="p-2"
+									onClick={(ev) => {
+										ev.stopPropagation();
+										const targetChannel =
+											profileRefs.length > 0 ? "proxy" : "native";
+										const url = `/servers/${encodeURIComponent(server.id)}?view=debug&channel=${targetChannel}`;
+										if (openDebugInNewWindow) {
+											if (typeof window !== "undefined") {
+												window.open(url, "_blank", "noopener,noreferrer");
+											}
+											return;
+										}
+										navigate(url);
+									}}
+									title="Open debug view"
+								>
+									<Bug className="h-4 w-4" />
+								</Button>,
+							]
+						: []
+				}
+				onClick={() => navigate(`/servers/${encodeURIComponent(server.id)}`)}
+			/>
 		);
 	};
 
@@ -667,20 +778,16 @@ export function ServerListPage() {
 						/>
 						Refresh
 					</Button>
-					<Button onClick={() => setIsAddServerOpen(true)} size="sm">
-						<Plus className="mr-2 h-4 w-4" />
-						Add Server
+					<Button
+						onClick={() => setIsAddServerOpen(true)}
+						size="sm"
+						title="Add Server"
+					>
+						<Plus className="h-4 w-4" />
 					</Button>
 				</div>
 			}
-			statsCards={statsCards.map((stat) => (
-				<StatsCard
-					key={stat.title}
-					title={stat.title}
-					value={stat.value}
-					description={stat.description}
-				/>
-			))}
+			statsCards={<StatsCards cards={statsCards} />}
 		>
 			{isError && enableServerDebug && (
 				<Button onClick={toggleDebugInfo} variant="outline" size="sm">

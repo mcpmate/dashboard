@@ -27,12 +27,10 @@ import {
 } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
-import {
-	PageLayout,
-	StatsCard,
-	EmptyState,
-} from "../../components/page-layout";
+import { PageLayout, EmptyState } from "../../components/page-layout";
 import { ListGridContainer } from "../../components/list-grid-container";
+import { StatsCards } from "../../components/stats-cards";
+import { EntityListItem } from "../../components/entity-list-item";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
@@ -423,70 +421,56 @@ export function ProfilePage() {
 		const avatarInitial = displayName.charAt(0).toUpperCase() || "P";
 
 		return (
-			<div
+			<EntityListItem
 				key={suit.id}
-				className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]"
-				role="button"
-				tabIndex={0}
-				onClick={() => navigate(`/profiles/${suit.id}`)}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						navigate(`/profiles/${suit.id}`);
-					}
+				id={suit.id}
+				title={displayName}
+				description={suit.description}
+				avatar={{
+					fallback: avatarInitial,
 				}}
-			>
-				<div className="flex items-center gap-3">
-					<Avatar className="h-11 w-11 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-						<AvatarFallback>{avatarInitial}</AvatarFallback>
-					</Avatar>
-					<div className="space-y-2">
-						<div className="flex items-center gap-2">
-							<h3 className="font-medium text-sm leading-tight">
-								{displayName}
-							</h3>
-							{suit.is_default && <Badge variant="outline">Default</Badge>}
-						</div>
-						{suit.description && (
-							<p className="text-sm text-slate-500">{suit.description}</p>
-						)}
-						<div className="flex flex-wrap gap-4 text-xs text-slate-400">
-							<span>Multi-select: {suit.multi_select ? "Yes" : "No"}</span>
-							<span>Priority: {suit.priority}</span>
-						</div>
-						<div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
-							<span>
-								Servers:{" "}
-								{formatCount(stats?.enabledServers, stats?.totalServers)}
-							</span>
-							<span>
-								Tools: {formatCount(stats?.enabledTools, stats?.totalTools)}
-							</span>
-							<span>
-								Resources:{" "}
-								{formatCount(stats?.enabledResources, stats?.totalResources)}
-							</span>
-							<span>
-								Prompts:{" "}
-								{formatCount(stats?.enabledPrompts, stats?.totalPrompts)}
-							</span>
-						</div>
-					</div>
-				</div>
-				<div className="flex items-center gap-2">
-					{!suit.is_default && (
-						<Switch
-							checked={suit.is_active}
-							onCheckedChange={() => handleSuitToggle(suit)}
-							disabled={isTogglePending}
-							onClick={(e) => e.stopPropagation()}
-						/>
-					)}
+				titleBadges={[
+					suit.is_default && (
+						<Badge key="default" variant="outline">
+							Default
+						</Badge>
+					),
+				].filter(Boolean)}
+				stats={[
+					{ label: "Multi-select", value: suit.multi_select ? "Yes" : "No" },
+					{ label: "Priority", value: suit.priority },
+				]}
+				bottomTags={[
+					<span key="servers">
+						Servers: {formatCount(stats?.enabledServers, stats?.totalServers)}
+					</span>,
+					<span key="tools">
+						Tools: {formatCount(stats?.enabledTools, stats?.totalTools)}
+					</span>,
+					<span key="resources">
+						Resources:{" "}
+						{formatCount(stats?.enabledResources, stats?.totalResources)}
+					</span>,
+					<span key="prompts">
+						Prompts: {formatCount(stats?.enabledPrompts, stats?.totalPrompts)}
+					</span>,
+				]}
+				statusBadge={
 					<Badge variant={suit.is_active ? "default" : "secondary"}>
 						{suit.suit_type}
 					</Badge>
-				</div>
-			</div>
+				}
+				enableSwitch={
+					!suit.is_default
+						? {
+								checked: suit.is_active,
+								onChange: () => handleSuitToggle(suit),
+								disabled: isTogglePending,
+							}
+						: undefined
+				}
+				onClick={() => navigate(`/profiles/${suit.id}`)}
+			/>
 		);
 	};
 
@@ -727,21 +711,16 @@ export function ProfilePage() {
 						/>
 						Refresh
 					</Button>
-					<Button size="sm" onClick={() => setIsNewSuitDialogOpen(true)}>
-						<Plus className="mr-2 h-4 w-4" />
-						New Profile
+					<Button
+						size="sm"
+						onClick={() => setIsNewSuitDialogOpen(true)}
+						title="New Profile"
+					>
+						<Plus className="h-4 w-4" />
 					</Button>
 				</div>
 			}
-			statsCards={statsCards.map((stat) => (
-				<StatsCard
-					key={stat.title}
-					title={stat.title}
-					value={stat.value}
-					description={stat.description}
-					icon={stat.icon}
-				/>
-			))}
+			statsCards={<StatsCards cards={statsCards} />}
 		>
 			{suitsError && (
 				<div className="bg-red-50 border border-red-200 rounded-md p-4">

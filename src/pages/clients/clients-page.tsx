@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Globe, RefreshCw, ToggleLeft } from "lucide-react";
+import { Check, Globe, Plus, RefreshCw, ToggleLeft } from "lucide-react";
 import { type MouseEvent, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -18,12 +18,10 @@ import {
 	CardTitle,
 } from "../../components/ui/card";
 import { Switch } from "../../components/ui/switch";
-import {
-	PageLayout,
-	StatsCard,
-	EmptyState,
-} from "../../components/page-layout";
+import { PageLayout, EmptyState } from "../../components/page-layout";
 import { ListGridContainer } from "../../components/list-grid-container";
+import { StatsCards } from "../../components/stats-cards";
+import { EntityListItem } from "../../components/entity-list-item";
 import { clientsApi } from "../../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
@@ -105,67 +103,35 @@ export function ClientsPage() {
 			client.description ?? client.template?.description ?? "";
 
 		return (
-			<div
+			<EntityListItem
 				key={client.identifier}
-				className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-shadow hover:border-primary/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)]"
-				role="button"
-				tabIndex={0}
-				onClick={(e) => {
-					const target = e.target as HTMLElement;
-					if (target.closest("button, a, input, [role='switch']")) return;
-					navigate(`/clients/${encodeURIComponent(identifier)}`);
+				id={client.identifier}
+				title={displayName}
+				description={description}
+				avatar={{
+					src: client.logo_url,
+					alt: displayName,
+					fallback: avatarInitial,
 				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						navigate(`/clients/${encodeURIComponent(identifier)}`);
-					}
+				stats={[{ label: "Config", value: configPath }]}
+				bottomTags={[<span key="servers">Servers: {serverCount}</span>]}
+				statusBadge={
+					client.detected ? (
+						<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+							<Check className="mr-1 h-3 w-3" /> Detected
+						</span>
+					) : (
+						<Badge variant="secondary">Not Detected</Badge>
+					)
+				}
+				enableSwitch={{
+					checked: client.managed,
+					onChange: (checked) =>
+						manageMutation.mutate({ identifier, managed: checked }),
+					disabled: manageMutation.isPending,
 				}}
-			>
-				<div className="flex items-center gap-3">
-					<Avatar className="h-11 w-11 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-						{client.logo_url ? (
-							<AvatarImage src={client.logo_url} alt={displayName} />
-						) : null}
-						<AvatarFallback>{avatarInitial}</AvatarFallback>
-					</Avatar>
-					<div className="space-y-2">
-						<div className="flex flex-wrap items-center gap-2">
-							<h3 className="font-medium text-sm leading-tight">
-								{displayName}
-							</h3>
-							{client.detected ? (
-								<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-									<Check className="mr-1 h-3 w-3" /> Detected
-								</span>
-							) : (
-								<Badge variant="secondary">Not Detected</Badge>
-							)}
-						</div>
-						<div className="flex flex-col gap-1 text-xs text-slate-400">
-							{description ? (
-								<span className="max-w-xl text-slate-500 line-clamp-2">
-									{description}
-								</span>
-							) : null}
-							<span className="truncate" title={configPath}>
-								Config: {configPath}
-							</span>
-							<span>Servers: {serverCount}</span>
-						</div>
-					</div>
-				</div>
-				<div className="flex items-center gap-2">
-					<Switch
-						checked={client.managed}
-						onCheckedChange={(checked) =>
-							manageMutation.mutate({ identifier, managed: checked })
-						}
-						onClick={(e) => e.stopPropagation()}
-						disabled={manageMutation.isPending}
-					/>
-				</div>
-			</div>
+				onClick={() => navigate(`/clients/${encodeURIComponent(identifier)}`)}
+			/>
 		);
 	};
 
@@ -388,32 +354,39 @@ export function ClientsPage() {
 		<PageLayout
 			title="Clients"
 			headerActions={
-				<Button
-					onClick={handleRefresh}
-					disabled={isRefetching || refreshing}
-					variant="outline"
-					size="sm"
-					onMouseUp={() =>
-						notifyInfo(
-							"Refresh triggered",
-							"Latest client state will sync to the list",
-						)
-					}
-				>
-					<RefreshCw
-						className={`mr-2 h-4 w-4 ${isRefetching || refreshing ? "animate-spin" : ""}`}
-					/>
-					Refresh
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button
+						onClick={handleRefresh}
+						disabled={isRefetching || refreshing}
+						variant="outline"
+						size="sm"
+						onMouseUp={() =>
+							notifyInfo(
+								"Refresh triggered",
+								"Latest client state will sync to the list",
+							)
+						}
+					>
+						<RefreshCw
+							className={`mr-2 h-4 w-4 ${isRefetching || refreshing ? "animate-spin" : ""}`}
+						/>
+						Refresh
+					</Button>
+					<Button
+						size="sm"
+						onClick={() =>
+							notifyInfo(
+								"Feature in Development",
+								"This feature is being implemented, please stay tuned",
+							)
+						}
+						title="Add Client"
+					>
+						<Plus className="h-4 w-4" />
+					</Button>
+				</div>
 			}
-			statsCards={statsCards.map((stat) => (
-				<StatsCard
-					key={stat.title}
-					title={stat.title}
-					value={stat.value}
-					description={stat.description}
-				/>
-			))}
+			statsCards={<StatsCards cards={statsCards} />}
 		>
 			<ListGridContainer
 				loading={isLoading}
