@@ -12,28 +12,27 @@ import {
 	Settings,
 	Wrench,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { EntityCard } from "../../components/entity-card";
+import { EntityListItem } from "../../components/entity-list-item";
+import { ListGridContainer } from "../../components/list-grid-container";
+import { EmptyState, PageLayout } from "../../components/page-layout";
+import { StatsCards } from "../../components/stats-cards";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { Switch } from "../../components/ui/switch";
 import {
 	Card,
 	CardContent,
 	CardFooter,
 	CardHeader,
 } from "../../components/ui/card";
-import { PageLayout, EmptyState } from "../../components/page-layout";
-import { ListGridContainer } from "../../components/list-grid-container";
-import { StatsCards } from "../../components/stats-cards";
-import { EntityCard } from "../../components/entity-card";
-import { EntityListItem } from "../../components/entity-list-item";
 import { PageToolbar } from "../../components/ui/page-toolbar";
+import { Switch } from "../../components/ui/switch";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
-import { createToolbarConfig } from "../../lib/toolbar-configs";
 import type {
 	ConfigSuit,
 	InstanceSummary,
@@ -80,8 +79,10 @@ export function ProfilePage() {
 
 	// 搜索和排序状态
 	const [search, setSearch] = useState("");
-	const [sort, setSort] = useState("name");
 	const [expanded, setExpanded] = useState(false);
+
+	// 排序后的数据状态
+	const [sortedSuits, setSortedSuits] = React.useState<ConfigSuit[]>([]);
 
 	const {
 		data: suitsResponse,
@@ -104,6 +105,11 @@ export function ProfilePage() {
 	// Get all active suits for aggregated statistics
 	const activeSuits =
 		suitsResponse?.suits?.filter((suit: ConfigSuit) => suit.is_active) || [];
+
+	// 当 suits 数据变化时更新 sortedSuits
+	React.useEffect(() => {
+		setSortedSuits(suitsResponse?.suits || []);
+	}, [suitsResponse?.suits]);
 
 	// Get active suit IDs for query keys
 	const activeSuitIds = activeSuits.map((suit) => suit.id);
@@ -540,51 +546,15 @@ export function ProfilePage() {
 		);
 	};
 
-	// 搜索和排序逻辑
+	// 使用排序后的数据，保持默认套件在前的顺序
 	const filteredAndSortedSuits = useMemo(() => {
-		if (!suits.length) return [];
-
-		let filtered = suits;
-
-		// 搜索过滤
-		if (search.trim()) {
-			const searchLower = search.toLowerCase();
-			filtered = filtered.filter((suit) => {
-				const name =
-					formatSuitDisplayName(suit.name, suit.id)?.toLowerCase() || "";
-				const description = suit.description?.toLowerCase() || "";
-				return name.includes(searchLower) || description.includes(searchLower);
-			});
-		}
-
-		// 排序
-		filtered.sort((a, b) => {
-			switch (sort) {
-				case "name": {
-					const nameA = formatSuitDisplayName(a.name, a.id) || "";
-					const nameB = formatSuitDisplayName(b.name, b.id) || "";
-					return nameA.localeCompare(nameB);
-				}
-				case "updated": {
-					const updatedA = (a as any).updated_at || 0;
-					const updatedB = (b as any).updated_at || 0;
-					return new Date(updatedB).getTime() - new Date(updatedA).getTime();
-				}
-				case "created": {
-					const createdA = (a as any).created_at || 0;
-					const createdB = (b as any).created_at || 0;
-					return new Date(createdB).getTime() - new Date(createdA).getTime();
-				}
-				default:
-					return 0;
-			}
-		});
+		if (!sortedSuits.length) return [];
 
 		// 保持默认套件在前的顺序
-		const defaults = filtered.filter((suit) => suit.is_default);
-		const others = filtered.filter((suit) => !suit.is_default);
+		const defaults = sortedSuits.filter((suit) => suit.is_default);
+		const others = sortedSuits.filter((suit) => !suit.is_default);
 		return [...defaults, ...others];
-	}, [suits, search, sort]);
+	}, [sortedSuits]);
 
 	// Prepare stats cards data
 	const statsCards = [
@@ -678,21 +648,43 @@ export function ProfilePage() {
 				));
 
 	// 工具栏配置
-	const toolbarConfig = createToolbarConfig("profiles", {
+	const toolbarConfig = {
+		data: suitsResponse?.suits || [],
 		search: {
 			placeholder: "Search profiles...",
+			fields: [
+				{ key: "name", label: "Name", weight: 10 },
+				{ key: "description", label: "Description", weight: 8 },
+			],
+			debounceMs: 300,
 		},
 		viewMode: {
 			enabled: true,
 			defaultMode: defaultView as "grid" | "list",
 		},
-	});
+		sort: {
+			enabled: true,
+			options: [
+				{
+					value: "name",
+					label: "Name",
+					defaultDirection: "asc" as const,
+				},
+				{
+					value: "is_active",
+					label: "Active Status",
+					defaultDirection: "desc" as const,
+				},
+			],
+			defaultSort: "name",
+		},
+	};
 
 	// 工具栏状态
 	const toolbarState = {
 		search,
 		viewMode: defaultView,
-		sort,
+		sort: "name", // 添加必需的 sort 属性
 		expanded,
 	};
 
@@ -703,7 +695,7 @@ export function ProfilePage() {
 			// 直接更新全局设置
 			setDashboardSetting("defaultView", mode);
 		},
-		onSortChange: setSort,
+		onSortedDataChange: setSortedSuits,
 		onExpandedChange: setExpanded,
 	};
 

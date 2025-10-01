@@ -50,17 +50,17 @@ export const pageSpecificConfigs: Record<
 				{
 					value: "display_name",
 					label: "Name",
-					direction: "asc",
+					defaultDirection: "asc",
 				},
 				{
 					value: "detected",
 					label: "Detection Status",
-					direction: "desc",
+					defaultDirection: "desc",
 				},
 				{
 					value: "managed",
 					label: "Management Status",
-					direction: "desc",
+					defaultDirection: "desc",
 				},
 			],
 		},
@@ -79,12 +79,12 @@ export const pageSpecificConfigs: Record<
 				{
 					value: "name",
 					label: "Name",
-					direction: "asc",
+					defaultDirection: "asc",
 				},
 				{
 					value: "status",
 					label: "Status",
-					direction: "desc",
+					defaultDirection: "desc",
 				},
 			],
 		},
@@ -116,12 +116,12 @@ export const pageSpecificConfigs: Record<
 				{
 					value: "recent",
 					label: "Recently Updated",
-					direction: "desc",
+					defaultDirection: "desc",
 				},
 				{
 					value: "name",
 					label: "Alphabetical",
-					direction: "asc",
+					defaultDirection: "asc",
 				},
 			],
 		},

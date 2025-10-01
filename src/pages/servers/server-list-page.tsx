@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Bug, Plug, Plus, RefreshCw, Server } from "lucide-react";
@@ -25,7 +26,6 @@ import { PageToolbar } from "../../components/ui/page-toolbar";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
-import { createToolbarConfig } from "../../lib/toolbar-configs";
 import type {
 	MCPServerConfig,
 	ServerDetail,
@@ -85,8 +85,10 @@ export function ServerListPage() {
 
 	// 搜索和排序状态
 	const [search, setSearch] = useState("");
-	const [sort, setSort] = useState("name");
 	const [expanded, setExpanded] = useState(false);
+
+	// 排序后的数据状态
+	const [sortedServers, setSortedServers] = React.useState<ServerSummary[]>([]);
 
 	const queryClient = useQueryClient();
 
@@ -130,6 +132,13 @@ export function ServerListPage() {
 		refetchInterval: 30000,
 		retry: 1, // Reduce retry count to show errors more quickly
 	});
+
+	// 当 servers 数据变化时更新 sortedServers
+	React.useEffect(() => {
+		if (serverListResponse?.servers) {
+			setSortedServers(serverListResponse.servers);
+		}
+	}, [serverListResponse?.servers]);
 
 	const { data: profileUsage } = useQuery<{ [serverId: string]: string[] }>({
 		queryKey: ["servers", "profile-usage"],
@@ -583,42 +592,10 @@ export function ServerListPage() {
 		}
 	};
 
-	// 搜索和排序逻辑
+	// 使用排序后的数据
 	const filteredAndSortedServers = useMemo(() => {
-		if (!serverListResponse?.servers) return [];
-
-		let filtered = serverListResponse.servers;
-
-		// 搜索过滤
-		if (search.trim()) {
-			const searchLower = search.toLowerCase();
-			filtered = filtered.filter((server) => {
-				const name = server.name?.toLowerCase() || "";
-				const description = (server as any).description?.toLowerCase() || "";
-				return name.includes(searchLower) || description.includes(searchLower);
-			});
-		}
-
-		// 排序
-		filtered.sort((a, b) => {
-			switch (sort) {
-				case "name": {
-					const nameA = a.name || "";
-					const nameB = b.name || "";
-					return nameA.localeCompare(nameB);
-				}
-				case "status": {
-					const statusA = a.status || "";
-					const statusB = b.status || "";
-					return statusB.localeCompare(statusA);
-				}
-				default:
-					return 0;
-			}
-		});
-
-		return filtered;
-	}, [serverListResponse?.servers, search, sort]);
+		return sortedServers;
+	}, [sortedServers]);
 
 	// Prepare stats cards data
 	const statsCards = [
@@ -687,21 +664,43 @@ export function ServerListPage() {
 				));
 
 	// 工具栏配置
-	const toolbarConfig = createToolbarConfig("servers", {
+	const toolbarConfig = {
+		data: serverListResponse?.servers || [],
 		search: {
 			placeholder: "Search servers...",
+			fields: [
+				{ key: "name", label: "Name", weight: 10 },
+				{ key: "description", label: "Description", weight: 8 },
+			],
+			debounceMs: 300,
 		},
 		viewMode: {
 			enabled: true,
 			defaultMode: defaultView as "grid" | "list",
 		},
-	});
+		sort: {
+			enabled: true,
+			options: [
+				{
+					value: "name",
+					label: "Name",
+					defaultDirection: "asc" as const,
+				},
+				{
+					value: "enabled",
+					label: "Enable Status",
+					defaultDirection: "desc" as const,
+				},
+			],
+			defaultSort: "name",
+		},
+	};
 
 	// 工具栏状态
 	const toolbarState = {
 		search,
 		viewMode: defaultView,
-		sort,
+		sort: "name", // 添加必需的 sort 属性
 		expanded,
 	};
 
@@ -712,7 +711,7 @@ export function ServerListPage() {
 			// 直接更新全局设置
 			setDashboardSetting("defaultView", mode);
 		},
-		onSortChange: setSort,
+		onSortedDataChange: setSortedServers,
 		onExpandedChange: setExpanded,
 	};
 

@@ -75,11 +75,12 @@ export function EntityListItem({
 	};
 
 	return (
-		<button
+		<div
 			key={id}
-			type="button"
+			role="button"
+			tabIndex={0}
 			data-list-item
-			className={`w-full flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-all duration-200 hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)] ${className}`}
+			className={`w-full flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 cursor-pointer shadow-[0_4px_12px_-10px_rgba(15,23,42,0.2)] transition-all duration-200 hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800 dark:bg-slate-950 dark:shadow-[0_4px_12px_-10px_rgba(15,23,42,0.5)] focus:outline-none focus:ring-2 focus:ring-primary/20 ${className}`}
 			onClick={handleClick}
 			onKeyDown={handleKeyDown}
 		>
@@ -158,6 +159,6 @@ export function EntityListItem({
 					</div>
 				))}
 			</div>
-		</button>
+		</div>
 	);
 }

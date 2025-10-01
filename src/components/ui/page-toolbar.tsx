@@ -1,14 +1,27 @@
 import {
 	ArrowUp,
+	ArrowDown,
 	ChevronLeft,
 	ChevronRight,
 	Grid3X3,
 	List,
 	Search,
 } from "lucide-react";
-import type React from "react";
+import React from "react";
 import { cn } from "../../lib/utils";
-import type { SearchField, SortOption } from "../../types/page-toolbar";
+import type {
+	SearchField,
+	SortOption,
+	SortState,
+} from "../../types/page-toolbar";
+
+// 通用实体接口
+export interface Entity {
+	id: string;
+	name: string;
+	description?: string;
+	[key: string]: unknown;
+}
 import { Button } from "./button";
 import { Input } from "./input";
 import {
@@ -20,7 +33,10 @@ import {
 } from "./select";
 
 // 工具栏配置
-export interface PageToolbarConfig {
+export interface PageToolbarConfig<T extends Entity = Entity> {
+	// 数据源
+	data?: T[];
+
 	// 搜索配置
 	search?: {
 		placeholder?: string;
@@ -57,44 +73,119 @@ export interface PageToolbarState {
 	search: string;
 	viewMode: "grid" | "list";
 	sort: string;
+	sortState?: SortState;
 	expanded?: boolean;
 }
 
 // 工具栏回调
-export interface PageToolbarCallbacks {
+export interface PageToolbarCallbacks<T extends Entity = Entity> {
 	onSearchChange: (search: string) => void;
 	onViewModeChange: (mode: "grid" | "list") => void;
-	onSortChange: (sort: string) => void;
+	onSortedDataChange?: (sortedData: T[]) => void;
 	onExpandedChange?: (expanded: boolean) => void;
 }
 
 // 工具栏属性
-export interface PageToolbarProps {
-	config: PageToolbarConfig;
+export interface PageToolbarProps<T extends Entity = Entity> {
+	config: PageToolbarConfig<T>;
 	state: PageToolbarState;
-	callbacks: PageToolbarCallbacks;
+	callbacks: PageToolbarCallbacks<T>;
 	actions?: React.ReactNode;
 	className?: string;
 }
 
-export function PageToolbar({
+export function PageToolbar<T extends Entity = Entity>({
 	config,
 	state,
 	callbacks,
 	actions,
 	className,
-}: PageToolbarProps) {
+}: PageToolbarProps<T>) {
 	const {
+		data = [],
 		search: searchConfig,
 		viewMode: viewModeConfig,
 		sort: sortConfig,
 		compact: compactConfig,
 	} = config;
 
-	const { search, viewMode, sort, expanded = false } = state;
+	const { search, viewMode, expanded = false } = state;
 
-	const { onSearchChange, onViewModeChange, onSortChange, onExpandedChange } =
-		callbacks;
+	const {
+		onSearchChange,
+		onViewModeChange,
+		onSortedDataChange,
+		onExpandedChange,
+	} = callbacks;
+
+	// 辅助函数：获取嵌套属性值
+	const getNestedValue = React.useCallback(
+		(obj: unknown, path: string): unknown => {
+			return path.split(".").reduce((current: unknown, key: string) => {
+				return (current as Record<string, unknown>)?.[key];
+			}, obj);
+		},
+		[],
+	);
+
+	// 内部排序状态
+	const [sort, setSort] = React.useState(
+		sortConfig?.defaultSort || sortConfig?.options?.[0]?.value || "name",
+	);
+	const [sortState, setSortState] = React.useState<SortState>(() => {
+		const defaultField =
+			sortConfig?.defaultSort || sortConfig?.options?.[0]?.value || "name";
+		const defaultOption = sortConfig?.options.find(
+			(opt) => opt.value === defaultField,
+		);
+		const defaultDirection =
+			defaultOption?.defaultDirection || defaultOption?.direction || "asc";
+		return { field: defaultField, direction: defaultDirection };
+	});
+
+	// 搜索过滤
+	const filteredData = React.useMemo(() => {
+		if (!searchConfig || !search.trim()) return data;
+
+		const searchLower = search.toLowerCase();
+		return data.filter((item) => {
+			return (
+				searchConfig.fields?.some((field) => {
+					const value = getNestedValue(item, field.key);
+					return String(value).toLowerCase().includes(searchLower);
+				}) || false
+			);
+		});
+	}, [data, search, searchConfig, getNestedValue]);
+
+	// 排序处理
+	const sortedData = React.useMemo(() => {
+		if (!sortConfig) return filteredData;
+
+		return [...filteredData].sort((a, b) => {
+			const aValue = getNestedValue(a, sortState.field);
+			const bValue = getNestedValue(b, sortState.field);
+
+			let comparison = 0;
+
+			if (typeof aValue === "string" && typeof bValue === "string") {
+				comparison = aValue.localeCompare(bValue);
+			} else if (typeof aValue === "number" && typeof bValue === "number") {
+				comparison = aValue - bValue;
+			} else if (aValue instanceof Date && bValue instanceof Date) {
+				comparison = aValue.getTime() - bValue.getTime();
+			} else {
+				comparison = String(aValue).localeCompare(String(bValue));
+			}
+
+			return sortState.direction === "desc" ? -comparison : comparison;
+		});
+	}, [filteredData, sortState, sortConfig, getNestedValue]);
+
+	// 通知排序后的数据变化
+	React.useEffect(() => {
+		onSortedDataChange?.(sortedData);
+	}, [sortedData, onSortedDataChange]);
 
 	// 是否启用精简模式
 	const isCompact = compactConfig?.enabled !== false;
@@ -143,7 +234,7 @@ export function PageToolbar({
 		if (!viewModeConfig?.enabled || !isExpanded) return null;
 
 		return (
-			<div className="flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 h-9">
+			<div className="flex items-center rounded-md border border-slate-200 dark:border-slate-800 h-9">
 				<Button
 					variant={viewMode === "grid" ? "default" : "ghost"}
 					size="sm"
@@ -168,22 +259,65 @@ export function PageToolbar({
 	const renderSort = () => {
 		if (!sortConfig?.enabled || !isExpanded) return null;
 
+		// 获取当前排序选项
+		const currentOption = sortConfig.options.find((opt) => opt.value === sort);
+		const currentDirection =
+			sortState?.direction ||
+			currentOption?.defaultDirection ||
+			currentOption?.direction ||
+			"asc";
+
+		// 处理排序字段切换
+		const handleSortFieldChange = (newSort: string) => {
+			setSort(newSort);
+
+			// 切换到不同的字段，使用默认方向
+			const newOption = sortConfig.options.find((opt) => opt.value === newSort);
+			const newDirection =
+				newOption?.defaultDirection || newOption?.direction || "asc";
+			setSortState({ field: newSort, direction: newDirection });
+		};
+
+		// 处理排序方向切换
+		const handleSortDirectionToggle = () => {
+			const newDirection = currentDirection === "asc" ? "desc" : "asc";
+			setSortState({ field: sort, direction: newDirection });
+		};
+
+		// 获取当前排序选项的标签
+		const currentLabel = currentOption?.label || "Sort";
+
 		return (
-			<Select value={sort} onValueChange={onSortChange}>
-				<SelectTrigger className="h-9 w-full sm:w-[200px]">
-					<div className="flex items-center gap-2">
-						<ArrowUp className="h-4 w-4 text-slate-500" />
-						<SelectValue placeholder="Sort" />
-					</div>
-				</SelectTrigger>
-				<SelectContent align="end">
-					{sortConfig.options.map((option) => (
-						<SelectItem key={option.value} value={option.value}>
-							{option.label}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
+			<div className="flex items-center rounded-md border border-slate-200 dark:border-slate-800 h-9">
+				{/* 排序方向切换按钮 - 在左侧 */}
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={handleSortDirectionToggle}
+					className="h-9 w-9 p-0 shrink-0 rounded-r-none border-r border-slate-200 dark:border-slate-800"
+					title={`Sort ${currentDirection === "asc" ? "Descending" : "Ascending"}`}
+				>
+					{currentDirection === "asc" ? (
+						<ArrowUp className="h-4 w-4" />
+					) : (
+						<ArrowDown className="h-4 w-4" />
+					)}
+				</Button>
+
+				{/* 排序字段选择器 */}
+				<Select value={sort} onValueChange={handleSortFieldChange}>
+					<SelectTrigger className="h-9 w-full sm:w-[200px] border-l-0 rounded-l-none">
+						<SelectValue placeholder="Sort">{currentLabel}</SelectValue>
+					</SelectTrigger>
+					<SelectContent align="end">
+						{sortConfig.options.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
 		);
 	};
 
@@ -220,8 +354,8 @@ export const defaultPageToolbarConfig: PageToolbarConfig = {
 	sort: {
 		enabled: true,
 		options: [
-			{ value: "name", label: "Name", direction: "asc" },
-			{ value: "updated", label: "Recently updated", direction: "desc" },
+			{ value: "name", label: "Name", defaultDirection: "asc" },
+			{ value: "updated", label: "Recently updated", defaultDirection: "desc" },
 		],
 		defaultSort: "name",
 	},

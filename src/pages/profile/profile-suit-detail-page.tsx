@@ -667,17 +667,6 @@ export function ProfileSuitDetailPage() {
 													<span className="font-mono text-sm leading-tight">
 														{suit.priority}
 													</span>
-
-													{suit.description && (
-														<>
-															<span className="text-xs uppercase text-slate-500">
-																Description
-															</span>
-															<span className="text-sm leading-tight text-slate-600 dark:text-slate-300">
-																{suit.description}
-															</span>
-														</>
-													)}
 												</div>
 											</div>
 											<div className="flex flex-wrap items-start justify-end gap-2 self-start">
@@ -946,10 +935,10 @@ export function ProfileSuitDetailPage() {
 															)}
 															{globallyEnabled !== undefined &&
 																(globallyEnabled ? (
-																	<Badge>Global: Enabled</Badge>
+																	<Badge>Global Enabled</Badge>
 																) : (
 																	<Badge variant="outline">
-																		Global: Disabled
+																		Global Disabled
 																	</Badge>
 																))}
 														</div>
@@ -977,7 +966,7 @@ export function ProfileSuitDetailPage() {
 																	);
 																}}
 															>
-																<Bug className="h-4 w-4" /> Debug
+																<Bug className="h-4 w-4" />
 															</Button>
 														)}
 													</div>
@@ -1126,7 +1115,7 @@ export function ProfileSuitDetailPage() {
 															);
 														}}
 													>
-														<Bug className="h-3.5 w-3.5" /> Debug
+														<Bug className="h-3.5 w-3.5" />
 													</Button>
 												)
 											: undefined
@@ -1277,7 +1266,7 @@ export function ProfileSuitDetailPage() {
 															);
 														}}
 													>
-														<Bug className="h-3.5 w-3.5" /> Debug
+														<Bug className="h-3.5 w-3.5" />
 													</Button>
 												)
 											: undefined
@@ -1421,7 +1410,7 @@ export function ProfileSuitDetailPage() {
 															);
 														}}
 													>
-														<Bug className="h-3.5 w-3.5" /> Debug
+														<Bug className="h-3.5 w-3.5" />
 													</Button>
 												)
 											: undefined

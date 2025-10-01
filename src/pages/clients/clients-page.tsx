@@ -12,11 +12,10 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { PageToolbar } from "../../components/ui/page-toolbar";
 import { Switch } from "../../components/ui/switch";
-import { useEntityList } from "../../hooks/use-entity-list";
 import { clientsApi } from "../../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
-import { createToolbarConfig } from "../../lib/toolbar-configs";
+import React from "react";
 
 export function ClientsPage() {
 	const navigate = useNavigate();
@@ -48,41 +47,17 @@ export function ClientsPage() {
 		...client,
 	}));
 
-	// 使用统一的实体列表 hook
-	const {
-		filteredData: sortedClients,
-		search,
-		setSearch,
-		sort,
-		setSort,
-		stats,
-	} = useEntityList({
-		data: clientsAsEntities,
-		search: {
-			fields: [
-				{ key: "display_name", label: "Display Name", weight: 10 },
-				{ key: "identifier", label: "Identifier", weight: 8 },
-				{ key: "description", label: "Description", weight: 5 },
-			],
-			debounceMs: 300,
-		},
-		sort: {
-			options: [
-				{ value: "display_name", label: "Name", direction: "asc" as const },
-				{
-					value: "detected",
-					label: "Detection Status",
-					direction: "desc" as const,
-				},
-				{
-					value: "managed",
-					label: "Management Status",
-					direction: "desc" as const,
-				},
-			],
-			defaultSort: "display_name",
-		},
-	});
+	// 排序后的数据状态
+	const [sortedClients, setSortedClients] = React.useState(clientsAsEntities);
+	const [search, setSearch] = React.useState("");
+
+	// 计算统计信息
+	const stats = React.useMemo(() => {
+		const total = clientsAsEntities.length;
+		const filtered = sortedClients.length;
+		const showing = filtered;
+		return { total, filtered, showing };
+	}, [clientsAsEntities.length, sortedClients.length]);
 
 	const manageMutation = useMutation({
 		mutationFn: async ({
@@ -322,25 +297,53 @@ export function ClientsPage() {
 		</Card>
 	);
 
+	// 展开状态
+	const [expanded, setExpanded] = useState(false);
+
 	// 工具栏配置
-	const toolbarConfig = createToolbarConfig("clients", {
+	const toolbarConfig = {
+		data: clientsAsEntities,
 		search: {
 			placeholder: "Search clients...",
+			fields: [
+				{ key: "display_name", label: "Display Name", weight: 10 },
+				{ key: "identifier", label: "Identifier", weight: 8 },
+				{ key: "description", label: "Description", weight: 5 },
+			],
+			debounceMs: 300,
 		},
 		viewMode: {
 			enabled: true,
 			defaultMode: defaultView as "grid" | "list",
 		},
-	});
-
-	// 展开状态
-	const [expanded, setExpanded] = useState(false);
+		sort: {
+			enabled: true,
+			options: [
+				{
+					value: "display_name",
+					label: "Name",
+					defaultDirection: "asc" as const,
+				},
+				{
+					value: "detected",
+					label: "Detection Status",
+					defaultDirection: "desc" as const,
+				},
+				{
+					value: "managed",
+					label: "Management Status",
+					defaultDirection: "desc" as const,
+				},
+			],
+			defaultSort: "display_name",
+		},
+	};
 
 	// 工具栏状态
 	const toolbarState = {
 		search,
 		viewMode: defaultView,
-		sort,
+		sort: "display_name", // 添加必需的 sort 属性
 		expanded,
 	};
 
@@ -351,7 +354,7 @@ export function ClientsPage() {
 			// 直接更新全局设置
 			setDashboardSetting("defaultView", mode);
 		},
-		onSortChange: setSort,
+		onSortedDataChange: setSortedClients,
 		onExpandedChange: setExpanded,
 	};
 

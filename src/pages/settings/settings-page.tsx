@@ -29,6 +29,7 @@ import {
 	type ClientDefaultMode,
 	type DashboardAppMode,
 	type DashboardDefaultView,
+	type DashboardLanguage,
 	type MarketBlacklistEntry,
 	useAppStore,
 } from "../../lib/store";
@@ -36,6 +37,7 @@ import {
 export function SettingsPage() {
 	const defaultViewId = useId();
 	const appModeId = useId();
+	const languageId = useId();
 	const clientModeId = useId();
 	const backupStrategyId = useId();
 	const backupLimitId = useId();
@@ -60,7 +62,7 @@ export function SettingsPage() {
 				orientation="vertical"
 				className="flex flex-col gap-4 xl:flex-row xl:items-start"
 			>
-				<TabsList className="flex w-full flex-row flex-wrap gap-2 overflow-x-auto rounded-lg bg-slate-100 p-2 dark:bg-slate-900 xl:w-64 xl:flex-col xl:overflow-visible xl:p-3 xl:self-start">
+				<TabsList className="flex w-full flex-row flex-wrap gap-2 overflow-x-auto rounded-lg p-2 xl:w-64 xl:flex-col xl:overflow-visible xl:p-3 xl:self-start">
 					<TabsTrigger value="general" className={tabTriggerClass}>
 						General
 					</TabsTrigger>
@@ -91,15 +93,21 @@ export function SettingsPage() {
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="default-view">Default View</Label>
+								{/* Default View */}
+								<div className="flex items-center justify-between gap-4">
+									<div className="space-y-0.5">
+										<h3 className="text-base font-medium">Default View</h3>
+										<p className="text-sm text-slate-500">
+											Choose the default layout for displaying items.
+										</p>
+									</div>
 									<Select
 										value={dashboardSettings.defaultView}
 										onValueChange={(value: DashboardDefaultView) =>
 											setDashboardSetting("defaultView", value)
 										}
 									>
-										<SelectTrigger id={defaultViewId}>
+										<SelectTrigger id={defaultViewId} className="w-48">
 											<SelectValue placeholder="Select a default view" />
 										</SelectTrigger>
 										<SelectContent>
@@ -109,20 +117,56 @@ export function SettingsPage() {
 									</Select>
 								</div>
 
-								<div className="space-y-2">
-									<Label htmlFor="app-mode">Application Mode</Label>
+								{/* Application Mode */}
+								<div className="flex items-center justify-between gap-4">
+									<div className="space-y-0.5">
+										<h3 className="text-base font-medium">Application Mode</h3>
+										<p className="text-sm text-slate-500">
+											Select the interface complexity level.
+										</p>
+									</div>
 									<Select
 										value={dashboardSettings.appMode}
 										onValueChange={(value: DashboardAppMode) =>
 											setDashboardSetting("appMode", value)
 										}
 									>
-										<SelectTrigger id={appModeId}>
+										<SelectTrigger id={appModeId} className="w-48">
 											<SelectValue placeholder="Select application mode" />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="express">Express Mode (WIP)</SelectItem>
+											<SelectItem value="express">
+												Express Mode (WIP)
+											</SelectItem>
 											<SelectItem value="expert">Expert Mode</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+
+								{/* Language Selection */}
+								<div className="flex items-center justify-between gap-4">
+									<div className="space-y-0.5">
+										<h3 className="text-base font-medium">
+											Language <sup className="text-xs text-slate-400">WIP</sup>
+										</h3>
+										<p className="text-sm text-slate-500">
+											Multi-language support is currently in development.
+										</p>
+									</div>
+									<Select
+										value={dashboardSettings.language}
+										onValueChange={(value: DashboardLanguage) =>
+											setDashboardSetting("language", value)
+										}
+										disabled
+									>
+										<SelectTrigger id={languageId} className="w-48">
+											<SelectValue placeholder="Select language" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="en">English</SelectItem>
+											<SelectItem value="zh-cn">简体中文</SelectItem>
+											<SelectItem value="ja">日本语</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
@@ -248,15 +292,23 @@ export function SettingsPage() {
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
-								<div className="space-y-2">
-									<Label htmlFor="client-mode">Client Application Mode</Label>
+								{/* Client Application Mode */}
+								<div className="flex items-center justify-between gap-4">
+									<div className="space-y-0.5">
+										<h3 className="text-base font-medium">
+											Client Application Mode
+										</h3>
+										<p className="text-sm text-slate-500">
+											Choose how client applications should operate by default.
+										</p>
+									</div>
 									<Select
 										value={dashboardSettings.clientDefaultMode}
 										onValueChange={(value: ClientDefaultMode) =>
 											setDashboardSetting("clientDefaultMode", value)
 										}
 									>
-										<SelectTrigger id={clientModeId}>
+										<SelectTrigger id={clientModeId} className="w-48">
 											<SelectValue placeholder="Select client mode" />
 										</SelectTrigger>
 										<SelectContent>
@@ -268,17 +320,23 @@ export function SettingsPage() {
 									</Select>
 								</div>
 
-								<div className="space-y-2">
-									<Label htmlFor="backup-strategy">
-										Client Backup Strategy
-									</Label>
+								{/* Client Backup Strategy */}
+								<div className="flex items-center justify-between gap-4">
+									<div className="space-y-0.5">
+										<h3 className="text-base font-medium">
+											Client Backup Strategy
+										</h3>
+										<p className="text-sm text-slate-500">
+											Define how client configurations should be backed up.
+										</p>
+									</div>
 									<Select
 										value={dashboardSettings.clientBackupStrategy}
 										onValueChange={(value: ClientBackupStrategy) =>
 											setDashboardSetting("clientBackupStrategy", value)
 										}
 									>
-										<SelectTrigger id={backupStrategyId}>
+										<SelectTrigger id={backupStrategyId} className="w-48">
 											<SelectValue placeholder="Select backup strategy" />
 										</SelectTrigger>
 										<SelectContent>
@@ -289,8 +347,18 @@ export function SettingsPage() {
 									</Select>
 								</div>
 
-								<div className="space-y-2">
-									<Label htmlFor="backup-limit">Maximum Backup Copies</Label>
+								{/* Maximum Backup Copies */}
+								<div className="flex items-center justify-between gap-4">
+									<div className="space-y-0.5">
+										<h3 className="text-base font-medium">
+											Maximum Backup Copies
+										</h3>
+										<p className="text-sm text-slate-500">
+											Set the maximum number of backup copies to keep. Applied
+											when the strategy is set to Keep N. Values below 1 are
+											rounded up.
+										</p>
+									</div>
 									<Input
 										id={backupLimitId}
 										type="number"
@@ -305,11 +373,8 @@ export function SettingsPage() {
 										disabled={
 											dashboardSettings.clientBackupStrategy !== "keep_n"
 										}
+										className="w-48"
 									/>
-									<p className="text-xs text-slate-500">
-										Applied when the strategy is set to Keep N. Values below 1
-										are rounded up.
-									</p>
 								</div>
 							</CardContent>
 						</Card>

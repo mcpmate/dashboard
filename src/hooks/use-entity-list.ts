@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDebouncedValue } from "../lib/hooks/use-debounced-value";
-import type { SearchField, SortOption } from "../types/page-toolbar";
+import type { SearchField, SortOption, SortState } from "../types/page-toolbar";
 
 // 通用实体接口
 export interface Entity {
@@ -20,6 +20,7 @@ export interface SearchConfig {
 export interface SortConfig {
 	options: SortOption[];
 	defaultSort?: string;
+	defaultDirection?: "asc" | "desc";
 }
 
 // Hook 配置
@@ -54,6 +55,8 @@ export interface UseEntityListReturn<T extends Entity> {
 	// 排序状态
 	sort: string;
 	setSort: (sort: string) => void;
+	sortState: SortState;
+	setSortState: (sortState: SortState) => void;
 
 	// 分页状态
 	currentPage: number;
@@ -85,6 +88,21 @@ export function useEntityList<T extends Entity>({
 	const [sort, setSort] = useState(
 		sortConfig?.defaultSort || sortConfig?.options?.[0]?.value || "name",
 	);
+
+	// 排序状态对象
+	const [sortState, setSortState] = useState<SortState>(() => {
+		const defaultField =
+			sortConfig?.defaultSort || sortConfig?.options?.[0]?.value || "name";
+		const defaultOption = sortConfig?.options.find(
+			(opt) => opt.value === defaultField,
+		);
+		const defaultDirection =
+			defaultOption?.defaultDirection ||
+			defaultOption?.direction ||
+			sortConfig?.defaultDirection ||
+			"asc";
+		return { field: defaultField, direction: defaultDirection };
+	});
 
 	// 分页状态
 	const [currentPage, setCurrentPage] = useState(1);
@@ -126,14 +144,9 @@ export function useEntityList<T extends Entity>({
 			return filteredData;
 		}
 
-		const sortOption = sortConfig.options.find((opt) => opt.value === sort);
-		if (!sortOption) {
-			return filteredData;
-		}
-
 		return [...filteredData].sort((a, b) => {
-			const aValue = getNestedValue(a, sortOption.value);
-			const bValue = getNestedValue(b, sortOption.value);
+			const aValue = getNestedValue(a, sortState.field);
+			const bValue = getNestedValue(b, sortState.field);
 
 			let comparison = 0;
 
@@ -147,9 +160,9 @@ export function useEntityList<T extends Entity>({
 				comparison = String(aValue).localeCompare(String(bValue));
 			}
 
-			return sortOption.direction === "desc" ? -comparison : comparison;
+			return sortState.direction === "desc" ? -comparison : comparison;
 		});
-	}, [filteredData, sort, sortConfig]);
+	}, [filteredData, sortState, sortConfig]);
 
 	// 分页逻辑
 	const paginatedData = useMemo(() => {
@@ -195,6 +208,8 @@ export function useEntityList<T extends Entity>({
 		debouncedSearch,
 		sort,
 		setSort,
+		sortState,
+		setSortState,
 		currentPage,
 		setCurrentPage,
 		totalPages,

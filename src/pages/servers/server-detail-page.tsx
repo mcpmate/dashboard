@@ -458,7 +458,7 @@ export function ServerDetailPage() {
 							onClick={() => setViewMode(VIEW_MODES.debug)}
 							className="gap-1"
 						>
-							<Bug className="h-4 w-4" /> Debug
+							<Bug className="h-4 w-4" />
 						</Button>
 					</div>
 				)}
