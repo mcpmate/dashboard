@@ -447,7 +447,7 @@ export function ServerDetailPage() {
 							size="sm"
 							variant={viewMode === VIEW_MODES.browse ? "default" : "ghost"}
 							onClick={() => setViewMode(VIEW_MODES.browse)}
-							className="gap-1"
+							className="gap-1 rounded-l-md rounded-r-none"
 						>
 							<Eye className="h-4 w-4" /> Browse
 						</Button>
@@ -456,9 +456,9 @@ export function ServerDetailPage() {
 							size="sm"
 							variant={viewMode === VIEW_MODES.debug ? "default" : "ghost"}
 							onClick={() => setViewMode(VIEW_MODES.debug)}
-							className="gap-1"
+							className="gap-1 rounded-r-md rounded-l-none"
 						>
-							<Bug className="h-4 w-4" />
+							<Bug className="h-4 w-4" /> Debug
 						</Button>
 					</div>
 				)}
@@ -972,7 +972,7 @@ function InspectorChannelControls({
 					type="button"
 					size="sm"
 					variant={selected === "proxy" ? "default" : "ghost"}
-					className="gap-1 h-8 px-3 text-xs"
+					className="gap-1 h-8 px-3 text-xs rounded-l-md rounded-r-none"
 					disabled={isChecking}
 					onClick={handleProxy}
 				>
@@ -987,7 +987,7 @@ function InspectorChannelControls({
 					type="button"
 					size="sm"
 					variant={selected === "native" ? "default" : "ghost"}
-					className="gap-1 h-8 px-3 text-xs"
+					className="gap-1 h-8 px-3 text-xs rounded-r-md rounded-l-none"
 					onClick={handleNative}
 				>
 					<AlertTriangle className="h-4 w-4" /> Native

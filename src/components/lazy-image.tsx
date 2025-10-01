@@ -99,31 +99,49 @@ export function LazyImage({
 		}
 
 		// 创建新的加载请求
-		const loadPromise = new Promise<string | null>((resolve, reject) => {
-			const img = new Image();
-			img.crossOrigin = "anonymous";
+		const attemptLoad = (useCrossOrigin: boolean) =>
+			new Promise<string | null>((resolve, reject) => {
+				const img = new Image();
+				if (useCrossOrigin) {
+					try {
+						img.crossOrigin = "anonymous";
+					} catch (error) {
+						console.warn("Failed to set crossOrigin on image", src, error);
+					}
+				}
 
-			const timeoutId = setTimeout(() => {
-				console.warn("Image load timeout:", src);
-				reject(new Error("Image load timeout"));
-			}, timeout);
+				const timeoutId = setTimeout(() => {
+					console.warn("Image load timeout:", src);
+					reject(new Error("Image load timeout"));
+				}, timeout);
 
-			img.onload = () => {
-				clearTimeout(timeoutId);
-				console.log("Image loaded successfully:", src);
-				// 缓存原始 URL
-				setCachedImage(key, src);
-				resolve(src);
-			};
+				img.onload = () => {
+					clearTimeout(timeoutId);
+					console.log("Image loaded successfully:", src);
+					setCachedImage(key, src);
+					resolve(src);
+				};
 
-			img.onerror = (error) => {
-				clearTimeout(timeoutId);
-				console.warn("Image load failed:", src, error);
-				reject(new Error("Image load failed"));
-			};
+				img.onerror = (error) => {
+					clearTimeout(timeoutId);
+					reject(error instanceof Error ? error : new Error("Image load failed"));
+				};
 
-			img.src = src;
-		});
+				img.src = src;
+			});
+
+		const loadPromise = (async () => {
+			try {
+				return await attemptLoad(true);
+			} catch (error) {
+				console.warn(
+					"Image load failed with crossOrigin=anonymous, retrying without:",
+					src,
+					error,
+				);
+				return attemptLoad(false);
+			}
+		})();
 
 		loadingStates.set(key, loadPromise);
 

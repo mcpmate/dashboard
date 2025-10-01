@@ -182,9 +182,23 @@ export function PageToolbar<T extends Entity = Entity>({
 		});
 	}, [filteredData, sortState, sortConfig, getNestedValue]);
 
-	// 通知排序后的数据变化
+	// 通知排序后的数据变化（避免无限循环）
+	const lastSortedRef = React.useRef<T[] | null>(null);
 	React.useEffect(() => {
-		onSortedDataChange?.(sortedData);
+		if (!onSortedDataChange) return;
+
+		const previous = lastSortedRef.current;
+		const isSameAsPrevious =
+			previous !== null &&
+			previous.length === sortedData.length &&
+			previous.every((item, index) => item === sortedData[index]);
+
+		if (isSameAsPrevious) {
+			return;
+		}
+
+		lastSortedRef.current = sortedData;
+		onSortedDataChange(sortedData);
 	}, [sortedData, onSortedDataChange]);
 
 	// 是否启用精简模式
@@ -239,7 +253,7 @@ export function PageToolbar<T extends Entity = Entity>({
 					variant={viewMode === "grid" ? "default" : "ghost"}
 					size="sm"
 					onClick={() => onViewModeChange("grid")}
-					className="h-9 px-3"
+					className="h-9 px-3 rounded-l-md rounded-r-none"
 				>
 					<Grid3X3 className="h-4 w-4" />
 				</Button>
@@ -247,7 +261,7 @@ export function PageToolbar<T extends Entity = Entity>({
 					variant={viewMode === "list" ? "default" : "ghost"}
 					size="sm"
 					onClick={() => onViewModeChange("list")}
-					className="h-9 px-3"
+					className="h-9 px-3 rounded-r-md rounded-l-none"
 				>
 					<List className="h-4 w-4" />
 				</Button>

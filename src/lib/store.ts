@@ -19,6 +19,7 @@ export interface DashboardSettings {
 	clientBackupStrategy: ClientBackupStrategy;
 	clientBackupLimit: number;
 	marketBlacklist: MarketBlacklistEntry[];
+	enableMarketBlacklist: boolean;
 	showApiDocsMenu: boolean;
 }
 
@@ -61,6 +62,7 @@ const defaultDashboardSettings: DashboardSettings = {
 	clientBackupStrategy: "keep_last",
 	clientBackupLimit: 3,
 	marketBlacklist: [],
+	enableMarketBlacklist: true,
 	showApiDocsMenu: false,
 };
 
@@ -108,6 +110,10 @@ function normalizeDashboardSettings(
 
 	if (typeof patch.showApiDocsMenu === "boolean") {
 		next.showApiDocsMenu = patch.showApiDocsMenu;
+	}
+
+	if (typeof patch.enableMarketBlacklist === "boolean") {
+		next.enableMarketBlacklist = patch.enableMarketBlacklist;
 	}
 
 	if (

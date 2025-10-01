@@ -39,16 +39,25 @@ export function ClientsPage() {
 	const detectedCount = clients.filter((c: any) => !!c.detected).length;
 	const managedCount = clients.filter((c: any) => !!c.managed).length;
 	const configuredCount = clients.filter((c: any) => !!c.has_mcp_config).length;
-	// 转换数据格式以适配 Entity 接口
-	const clientsAsEntities = clients.map((client: any) => ({
-		id: client.identifier || client.display_name || "",
-		name: client.display_name || client.identifier || "",
-		description: client.description || "",
-		...client,
-	}));
+	// 转换数据格式以适配 Entity 接口，保持引用稳定
+	const clientsAsEntities = React.useMemo(
+		() =>
+			clients.map((client: any) => ({
+				id: client.identifier || client.display_name || "",
+				name: client.display_name || client.identifier || "",
+				description: client.description || "",
+				...client,
+			})),
+		[clients],
+	);
 
 	// 排序后的数据状态
 	const [sortedClients, setSortedClients] = React.useState(clientsAsEntities);
+
+	// 同步最新数据源
+	React.useEffect(() => {
+		setSortedClients(clientsAsEntities);
+	}, [clientsAsEntities]);
 	const [search, setSearch] = React.useState("");
 
 	// 计算统计信息
@@ -175,6 +184,7 @@ export function ClientsPage() {
 					alt: displayName,
 					fallback: avatarInitial,
 				}}
+				avatarShape="rounded"
 				stats={statItems}
 				bottomLeft={
 					<div className="flex flex-wrap items-center gap-2">

@@ -48,9 +48,9 @@ import {
 import { Textarea } from "../../components/ui/textarea";
 import { useCursorPagination } from "../../hooks/use-cursor-pagination";
 import { serversApi } from "../../lib/api";
+import { useAppStore } from "../../lib/store";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import { fetchRegistryServers, getOfficialMeta } from "../../lib/registry";
-import { useAppStore } from "../../lib/store";
 import type {
 	RegistryPackage,
 	RegistryServerEntry,
@@ -62,6 +62,7 @@ interface MarketCardProps {
 	server: RegistryServerEntry;
 	onPreview: (server: RegistryServerEntry) => void;
 	onHide: (server: RegistryServerEntry) => void;
+	enableBlacklist: boolean;
 }
 
 type SortOption = "recent" | "name";
@@ -330,7 +331,12 @@ function formatArgsMultiline(args: string[]): string {
 		.join("\n");
 }
 
-function MarketCard({ server, onPreview, onHide }: MarketCardProps) {
+function MarketCard({
+	server,
+	onPreview,
+	onHide,
+	enableBlacklist,
+}: MarketCardProps) {
 	const official = getOfficialMeta(server);
 	const transportBadges = useMemo(() => {
 		const set = new Set(
@@ -437,27 +443,29 @@ function MarketCard({ server, onPreview, onHide }: MarketCardProps) {
 			<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0 mt-auto">
 				<div className="flex items-center gap-3">
 					<div className="w-12"></div>
-					<div className="flex items-center gap-2">
-						<button
-							type="button"
-							onClick={(event) => {
-								event.stopPropagation();
-								onHide(server);
-							}}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" || event.key === " ") {
-									event.preventDefault();
+					{enableBlacklist && (
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={(event) => {
 									event.stopPropagation();
 									onHide(server);
-								}
-							}}
-							className="inline-flex items-center justify-center rounded-full border border-transparent bg-transparent h-5 w-5 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:text-slate-500 dark:hover:text-slate-300"
-							title="Hide this server"
-						>
-							<EyeOff className="h-4 w-4" />
-							<span className="sr-only">Hide server</span>
-						</button>
-					</div>
+								}}
+								onKeyDown={(event) => {
+									if (event.key === "Enter" || event.key === " ") {
+										event.preventDefault();
+										event.stopPropagation();
+										onHide(server);
+									}
+								}}
+								className="inline-flex items-center justify-center rounded-full border border-transparent bg-transparent h-5 w-5 text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:text-slate-500 dark:hover:text-slate-300"
+								title="Hide this server"
+							>
+								<EyeOff className="h-4 w-4" />
+								<span className="sr-only">Hide server</span>
+							</button>
+						</div>
+					)}
 				</div>
 				<div className="flex items-center gap-3">
 					<button
@@ -517,6 +525,9 @@ export function MarketPage() {
 	);
 	const addToMarketBlacklist = useAppStore(
 		(state) => state.addToMarketBlacklist,
+	);
+	const enableMarketBlacklist = useAppStore(
+		(state) => state.dashboardSettings.enableMarketBlacklist,
 	);
 
 	const handlePaginationReset = useCallback(() => {
@@ -825,6 +836,7 @@ export function MarketPage() {
 										server={server}
 										onPreview={handleOpenDrawer}
 										onHide={handleHideServer}
+										enableBlacklist={enableMarketBlacklist}
 									/>
 								);
 							})}
@@ -1417,7 +1429,7 @@ function MarketPreviewDrawer({
 														type="button"
 														onClick={() => setConfigView("form")}
 														className={cn(
-															"rounded px-3 py-1 text-xs font-medium transition-colors",
+															"rounded-l-md rounded-r-none px-3 py-1 text-xs font-medium transition-colors",
 															configView === "form"
 																? "bg-primary text-primary-foreground"
 																: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100",
@@ -1429,7 +1441,7 @@ function MarketPreviewDrawer({
 														type="button"
 														onClick={() => setConfigView("json")}
 														className={cn(
-															"rounded px-3 py-1 text-xs font-medium transition-colors",
+															"rounded-r-md rounded-l-none px-3 py-1 text-xs font-medium transition-colors",
 															configView === "json"
 																? "bg-primary text-primary-foreground"
 																: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100",

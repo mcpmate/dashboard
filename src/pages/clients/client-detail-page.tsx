@@ -362,14 +362,15 @@ export function ClientDetailPage() {
 							) : configDetails ? (
 								<>
 									<CardHeader className="flex flex-row items-center gap-3 pb-0">
-										<Avatar className="h-12 w-12">
+										<Avatar className="h-12 w-12 !rounded-[10px]">
 											{configDetails.logo_url ? (
 												<AvatarImage
 													src={configDetails.logo_url}
 													alt={displayName || identifier}
+													className="!rounded-[10px]"
 												/>
 											) : null}
-											<AvatarFallback>
+											<AvatarFallback className="!rounded-[10px]">
 												{(displayName || identifier || "C")
 													.slice(0, 1)
 													.toUpperCase()}

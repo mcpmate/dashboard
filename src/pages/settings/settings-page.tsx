@@ -449,6 +449,7 @@ export function SettingsPage() {
 						<MarketBlacklistCard
 							entries={dashboardSettings.marketBlacklist}
 							onRestore={removeFromMarketBlacklist}
+							setDashboardSetting={setDashboardSetting}
 						/>
 					</TabsContent>
 				</div>
@@ -460,14 +461,26 @@ export function SettingsPage() {
 interface MarketBlacklistCardProps {
 	entries: MarketBlacklistEntry[];
 	onRestore: (serverId: string) => void;
+	setDashboardSetting: <K extends keyof DashboardSettings>(
+		key: K,
+		value: DashboardSettings[K],
+	) => void;
 }
 
-function MarketBlacklistCard({ entries, onRestore }: MarketBlacklistCardProps) {
+function MarketBlacklistCard({
+	entries,
+	onRestore,
+	setDashboardSetting,
+}: MarketBlacklistCardProps) {
 	const searchId = useId();
 	const sortId = useId();
 
 	const [searchTerm, setSearchTerm] = useState("");
 	const [sortOrder, setSortOrder] = useState<"recent" | "name">("recent");
+
+	const enableMarketBlacklist = useAppStore(
+		(state) => state.dashboardSettings.enableMarketBlacklist,
+	);
 
 	const filteredEntries = useMemo(() => {
 		const query = searchTerm.trim().toLowerCase();
@@ -500,6 +513,24 @@ function MarketBlacklistCard({ entries, onRestore }: MarketBlacklistCardProps) {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex h-full flex-col gap-4">
+				{/* Enable Blacklist 设置项 */}
+				<div className="flex items-center justify-between gap-4">
+					<div className="space-y-0.5">
+						<h3 className="text-base font-medium">Enable Blacklist</h3>
+						<p className="text-sm text-slate-500">
+							Hide quality-poor or unavailable content from the market to keep
+							it clean
+						</p>
+					</div>
+					<Switch
+						id="enable-market-blacklist"
+						checked={enableMarketBlacklist}
+						onCheckedChange={(checked) =>
+							setDashboardSetting("enableMarketBlacklist", checked)
+						}
+					/>
+				</div>
+
 				<div className="flex flex-col gap-3 md:flex-row md:items-center">
 					<div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-3">
 						<div className="grow">

@@ -19,6 +19,7 @@ export interface EntityCardProps {
 		alt?: string;
 		fallback: string;
 	};
+	avatarShape?: "circle" | "rounded" | "square";
 
 	// 右上角标签
 	topRightBadge?: ReactNode;
@@ -43,6 +44,7 @@ export function EntityCard({
 	title,
 	description,
 	avatar,
+	avatarShape = "circle",
 	topRightBadge,
 	stats = [],
 	bottomLeft,
@@ -85,17 +87,24 @@ export function EntityCard({
 							alt={avatar?.alt || title}
 							fallback={avatar?.fallback || title}
 							size="lg"
+							shape={avatarShape}
 							className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 font-semibold"
 						/>
 						<div className="flex-1 space-y-2">
 							<CardTitle className="text-lg font-semibold leading-tight">
 								{title}
 							</CardTitle>
-							<div className="h-10 flex items-start">
+						<div className="h-10 flex items-start">
+							{typeof description === "string" || description === undefined ? (
 								<CardDescription className="text-sm text-slate-500 line-clamp-2 leading-5">
 									{description || "N/A"}
 								</CardDescription>
-							</div>
+							) : (
+								<div className="text-sm text-slate-500 line-clamp-2 leading-5">
+									{description}
+								</div>
+							)}
+						</div>
 						</div>
 					</div>
 

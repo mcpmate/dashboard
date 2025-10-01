@@ -51,6 +51,7 @@ export interface CachedAvatarProps {
 	fallback: string;
 	className?: string;
 	size?: "sm" | "md" | "lg" | "xl";
+	shape?: "circle" | "rounded" | "square";
 	onLoad?: () => void;
 	onError?: () => void;
 	timeout?: number;
@@ -69,14 +70,22 @@ export function CachedAvatar({
 	fallback,
 	className,
 	size = "md",
+	shape = "circle",
 	onLoad,
 	onError,
 	timeout = 10000,
 }: CachedAvatarProps) {
 	const fallbackText = fallback.charAt(0).toUpperCase();
+	const shapeClass =
+		shape === "rounded"
+			? "!rounded-[10px]"
+			: shape === "square"
+				? "!rounded-none"
+				: "";
+	const fallbackShapeClass = shapeClass || undefined;
 
 	return (
-		<Avatar className={cn(sizeClasses[size], className)}>
+		<Avatar className={cn(sizeClasses[size], shapeClass, className)}>
 			{src ? (
 				<LazyImage
 					src={src}
@@ -86,7 +95,7 @@ export function CachedAvatar({
 					onLoad={onLoad}
 					onError={onError}
 					fallback={
-						<AvatarFallback className={sizeClasses[size]}>
+						<AvatarFallback className={cn(sizeClasses[size], fallbackShapeClass)}>
 							{fallbackText}
 						</AvatarFallback>
 					}
@@ -98,7 +107,7 @@ export function CachedAvatar({
 					className="h-full w-full"
 				/>
 			) : (
-				<AvatarFallback className={sizeClasses[size]}>
+				<AvatarFallback className={cn(sizeClasses[size], fallbackShapeClass)}>
 					{fallbackText}
 				</AvatarFallback>
 			)}
