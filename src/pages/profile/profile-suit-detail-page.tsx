@@ -608,21 +608,23 @@ export function ProfileSuitDetailPage() {
 					onValueChange={setActiveTab}
 					className="space-y-4"
 				>
-					<TabsList className="grid w-full grid-cols-5">
-						<TabsTrigger value="overview">Overview</TabsTrigger>
-						<TabsTrigger value="servers">
-							Servers ({enabledServers.length}/{servers.length})
-						</TabsTrigger>
-						<TabsTrigger value="tools">
-							Tools ({enabledTools.length}/{tools.length})
-						</TabsTrigger>
-						<TabsTrigger value="resources">
-							Resources ({enabledResources.length}/{resources.length})
-						</TabsTrigger>
-						<TabsTrigger value="prompts">
-							Prompts ({enabledPrompts.length}/{prompts.length})
-						</TabsTrigger>
-					</TabsList>
+					<div className="flex items-center justify-between">
+						<TabsList className="flex items-center gap-2">
+							<TabsTrigger value="overview">Overview</TabsTrigger>
+							<TabsTrigger value="servers">
+								Servers ({enabledServers.length}/{servers.length})
+							</TabsTrigger>
+							<TabsTrigger value="tools">
+								Tools ({enabledTools.length}/{tools.length})
+							</TabsTrigger>
+							<TabsTrigger value="resources">
+								Resources ({enabledResources.length}/{resources.length})
+							</TabsTrigger>
+							<TabsTrigger value="prompts">
+								Prompts ({enabledPrompts.length}/{prompts.length})
+							</TabsTrigger>
+						</TabsList>
+					</div>
 
 					<TabsContent value="overview">
 						<div className="grid gap-4">
@@ -631,7 +633,7 @@ export function ProfileSuitDetailPage() {
 									<div className="flex flex-col gap-4">
 										<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 											<div className="flex flex-wrap items-start gap-4">
-												<Avatar className="h-20 w-20 text-xl">
+												<Avatar className="text-sm">
 													<AvatarFallback>
 														{suit.name.slice(0, 1).toUpperCase()}
 													</AvatarFallback>

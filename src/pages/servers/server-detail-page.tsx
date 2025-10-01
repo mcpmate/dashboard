@@ -543,7 +543,7 @@ export function ServerDetailPage() {
 											<div className="flex flex-col gap-4">
 												<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 													<div className="flex flex-wrap items-start gap-4">
-														<Avatar className="h-20 w-20 text-xl">
+														<Avatar className="text-sm">
 															<AvatarFallback>
 																{serverDisplayName.slice(0, 1).toUpperCase()}
 															</AvatarFallback>
@@ -662,28 +662,28 @@ export function ServerDetailPage() {
 												</CardTitle>
 											</CardHeader>
 											<CardContent>
-												{server.instances?.length ? (
-													<div className="space-y-2">
-														{server.instances.map((i) => (
-															<div
-																key={i.id}
-																className="rounded border p-3 text-sm flex items-center justify-between cursor-pointer hover:bg-accent/50"
-																onClick={() =>
-																	navigate(
-																		`/servers/${encodeURIComponent(serverId)}/instances/${encodeURIComponent(i.id)}`,
-																	)
-																}
-															>
-																<div className="font-mono">{i.id}</div>
-																<div className="text-xs text-slate-500">
-																	{String(i.status)}
-																</div>
-															</div>
-														))}
-													</div>
-												) : (
-													<div className="text-slate-500">No instances.</div>
-												)}
+                                            {server.instances?.length ? (
+                                                <div className="rounded-[10px] border overflow-hidden">
+                                                    {server.instances.map((i) => (
+                                                        <div
+                                                            key={i.id}
+                                                            className="px-3 py-2 text-sm flex items-center justify-between cursor-pointer even:bg-white odd:bg-slate-50 hover:bg-accent/50 dark:even:bg-slate-950 dark:odd:bg-slate-900"
+                                                            onClick={() =>
+                                                                navigate(
+                                                                    `/servers/${encodeURIComponent(serverId)}/instances/${encodeURIComponent(i.id)}`,
+                                                                )
+                                                            }
+                                                        >
+                                                            <div className="font-mono">{i.id}</div>
+                                                            <div className="text-xs text-slate-500">
+                                                                {String(i.status)}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-slate-500">No instances.</div>
+                                            )}
 											</CardContent>
 										</Card>
 									) : null}

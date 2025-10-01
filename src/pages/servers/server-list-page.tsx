@@ -653,7 +653,7 @@ export function ServerListPage() {
 						className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
 					>
 						<div className="flex items-center gap-3">
-							<div className="h-11 w-11 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800"></div>
+							<div className="h-12 w-12 animate-pulse rounded-[10px] bg-slate-200 dark:bg-slate-800"></div>
 							<div className="space-y-2">
 								<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 								<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>

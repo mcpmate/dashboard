@@ -10,6 +10,7 @@ import type {
 	ClientConfigUpdateData,
 } from "../../lib/types";
 import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
 import {
 	Card,
 	CardContent,
@@ -50,16 +51,18 @@ import {
 	DrawerDescription,
 } from "../../components/ui/drawer";
 import {
-	BookOpen,
-	Eye,
-	Globe,
-	LifeBuoy,
-	MoreHorizontal,
-	RefreshCw,
-	RotateCcw,
-	SlidersHorizontal,
-	Trash2,
-	Upload,
+    BookOpen,
+    Download,
+    Globe,
+    LifeBuoy,
+    MoreHorizontal,
+    RefreshCw,
+    RotateCcw,
+    SlidersHorizontal,
+    Trash2,
+    Upload,
+    Play,
+    Square,
 } from "lucide-react";
 import {
 	Avatar,
@@ -71,27 +74,32 @@ export function ClientDetailPage() {
 	const { identifier } = useParams<{ identifier: string }>();
 	const qc = useQueryClient();
 	const [displayName, setDisplayName] = useState("");
-	const [selectedBackups, setSelectedBackups] = useState<string[]>([]);
+    const [selectedBackups, setSelectedBackups] = useState<string[]>([]);
+    const [detected, setDetected] = useState<boolean>(false);
 	const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 
 	// Try to get display name from list cache
-	useEffect(() => {
-		const cached = qc.getQueryData<any>(["clients"]);
-		if (cached?.client) {
-			const found = cached.client.find((c: any) => c.identifier === identifier);
-			if (found) setDisplayName(found.display_name);
-		}
-		if (!displayName) {
-			// Fallback: fetch list once to resolve display name
-			clientsApi
-				.list(false)
-				.then((d) => {
-					const f = d.client?.find((c: any) => c.identifier === identifier);
-					if (f?.display_name) setDisplayName(f.display_name);
-				})
-				.catch(() => {});
-		}
-	}, [identifier, qc]);
+    useEffect(() => {
+        const cached = qc.getQueryData<any>(["clients"]);
+        if (cached?.client) {
+            const found = cached.client.find((c: any) => c.identifier === identifier);
+            if (found) {
+                setDisplayName(found.display_name);
+                setDetected(!!found.detected);
+            }
+        }
+        if (!displayName) {
+            // Fallback: fetch list once to resolve display name
+            clientsApi
+                .list(false)
+                .then((d) => {
+                    const f = d.client?.find((c: any) => c.identifier === identifier);
+                    if (f?.display_name) setDisplayName(f.display_name);
+                    if (typeof f?.detected === "boolean") setDetected(!!f.detected);
+                })
+                .catch(() => {});
+        }
+    }, [identifier, qc]);
 
 	const modeId = useId();
 	const sourceId = useId();
@@ -182,14 +190,14 @@ export function ClientDetailPage() {
 		enabled: !!identifier,
 	});
 
-	const applyMutation = useMutation({
-		mutationFn: () =>
-			clientsApi.applyConfig({
-				identifier: identifier!,
-				mode,
-				selected_config: selectedConfig,
-				preview,
-			}),
+    const applyMutation = useMutation({
+        mutationFn: () =>
+            clientsApi.applyConfig({
+                identifier: identifier!,
+                mode,
+                selected_config: selectedConfig,
+                preview,
+            }),
 		onSuccess: (res) => {
 			if (preview) {
 				setApplyResult(res);
@@ -204,13 +212,55 @@ export function ClientDetailPage() {
 		onError: (e) => notifyError("Apply failed", String(e)),
 	});
 
-	const importMutation = useMutation({
-		mutationFn: () =>
-			clientsApi.importFromClient(identifier!, { preview: false }),
-		onSuccess: () =>
-			notifySuccess("Imported", "Servers imported from client config (if any)"),
-		onError: (e) => notifyError("Import failed", String(e)),
-	});
+    const importMutation = useMutation({
+        mutationFn: async () => {
+            // If no preview yet, generate one first
+            if (!importPreviewData) {
+                const res = await clientsApi.importFromClient(identifier!, { preview: true });
+                setImportPreviewData(res);
+                return null as any; // indicate preview stage; caller handles UI
+            }
+            return clientsApi.importFromClient(identifier!, { preview: false });
+        },
+        onSuccess: (res: any) => {
+            // If onSuccess received null means we just did a preview; do not close
+            if (!res) return;
+            const imported = res?.imported_servers?.length ?? res?.summary?.imported_count ?? 0;
+            if (imported > 0) {
+                notifySuccess("Imported", `${imported} server(s) imported successfully`);
+                setImportPreviewOpen(false);
+            } else {
+                notifyInfo("Nothing to import", "All entries were skipped or no importable servers found.");
+                setImportPreviewOpen(false);
+            }
+        },
+        onError: (e) => notifyError("Import failed", String(e)),
+    });
+
+    // Header actions: refresh detection and toggle managed
+    const refreshDetectMutation = useMutation({
+        mutationFn: async () => {
+            const data = await clientsApi.list(true);
+            const f = data.client?.find((c: any) => c.identifier === identifier);
+            if (f) {
+                if (typeof f.display_name === "string") setDisplayName(f.display_name);
+                setDetected(!!f.detected);
+            }
+            await refetchDetails();
+        },
+        onSuccess: () => notifySuccess("Refreshed", "Detection refreshed"),
+        onError: (e) => notifyError("Refresh failed", String(e)),
+    });
+
+    const toggleManagedMutation = useMutation({
+        mutationFn: async () => {
+            const next = !(configDetails?.managed ?? false);
+            await clientsApi.manage(identifier!, next ? "enable" : "disable");
+            await refetchDetails();
+        },
+        onSuccess: () => notifySuccess("Updated", "Managed state changed"),
+        onError: (e) => notifyError("Update failed", String(e)),
+    });
 	const importPreviewMutation = useMutation({
 		mutationFn: () =>
 			clientsApi.importFromClient(identifier!, { preview: true }),
@@ -319,30 +369,32 @@ export function ClientDetailPage() {
 	if (!identifier)
 		return <div className="p-4">No client identifier provided.</div>;
 
-	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-3">
-					<h2 className="text-3xl font-bold tracking-tight">
-						{displayName || identifier}
-					</h2>
-				</div>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button size="sm" variant="outline">
-							<MoreHorizontal className="h-4 w-4" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" sideOffset={5}>
-						<DropdownMenuItem onClick={() => setApplyOpen(true)}>
-							<Upload className="mr-2 h-4 w-4" /> Apply Config
-						</DropdownMenuItem>
-						<DropdownMenuItem onClick={() => setPolicyOpen(true)}>
-							<SlidersHorizontal className="mr-2 h-4 w-4" /> Backup Policy
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <h2 className="text-3xl font-bold tracking-tight">
+                            {displayName || identifier}
+                        </h2>
+                        {/* Managed / Detected badges */}
+                        {typeof configDetails?.managed === "boolean" ? (
+                            <Badge variant={configDetails.managed ? "secondary" : "outline"}>
+                                {configDetails.managed ? "Managed" : "Unmanaged"}
+                            </Badge>
+                        ) : null}
+                        <Badge variant={detected ? "default" : "secondary"}>
+                            {detected ? "Detected" : "Not Detected"}
+                        </Badge>
+                    </div>
+                    {detailDescription ? (
+                        <p className="text-sm text-muted-foreground leading-snug w-full truncate">
+                            {detailDescription}
+                        </p>
+                    ) : null}
+                </div>
+                {/* 操作按钮移至 Overview 卡片右上角 */}
+            </div>
 
 			<Tabs defaultValue="overview">
 				<div className="flex items-center justify-between">
@@ -361,67 +413,88 @@ export function ClientDetailPage() {
 								</CardContent>
 							) : configDetails ? (
 								<>
-									<CardHeader className="flex flex-row items-center gap-3 pb-0">
-										<Avatar className="h-12 w-12 !rounded-[10px]">
-											{configDetails.logo_url ? (
-												<AvatarImage
-													src={configDetails.logo_url}
-													alt={displayName || identifier}
-													className="!rounded-[10px]"
-												/>
-											) : null}
-											<AvatarFallback className="!rounded-[10px]">
-												{(displayName || identifier || "C")
-													.slice(0, 1)
-													.toUpperCase()}
-											</AvatarFallback>
-										</Avatar>
-										<div>
-											<div className="text-lg font-semibold leading-tight">
-												{displayName || identifier}
-											</div>
-											<div className="text-xs text-slate-500">{identifier}</div>
-										</div>
-									</CardHeader>
-									<CardContent className="text-sm pt-4 space-y-4">
-										{detailDescription ? (
-											<p className="text-muted-foreground leading-snug max-w-3xl">
-												{detailDescription}
-											</p>
-										) : null}
-										{detailQuickLinks.length > 0 ? (
-											<div className="flex flex-wrap gap-2">
-												{detailQuickLinks.map((link) => (
-													<Button
-														key={`detail-link-${link.label}`}
-														variant="outline"
-														size="sm"
-														onClick={() => handleDetailLinkClick(link.url)}
-													>
-														<link.icon className="mr-2 h-4 w-4" />
-														{link.label}
-													</Button>
-												))}
-											</div>
-										) : null}
-										<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-											<div>
-												Config Path:{" "}
-												<span className="font-mono break-all">
-													{configDetails.config_path}
-												</span>
-											</div>
-											<div>
-												Managed: {String(configDetails.managed)}
-											</div>
-											<div>
-												Servers detected: {configDetails.mcp_servers_count ?? 0}
-											</div>
-											<div>
-												Last Modified: {configDetails.last_modified || "-"}
-											</div>
-										</div>
-									</CardContent>
+                            <CardContent className="p-4">
+                                <div className="flex flex-col gap-4">
+                                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                        <div className="flex flex-wrap items-start gap-4">
+                                            <Avatar className="text-sm">
+                                                {configDetails.logo_url ? (
+                                                    <AvatarImage
+                                                        src={configDetails.logo_url}
+                                                        alt={displayName || identifier}
+                                                    />
+                                                ) : null}
+                                                <AvatarFallback>
+                                                    {(displayName || identifier || "C")
+                                                        .slice(0, 1)
+                                                        .toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
+                                                <span className="text-xs uppercase text-slate-500">Config Path</span>
+                                                <span className="font-mono text-xs truncate max-w-[520px]">{configDetails.config_path}</span>
+
+                                                <span className="text-xs uppercase text-slate-500">Last Modified</span>
+                                                <span className="text-xs">{configDetails.last_modified || "-"}</span>
+
+                                                {detailHomepageUrl ? (
+                                                    <>
+                                                        <span className="text-xs uppercase text-slate-500">Homepage</span>
+                                                        <a href={detailHomepageUrl} target="_blank" rel="noreferrer" className="text-xs underline underline-offset-2 truncate">
+                                                            {detailHomepageUrl}
+                                                        </a>
+                                                    </>
+                                                ) : null}
+                                                {detailDocsUrl ? (
+                                                    <>
+                                                        <span className="text-xs uppercase text-slate-500">Docs</span>
+                                                        <a href={detailDocsUrl} target="_blank" rel="noreferrer" className="text-xs underline underline-offset-2 truncate">
+                                                            {detailDocsUrl}
+                                                        </a>
+                                                    </>
+                                                ) : null}
+                                                {detailSupportUrl ? (
+                                                    <>
+                                                        <span className="text-xs uppercase text-slate-500">Support</span>
+                                                        <a href={detailSupportUrl} target="_blank" rel="noreferrer" className="text-xs underline underline-offset-2 truncate">
+                                                            {detailSupportUrl}
+                                                        </a>
+                                                    </>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-start justify-end gap-2 self-start">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => refreshDetectMutation.mutate()}
+                                                disabled={refreshDetectMutation.isPending}
+                                                className="gap-2"
+                                            >
+                                                <RefreshCw className={`h-4 w-4 ${refreshDetectMutation.isPending ? "animate-spin" : ""}`} />
+                                                Refresh
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => toggleManagedMutation.mutate()}
+                                                disabled={toggleManagedMutation.isPending || !configDetails}
+                                                className="gap-2"
+                                            >
+                                                {configDetails?.managed ? (
+                                                    <Square className="h-4 w-4" />
+                                                ) : (
+                                                    <Play className="h-4 w-4" />
+                                                )}
+                                                {configDetails?.managed ? "Disable" : "Enable"}
+                                            </Button>
+                                            <Button size="sm" onClick={() => setApplyOpen(true)} className="gap-2">
+                                                <Upload className="h-4 w-4" /> Apply
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
 								</>
 							) : (
 								<CardContent className="text-sm text-slate-500">
@@ -432,39 +505,45 @@ export function ClientDetailPage() {
 						<Card>
 							<CardHeader>
 								<div className="flex items-center justify-between">
-									<CardTitle>Configured Servers (preview)</CardTitle>
-									<div className="flex items-center gap-2">
-										<Button
-											size="sm"
-											variant="outline"
-											onClick={() => importPreviewMutation.mutate()}
-										>
-											<Eye className="mr-2 h-4 w-4" /> Import from Config
-										</Button>
-									</div>
+									<CardTitle>Current Servers</CardTitle>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => importPreviewMutation.mutate()}
+                                    >
+                                        <Download className="mr-2 h-4 w-4" /> Import from Config
+                                    </Button>
+                                </div>
 								</div>
 							</CardHeader>
 							<CardContent>
-								{loadingConfig ? (
-									<div className="space-y-2">
-										{[1, 2, 3].map((i) => (
-											<div
-												key={i}
-												className="h-8 bg-slate-200 dark:bg-slate-800 animate-pulse rounded"
-											/>
-										))}
-									</div>
-								) : currentServers.length ? (
-									<ul className="list-disc pl-6 text-sm">
-										{currentServers.map((n) => (
-											<li key={n}>{n}</li>
-										))}
-									</ul>
-								) : (
-									<div className="text-sm text-slate-500">
-										No servers extracted from current config.
-									</div>
-								)}
+                            {loadingConfig ? (
+                                <div className="space-y-2">
+                                    {[1, 2, 3].map((i) => (
+                                        <div
+                                            key={i}
+                                            className="h-8 bg-slate-200 dark:bg-slate-800 animate-pulse rounded-[10px]"
+                                        />
+                                    ))}
+                                </div>
+                            ) : currentServers.length ? (
+                                <div className="rounded-[10px] border overflow-hidden">
+                                    {currentServers.map((n) => (
+                                        <div
+                                            key={n}
+                                            className="px-3 py-2 text-sm flex items-center justify-between even:bg-white odd:bg-slate-50 dark:even:bg-slate-950 dark:odd:bg-slate-900"
+                                        >
+                                            <div className="font-mono">{n}</div>
+                                            <div className="text-xs text-slate-500">configured</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-slate-500">
+                                    No servers extracted from current config.
+                                </div>
+                            )}
 							</CardContent>
 						</Card>
 					</div>
@@ -829,39 +908,38 @@ export function ClientDetailPage() {
 			{/* Import Preview Drawer */}
 			<Drawer open={importPreviewOpen} onOpenChange={setImportPreviewOpen}>
 				<DrawerContent>
-					<DrawerHeader>
-						<DrawerTitle>Import Preview</DrawerTitle>
-						<DrawerDescription>
-							Summary of servers detected from current client config.
-						</DrawerDescription>
-					</DrawerHeader>
-					<div className="p-4 space-y-4 text-sm">
+                    <DrawerHeader>
+                        <DrawerTitle>Import Preview</DrawerTitle>
+                        <DrawerDescription>
+                            Summary of servers detected from current client config.
+                        </DrawerDescription>
+                    </DrawerHeader>
+					<div className="p-4 text-sm flex flex-col gap-4 max-h-[70vh]">
 						{importPreviewMutation.isPending ? (
 							<div className="h-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
 						) : importPreviewData ? (
-							<div className="space-y-4">
-								<div className="grid grid-cols-2 gap-2">
-									<div>
-										attempted:{" "}
-										{String(importPreviewData.summary?.attempted ?? "-")}
-									</div>
-									<div>
-										imported: {importPreviewData.summary?.imported_count ?? 0}
-									</div>
-									<div>
-										skipped: {importPreviewData.summary?.skipped_count ?? 0}
-									</div>
-									<div>
-										failed: {importPreviewData.summary?.failed_count ?? 0}
-									</div>
-								</div>
+							<div className="flex-1 min-h-0 flex flex-col gap-4">
+                                <div className="grid grid-cols-[120px_1fr] gap-y-2 gap-x-4 text-sm leading-6">
+                                    <div className="text-slate-500">Attempted</div>
+                                    <div>
+                                        {typeof importPreviewData.summary?.attempted === "boolean"
+                                            ? (importPreviewData.summary.attempted ? "Yes" : "No")
+                                            : "-"}
+                                    </div>
+                                    <div className="text-slate-500">Imported</div>
+                                    <div>{importPreviewData.summary?.imported_count ?? 0}</div>
+                                    <div className="text-slate-500">Skipped</div>
+                                    <div>{importPreviewData.summary?.skipped_count ?? 0}</div>
+                                    <div className="text-slate-500">Failed</div>
+                                    <div>{importPreviewData.summary?.failed_count ?? 0}</div>
+                                </div>
 								{Array.isArray(importPreviewData.items) &&
 								importPreviewData.items.length > 0 ? (
 									<div className="rounded border">
 										<div className="px-3 py-2 text-xs text-slate-500 border-b">
 											Servers to import
 										</div>
-										<ul className="divide-y">
+										<ul className="divide-y max-h-[30vh] overflow-auto">
 											{importPreviewData.items.map((it: any, idx: number) => (
 												<li key={idx} className="p-3 text-xs">
 													<div className="font-medium">
@@ -888,7 +966,7 @@ export function ClientDetailPage() {
 										<summary className="text-xs text-slate-500 cursor-pointer">
 											Errors
 										</summary>
-										<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">
+										<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto max-h-[26vh]">
 											{JSON.stringify(
 												importPreviewData.summary.errors,
 												null,
@@ -897,11 +975,11 @@ export function ClientDetailPage() {
 										</pre>
 									</details>
 								) : null}
-								<details className="mt-2">
+								<details className="mt-2 flex-1 min-h-0">
 									<summary className="text-xs text-slate-500 cursor-pointer">
 										Raw preview JSON
 									</summary>
-									<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto">
+									<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto flex-1 min-h-0 max-h-[40vh]">
 										{JSON.stringify(importPreviewData, null, 2)}
 									</pre>
 								</details>
@@ -909,22 +987,27 @@ export function ClientDetailPage() {
 						) : (
 							<div className="text-slate-500">No preview data.</div>
 						)}
-						<div className="flex gap-2 mt-2">
-							<Button
-								onClick={() => importMutation.mutate()}
-								disabled={importMutation.isPending}
-							>
-								Apply Import
-							</Button>
-							<Button
-								variant="outline"
-								onClick={() => setImportPreviewOpen(false)}
-							>
-								Close
-							</Button>
-						</div>
 					</div>
-					<DrawerFooter />
+					<DrawerFooter>
+                        <div className="flex w-full items-center justify-between">
+                            <Button variant="outline" onClick={() => setImportPreviewOpen(false)}>
+                                Close
+                            </Button>
+                            {importPreviewData ? (
+                                (importPreviewData?.summary?.imported_count ?? 0) > 0 ? (
+                                    <Button onClick={() => importMutation.mutate()} disabled={importMutation.isPending}>
+                                        Apply Import
+                                    </Button>
+                                ) : (
+                                    <div className="text-xs text-slate-500">No import needed</div>
+                                )
+                            ) : (
+                                <Button onClick={() => importPreviewMutation.mutate()} disabled={importPreviewMutation.isPending}>
+                                    Preview
+                                </Button>
+                            )}
+                        </div>
+					</DrawerFooter>
 				</DrawerContent>
 			</Drawer>
 		</div>

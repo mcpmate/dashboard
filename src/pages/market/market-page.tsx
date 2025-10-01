@@ -392,7 +392,7 @@ function MarketCard({
 			<CardHeader className="p-4">
 				<div className="grid grid-cols-[1fr_auto] gap-3 items-start">
 					<div className="flex items-start gap-3 min-w-0">
-						<Avatar className="h-12 w-12 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-lg font-semibold">
+						<Avatar className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-sm font-medium">
 							<AvatarFallback>
 								{displayName.charAt(0).toUpperCase()}
 							</AvatarFallback>
@@ -783,7 +783,7 @@ export function MarketPage() {
 									<CardHeader className="p-4">
 										<div className="grid grid-cols-1 grid-rows-1">
 											<div className="flex items-start gap-3 col-start-1 row-start-1">
-												<div className="h-12 w-12 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+												<div className="h-12 w-12 rounded-[10px] bg-slate-200 animate-pulse dark:bg-slate-700" />
 												<div className="flex-1 space-y-2">
 													<div className="h-5 w-3/4 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
 													<div className="h-3 w-1/2 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />

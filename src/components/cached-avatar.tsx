@@ -9,10 +9,10 @@ const Avatar = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<AvatarPrimitive.Root
 		ref={ref}
-		className={cn(
-			"relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full",
-			className,
-		)}
+    className={cn(
+        "relative flex h-12 w-12 shrink-0 overflow-hidden rounded-[10px]",
+        className,
+    )}
 		{...props}
 	/>
 ));
@@ -36,10 +36,10 @@ const AvatarFallback = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<AvatarPrimitive.Fallback
 		ref={ref}
-		className={cn(
-			"flex h-full w-full items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-			className,
-		)}
+        className={cn(
+            "flex h-full w-full items-center justify-center rounded-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+            className,
+        )}
 		{...props}
 	/>
 ));
@@ -58,22 +58,22 @@ export interface CachedAvatarProps {
 }
 
 const sizeClasses = {
-	sm: "h-6 w-6 text-xs",
-	md: "h-8 w-8 text-sm",
-	lg: "h-12 w-12 text-lg",
-	xl: "h-16 w-16 text-xl",
+    sm: "h-8 w-8 text-xs",
+    md: "h-12 w-12 text-sm",
+    lg: "h-12 w-12 text-lg",
+    xl: "h-16 w-16 text-xl",
 };
 
 export function CachedAvatar({
-	src,
-	alt = "",
-	fallback,
-	className,
-	size = "md",
-	shape = "circle",
-	onLoad,
-	onError,
-	timeout = 10000,
+    src,
+    alt = "",
+    fallback,
+    className,
+    size = "md",
+    shape = "rounded",
+    onLoad,
+    onError,
+    timeout = 10000,
 }: CachedAvatarProps) {
 	const fallbackText = fallback.charAt(0).toUpperCase();
 	const shapeClass =
@@ -82,10 +82,10 @@ export function CachedAvatar({
 			: shape === "square"
 				? "!rounded-none"
 				: "";
-	const fallbackShapeClass = shapeClass || undefined;
+    const fallbackShapeClass = shapeClass || "!rounded-[10px]";
 
 	return (
-		<Avatar className={cn(sizeClasses[size], shapeClass, className)}>
+        <Avatar className={cn(sizeClasses[size], shapeClass, className)}>
 			{src ? (
 				<LazyImage
 					src={src}
@@ -95,24 +95,24 @@ export function CachedAvatar({
 					onLoad={onLoad}
 					onError={onError}
 					fallback={
-						<AvatarFallback className={cn(sizeClasses[size], fallbackShapeClass)}>
-							{fallbackText}
-						</AvatarFallback>
-					}
-					placeholder={
-						<div className="flex h-full w-full items-center justify-center">
-							<div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-						</div>
-					}
-					className="h-full w-full"
-				/>
-			) : (
-				<AvatarFallback className={cn(sizeClasses[size], fallbackShapeClass)}>
-					{fallbackText}
-				</AvatarFallback>
-			)}
-		</Avatar>
-	);
+                    <AvatarFallback className={cn(sizeClasses[size], fallbackShapeClass)}>
+                        {fallbackText}
+                    </AvatarFallback>
+                }
+                placeholder={
+                    <div className="flex h-full w-full items-center justify-center">
+                        <div className="h-4 w-4 animate-spin rounded-[10px] border-2 border-slate-300 border-t-slate-600" />
+                    </div>
+                }
+                className="h-full w-full"
+            />
+        ) : (
+                <AvatarFallback className={cn(sizeClasses[size], fallbackShapeClass)}>
+                    {fallbackText}
+                </AvatarFallback>
+            )}
+        </Avatar>
+    );
 }
 
 // 导出原始组件以保持兼容性

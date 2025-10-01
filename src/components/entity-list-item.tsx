@@ -87,7 +87,7 @@ export function EntityListItem({
 			{/* 左侧内容 */}
 			<div className="flex items-center gap-3">
 				{/* Avatar */}
-				<Avatar className="h-11 w-11 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+				<Avatar className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
 					{avatar?.src && (
 						<AvatarImage src={avatar.src} alt={avatar.alt || title} />
 					)}

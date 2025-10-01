@@ -603,13 +603,12 @@ export function ServerFormDrawer({
 				</div>
 
 				<DrawerFooter>
-					<div className="flex gap-2 w-full">
+					<div className="flex w-full items-center justify-between">
 						<Button
 							type="button"
 							variant="outline"
 							onClick={onClose}
 							disabled={isSubmitting}
-							className="flex-1"
 						>
 							Cancel
 						</Button>
@@ -618,7 +617,6 @@ export function ServerFormDrawer({
 								type="submit"
 								onClick={handleSubmit(handleFormSubmit)}
 								disabled={isSubmitting}
-								className="flex-1"
 							>
 								{isSubmitting && (
 									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -630,7 +628,6 @@ export function ServerFormDrawer({
 								type="button"
 								onClick={doImport}
 								disabled={isSubmitting}
-								className="flex-1"
 							>
 								{isSubmitting && (
 									<Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -40,16 +40,21 @@ export function ClientsPage() {
 	const managedCount = clients.filter((c: any) => !!c.managed).length;
 	const configuredCount = clients.filter((c: any) => !!c.has_mcp_config).length;
 	// 转换数据格式以适配 Entity 接口，保持引用稳定
-	const clientsAsEntities = React.useMemo(
-		() =>
-			clients.map((client: any) => ({
-				id: client.identifier || client.display_name || "",
-				name: client.display_name || client.identifier || "",
-				description: client.description || "",
-				...client,
-			})),
-		[clients],
-	);
+    const clientsAsEntities = React.useMemo(() => {
+        const mapped = clients.map((client: any) => ({
+            id: client.identifier || client.display_name || "",
+            name: client.display_name || client.identifier || "",
+            description: client.description || "",
+            ...client,
+        }));
+        // Default stable sort by name A→Z, tie-breaker by id
+        mapped.sort((a, b) => {
+            const byName = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+            if (byName !== 0) return byName;
+            return a.id.localeCompare(b.id, undefined, { sensitivity: "base" });
+        });
+        return mapped;
+    }, [clients]);
 
 	// 排序后的数据状态
 	const [sortedClients, setSortedClients] = React.useState(clientsAsEntities);
@@ -259,7 +264,7 @@ export function ClientsPage() {
 			? Array.from({ length: 6 }, (_, index) => (
 					<Card key={`client-skeleton-grid-${index}`} className="p-4">
 						<div className="flex items-start gap-3">
-							<div className="h-12 w-12 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
+							<div className="h-12 w-12 animate-pulse rounded-[10px] bg-slate-200 dark:bg-slate-800" />
 							<div className="flex-1 space-y-2">
 								<div className="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
 								<div className="h-3 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
@@ -284,7 +289,7 @@ export function ClientsPage() {
 						className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-950"
 					>
 						<div className="flex items-center gap-3">
-							<div className="h-12 w-12 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
+							<div className="h-12 w-12 animate-pulse rounded-[10px] bg-slate-200 dark:bg-slate-800" />
 							<div className="space-y-2">
 								<div className="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
 								<div className="h-3 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
