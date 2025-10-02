@@ -910,7 +910,7 @@ export const capabilitiesApi = {
 				metrics: CapabilitiesMetricsStats;
 				generated_at: string;
 			}>
-		>("/api/cache/capabilities/details?view=stats");
+		>("/api/mcp/servers/cache/detail?view=stats");
 
 		const data = extractApiData(response);
 		return {
@@ -926,12 +926,12 @@ export const capabilitiesApi = {
 		if (params?.offset != null) q.set("offset", String(params.offset));
 		if (params?.search) q.set("search", params.search);
 		return fetchApi<CapabilitiesKeysResponse>(
-			`/api/cache/capabilities/details?${q}`,
+			`/api/mcp/servers/cache/detail?${q}`,
 		);
 	},
 
 	reset: () =>
-		fetchApi<ClearCacheResponse>("/api/cache/capabilities/reset", {
+		fetchApi<ClearCacheResponse>("/api/mcp/servers/cache/reset", {
 			method: "POST",
 		}),
 };
