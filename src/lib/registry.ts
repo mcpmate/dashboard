@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./api";
 import type {
   RegistryOfficialMeta,
   RegistryServerEntry,
@@ -18,9 +19,11 @@ export async function fetchRegistryServers(
   params.set("limit", Math.max(1, Math.min(limit, 100)).toString());
   params.set("version", "latest");
   if (cursor) params.set("cursor", cursor);
-  if (search && search.trim()) params.set("search", search.trim());
+  if (search?.trim()) params.set("search", search.trim());
 
-  const response = await fetch(`/api/mcp/registry/servers?${params.toString()}`, {
+  const requestUrl = `${API_BASE_URL}/api/mcp/registry/servers?${params.toString()}`;
+
+  const response = await fetch(requestUrl, {
     headers: {
       Accept: "application/json",
     },

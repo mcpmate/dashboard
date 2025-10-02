@@ -84,7 +84,7 @@ const resolveApiBaseUrl = (): string => {
 	return "http://127.0.0.1:8080";
 };
 
-const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const resolveWebSocketUrl = (): string => {
 	if (typeof window === "undefined") {
