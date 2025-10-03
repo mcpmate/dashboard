@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+	BadgeCheck,
 	Bug,
 	Check,
 	Edit3,
@@ -313,20 +314,43 @@ export function ProfileSuitDetailPage() {
 		},
 	});
 
-	const deactivateSuitMutation = useMutation({
-		mutationFn: () => configSuitsApi.deactivateSuit(suitId!),
-		onSuccess: () => {
+const deactivateSuitMutation = useMutation({
+	mutationFn: () => configSuitsApi.deactivateSuit(suitId!),
+	onSuccess: () => {
+		queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+		queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+		notifySuccess(
+			"Profile deactivated",
+			"Profile has been successfully deactivated",
+		);
+	},
+	onError: (error) => {
+		notifyError(
+			"Deactivation failed",
+			`Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	},
+});
+
+	const toggleDefaultMutation = useMutation({
+		mutationFn: (nextDefault: boolean) =>
+			configSuitsApi.updateSuit(suitId!, { is_default: nextDefault }),
+		onSuccess: (_response, nextDefault) => {
 			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
-				"Profile deactivated",
-				"Profile has been successfully deactivated",
+				"Default bundle updated",
+				nextDefault
+					? "Profile is now part of the default bundle"
+					: "Profile removed from the default bundle",
 			);
 		},
-		onError: (error) => {
+		onError: (error, nextDefault) => {
 			notifyError(
-				"Deactivation failed",
-				`Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
+				"Default update failed",
+				`Failed to ${nextDefault ? "set" : "remove"} default: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
 			);
 		},
 	});
@@ -445,20 +469,52 @@ export function ProfileSuitDetailPage() {
 			refetchPrompts();
 			notifySuccess("Prompt updated", "Prompt status has been updated");
 		},
-		onError: (error) => {
-			notifyError(
-				"Prompt update failed",
-				`Failed to update prompt: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		},
-	});
+	onError: (error) => {
+		notifyError(
+			"Prompt update failed",
+			`Failed to update prompt: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	},
+});
+
+const suitRole = suit?.role ?? "user";
+const isDefaultAnchor = suitRole === "default_anchor";
+	const defaultButtonDisabled =
+		!suit || isDefaultAnchor || toggleDefaultMutation.isPending;
+	const defaultButtonLabel = !suit
+		? "Default"
+		: isDefaultAnchor
+			? "Default Anchor"
+			: suit.is_default
+				? "Leave Default"
+				: "Join Default";
+	const defaultButtonIcon = suit?.is_default ? (
+		<BadgeCheck
+			className={`h-4 w-4 ${
+				toggleDefaultMutation.isPending ? "animate-spin" : ""
+			}`}
+		/>
+) : (
+		<Square className="h-4 w-4" />
+);
 
 	const handleSuitToggle = () => {
+		if (isDefaultAnchor) {
+			return;
+		}
 		if (suit?.is_active) {
 			deactivateSuitMutation.mutate();
 		} else {
 			activateSuitMutation.mutate();
 		}
+	};
+
+	const handleDefaultToggle = () => {
+		if (!suit || isDefaultAnchor || toggleDefaultMutation.isPending) {
+			return;
+		}
+		const nextDefault = !suit.is_default;
+		toggleDefaultMutation.mutate(nextDefault);
 	};
 
 	const handleRefreshAll = () => {
@@ -568,13 +624,17 @@ export function ProfileSuitDetailPage() {
 									<Badge variant={suit.is_active ? "default" : "secondary"}>
 										{suit.suit_type}
 									</Badge>
-									{suit.is_active && (
-										<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-											<Check className="mr-1 h-3 w-3" />
-											Active
-										</span>
-									)}
-									{suit.is_default && <Badge variant="outline">Default</Badge>}
+													{suit.is_active && (
+														<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+															<Check className="mr-1 h-3 w-3" />
+															Active
+														</span>
+													)}
+													{suitRole === "default_anchor" ? (
+														<Badge variant="outline">Default Anchor</Badge>
+													) : suit.is_default ? (
+														<Badge variant="outline">In Default</Badge>
+													) : null}
 								</div>
 								{suit.description && (
 									<p className="text-sm text-muted-foreground mt-1">
@@ -643,8 +703,12 @@ export function ProfileSuitDetailPage() {
 														Status
 													</span>
 													<Badge
-														variant={suit.is_active ? "secondary" : "outline"}
-														className={`justify-self-start ${suit.is_active ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200" : "text-slate-600 dark:text-slate-300"}`}
+														variant="secondary"
+														className={`justify-self-start border px-2.5 py-0.5 leading-none min-h-[1.5rem] ${
+															suit.is_active
+																? "border-emerald-200 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-400/50 dark:bg-emerald-500/20 dark:text-emerald-200"
+																: "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300"
+														}`}
 													>
 														{suit.is_active ? "Active" : "Inactive"}
 													</Badge>
@@ -696,21 +760,34 @@ export function ProfileSuitDetailPage() {
 												<Button
 													variant="outline"
 													size="sm"
-													onClick={handleSuitToggle}
-													disabled={
-														(suit?.is_default && suit?.is_active) ||
-														activateSuitMutation.isPending ||
-														deactivateSuitMutation.isPending
-													}
+													onClick={handleDefaultToggle}
+													disabled={defaultButtonDisabled}
 													className="gap-2"
+													aria-pressed={suit?.is_default ?? false}
 												>
-													{suit?.is_active ? (
-														<Square className="h-4 w-4" />
-													) : (
-														<Play className="h-4 w-4" />
-													)}
-													{suit?.is_active ? "Disable" : "Enable"}
+													{defaultButtonIcon}
+													{defaultButtonLabel}
 												</Button>
+											{suitRole === "user" && (
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={handleSuitToggle}
+												disabled={
+													isDefaultAnchor ||
+													activateSuitMutation.isPending ||
+													deactivateSuitMutation.isPending
+												}
+												className="gap-2"
+											>
+												{suit?.is_active ? (
+													<Square className="h-4 w-4" />
+												) : (
+													<Play className="h-4 w-4" />
+												)}
+												{suit?.is_active ? "Disable" : "Enable"}
+											</Button>
+											)}
 												<Button
 													variant="destructive"
 													size="sm"

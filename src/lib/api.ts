@@ -1094,6 +1094,7 @@ export const configSuitsApi = {
 				priority: p.priority,
 				is_active: p.is_active,
 				is_default: p.is_default,
+				role: p.role ?? undefined,
 				allowed_operations: p.allowed_operations || [],
 			}));
 			return { suits };
@@ -1161,6 +1162,7 @@ export const configSuitsApi = {
 			priority: p.priority,
 			is_active: p.is_active,
 			is_default: p.is_default,
+			role: p.role ?? undefined,
 			allowed_operations: p.allowed_operations || [],
 		} as ConfigSuit;
 	},
@@ -1195,6 +1197,7 @@ export const configSuitsApi = {
 			priority: p.priority,
 			is_active: p.is_active,
 			is_default: p.is_default,
+			role: p.role ?? undefined,
 			allowed_operations: p.allowed_operations || [],
 		};
 		return { status: "success", message: "Profile created", data: result };
@@ -1231,6 +1234,7 @@ export const configSuitsApi = {
 			priority: p.priority,
 			is_active: p.is_active,
 			is_default: p.is_default,
+			role: p.role ?? undefined,
 			allowed_operations: p.allowed_operations || [],
 		};
 		return { status: "success", message: "Profile updated", data: result };

@@ -8,6 +8,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "../../components/ui/tabs";
+import { CapsuleStripeList, CapsuleStripeListItem } from "../../components/capsule-stripe-list";
 import { Button } from "../../components/ui/button";
 import {
 	Card,
@@ -663,24 +664,26 @@ export function ServerDetailPage() {
 											</CardHeader>
 											<CardContent>
                                             {server.instances?.length ? (
-                                                <div className="rounded-[10px] border overflow-hidden">
+                                                <CapsuleStripeList>
                                                     {server.instances.map((i) => (
-                                                        <div
+                                                        <CapsuleStripeListItem
                                                             key={i.id}
-                                                            className="px-3 py-2 text-sm flex items-center justify-between cursor-pointer even:bg-white odd:bg-slate-50 hover:bg-accent/50 dark:even:bg-slate-950 dark:odd:bg-slate-900"
+                                                            interactive
                                                             onClick={() =>
                                                                 navigate(
                                                                     `/servers/${encodeURIComponent(serverId)}/instances/${encodeURIComponent(i.id)}`,
                                                                 )
                                                             }
                                                         >
-                                                            <div className="font-mono">{i.id}</div>
+                                                            <div className="font-mono truncate">
+                                                                {i.id}
+                                                            </div>
                                                             <div className="text-xs text-slate-500">
                                                                 {String(i.status)}
                                                             </div>
-                                                        </div>
+                                                        </CapsuleStripeListItem>
                                                     ))}
-                                                </div>
+                                                </CapsuleStripeList>
                                             ) : (
                                                 <div className="text-slate-500">No instances.</div>
                                             )}

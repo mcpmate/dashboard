@@ -39,6 +39,20 @@ import type {
 	ServerSummary,
 } from "../../lib/types";
 
+const DEFAULT_ANCHOR_ROLE = "default_anchor";
+
+const arrangeSuitsWithDefaultAnchor = (items: ConfigSuit[] = []) => {
+	if (!items.length) {
+		return [] as ConfigSuit[];
+	}
+	const isAnchor = (suit: ConfigSuit) => (suit.role ?? "user") === DEFAULT_ANCHOR_ROLE;
+	const anchors = items.filter(isAnchor);
+	const remaining = items.filter((suit) => !isAnchor(suit));
+	const defaults = remaining.filter((suit) => suit.is_default);
+	const others = remaining.filter((suit) => !suit.is_default);
+	return [...anchors, ...defaults, ...others];
+};
+
 type SuitStats = {
 	totalServers: number;
 	enabledServers: number;
@@ -103,13 +117,17 @@ export function ProfilePage() {
 	});
 
 	// Get all active suits for aggregated statistics
-	const activeSuits =
-		suitsResponse?.suits?.filter((suit: ConfigSuit) => suit.is_active) || [];
+	const rawSuits = suitsResponse?.suits || [];
+	const suits = useMemo(
+		() => arrangeSuitsWithDefaultAnchor(rawSuits),
+		[rawSuits],
+	);
+	const activeSuits = suits.filter((suit) => suit.is_active);
 
 	// 当 suits 数据变化时更新 sortedSuits
 	React.useEffect(() => {
-		setSortedSuits(suitsResponse?.suits || []);
-	}, [suitsResponse?.suits]);
+		setSortedSuits(suits);
+	}, [suits]);
 
 	// Get active suit IDs for query keys
 	const activeSuitIds = activeSuits.map((suit) => suit.id);
@@ -204,15 +222,7 @@ export function ProfilePage() {
 		}
 	};
 
-	const suits = suitsResponse?.suits || [];
-	const orderedSuits = useMemo(() => {
-		if (!suits.length) {
-			return [] as ConfigSuit[];
-		}
-		const defaults = suits.filter((suit) => suit.is_default);
-		const others = suits.filter((suit) => !suit.is_default);
-		return [...defaults, ...others];
-	}, [suits]);
+	const orderedSuits = useMemo(() => arrangeSuitsWithDefaultAnchor(suits), [suits]);
 
 	const suitStatQueries = useQueries({
 		queries: orderedSuits.map((suit) => ({
@@ -431,6 +441,9 @@ export function ProfilePage() {
 		const { stats, formatCount } = getSuitStats(index);
 		const displayName = formatSuitDisplayName(suit.name, suit.id);
 		const avatarInitial = displayName.charAt(0).toUpperCase() || "P";
+		const suitRole = suit.role ?? "user";
+		const isDefaultAnchor = suitRole === "default_anchor";
+		const isDefaultMember = suit.is_default;
 
 		return (
 			<EntityListItem
@@ -441,13 +454,19 @@ export function ProfilePage() {
 				avatar={{
 					fallback: avatarInitial,
 				}}
-				titleBadges={[
-					suit.is_default && (
-						<Badge key="default" variant="outline">
-							Default
-						</Badge>
-					),
-				].filter(Boolean)}
+				titleBadges={
+					[
+						isDefaultAnchor ? (
+							<Badge key="default-anchor" variant="outline">
+								Default Anchor
+							</Badge>
+						) : isDefaultMember ? (
+							<Badge key="in-default" variant="outline">
+								In Default
+							</Badge>
+						) : null,
+					].filter(Boolean)
+				}
 				stats={[
 					{ label: "Multi-select", value: suit.multi_select ? "Yes" : "No" },
 					{ label: "Priority", value: suit.priority },
@@ -472,15 +491,11 @@ export function ProfilePage() {
 						{suit.suit_type}
 					</Badge>
 				}
-				enableSwitch={
-					!suit.is_default
-						? {
-								checked: suit.is_active,
-								onChange: () => handleSuitToggle(suit),
-								disabled: isTogglePending,
-							}
-						: undefined
-				}
+				enableSwitch={{
+					checked: suit.is_active,
+					onChange: () => handleSuitToggle(suit),
+					disabled: isTogglePending || isDefaultAnchor,
+				}}
 				onClick={() => navigate(`/profiles/${suit.id}`)}
 			/>
 		);
@@ -490,6 +505,8 @@ export function ProfilePage() {
 		const { stats, formatCount } = getSuitStats(index);
 		const displayName = formatSuitDisplayName(suit.name, suit.id);
 		const avatarInitial = displayName.charAt(0).toUpperCase() || "P";
+		const suitRole = suit.role ?? "user";
+		const isDefaultAnchor = suitRole === "default_anchor";
 		const statItems = [
 			{
 				label: "Servers",
@@ -519,9 +536,13 @@ export function ProfilePage() {
 					fallback: avatarInitial,
 				}}
 				topRightBadge={
-					suit.is_default ? (
+					isDefaultAnchor ? (
 						<Badge variant="outline" className="shrink-0">
-							Default
+							Default Anchor
+						</Badge>
+					) : suit.is_default ? (
+						<Badge variant="outline" className="shrink-0">
+							In Default
 						</Badge>
 					) : undefined
 				}
@@ -532,14 +553,12 @@ export function ProfilePage() {
 					</Badge>
 				}
 				bottomRight={
-					!suit.is_default ? (
-						<Switch
-							checked={suit.is_active}
-							onCheckedChange={() => handleSuitToggle(suit)}
-							disabled={isTogglePending}
-							onClick={(e) => e.stopPropagation()}
-						/>
-					) : undefined
+					<Switch
+						checked={suit.is_active}
+						onCheckedChange={() => handleSuitToggle(suit)}
+						disabled={isTogglePending || isDefaultAnchor}
+						onClick={(e) => e.stopPropagation()}
+					/>
 				}
 				onClick={() => navigate(`/profiles/${suit.id}`)}
 			/>
@@ -547,14 +566,10 @@ export function ProfilePage() {
 	};
 
 	// 使用排序后的数据，保持默认套件在前的顺序
-	const filteredAndSortedSuits = useMemo(() => {
-		if (!sortedSuits.length) return [];
-
-		// 保持默认套件在前的顺序
-		const defaults = sortedSuits.filter((suit) => suit.is_default);
-		const others = sortedSuits.filter((suit) => !suit.is_default);
-		return [...defaults, ...others];
-	}, [sortedSuits]);
+	const filteredAndSortedSuits = useMemo(
+		() => arrangeSuitsWithDefaultAnchor(sortedSuits),
+		[sortedSuits],
+	);
 
 	// Prepare stats cards data
 	const statsCards = [
@@ -695,7 +710,8 @@ export function ProfilePage() {
 			// 直接更新全局设置
 			setDashboardSetting("defaultView", mode);
 		},
-		onSortedDataChange: setSortedSuits,
+	onSortedDataChange: (data: ConfigSuit[]) =>
+		setSortedSuits(arrangeSuitsWithDefaultAnchor(data)),
 		onExpandedChange: setExpanded,
 	};
 

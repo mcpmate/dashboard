@@ -325,6 +325,7 @@ export interface ConfigSuit {
 	priority: number;
 	is_active: boolean;
 	is_default: boolean;
+	role?: string;
 	allowed_operations: string[];
 }
 

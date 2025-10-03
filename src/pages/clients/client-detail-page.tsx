@@ -9,6 +9,7 @@ import type {
 	ClientConfigSelected,
 	ClientConfigUpdateData,
 } from "../../lib/types";
+import { CapsuleStripeList, CapsuleStripeListItem } from "../../components/capsule-stripe-list";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import {
@@ -25,7 +26,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "../../components/ui/select";
-import { Switch } from "../../components/ui/switch";
 import { Input } from "../../components/ui/input";
 import {
 	Tabs,
@@ -55,10 +55,8 @@ import {
     Download,
     Globe,
     LifeBuoy,
-    MoreHorizontal,
     RefreshCw,
     RotateCcw,
-    SlidersHorizontal,
     Trash2,
     Upload,
     Play,
@@ -70,6 +68,8 @@ import {
 	AvatarImage,
 } from "../../components/ui/avatar";
 
+type ClientDetailTab = "overview" | "configuration" | "backups";
+
 export function ClientDetailPage() {
 	const { identifier } = useParams<{ identifier: string }>();
 	const qc = useQueryClient();
@@ -77,6 +77,7 @@ export function ClientDetailPage() {
     const [selectedBackups, setSelectedBackups] = useState<string[]>([]);
     const [detected, setDetected] = useState<boolean>(false);
 	const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+	const [tabValue, setTabValue] = useState<ClientDetailTab>("overview");
 
 	// Try to get display name from list cache
     useEffect(() => {
@@ -101,20 +102,22 @@ export function ClientDetailPage() {
         }
     }, [identifier, qc]);
 
-	const modeId = useId();
-	const sourceId = useId();
-	const limitId = useId();
-	const [mode, setMode] = useState<ClientConfigMode>("hosted");
+const modeId = useId();
+const sourceId = useId();
+const limitId = useId();
+const [mode, setMode] = useState<ClientConfigMode>("hosted");
 	const [selectedConfig, setSelectedConfig] =
 		useState<ClientConfigSelected>("default");
-	const [preview, setPreview] = useState(false);
-	const [applyOpen, setApplyOpen] = useState(false);
-	const [applyResult, setApplyResult] = useState<ClientConfigUpdateData | null>(
-		null,
-	);
-	const [policyOpen, setPolicyOpen] = useState(false);
-	const [importPreviewOpen, setImportPreviewOpen] = useState(false);
-	const [importPreviewData, setImportPreviewData] = useState<any | null>(null);
+const [applyResult, setApplyResult] = useState<ClientConfigUpdateData | null>(
+	null,
+);
+const [lastAction, setLastAction] = useState<"preview" | "apply" | null>(
+	null,
+);
+const [policyOpen, setPolicyOpen] = useState(false);
+const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+const [importPreviewData, setImportPreviewData] = useState<any | null>(null);
+
 
 	const {
 		data: configDetails,
@@ -190,27 +193,52 @@ export function ClientDetailPage() {
 		enabled: !!identifier,
 	});
 
-    const applyMutation = useMutation({
-        mutationFn: () =>
-            clientsApi.applyConfig({
-                identifier: identifier!,
-                mode,
-                selected_config: selectedConfig,
-                preview,
-            }),
-		onSuccess: (res) => {
+	const applyMutation = useMutation<
+		{ data: ClientConfigUpdateData | null; preview: boolean },
+		unknown,
+		{ preview: boolean }
+	>({
+		mutationFn: async ({ preview }) => {
+			const data = await clientsApi.applyConfig({
+				identifier: identifier!,
+				mode,
+				selected_config: selectedConfig,
+				preview,
+			});
+			return { data: data ?? null, preview };
+		},
+		onMutate: ({ preview }) => {
+			setLastAction(preview ? "preview" : "apply");
 			if (preview) {
-				setApplyResult(res);
-				notifyInfo("Preview generated", "See preview details below");
+				setApplyResult(null);
+			}
+		},
+		onSuccess: ({ data, preview }) => {
+			if (preview) {
+				if (data) {
+					setApplyResult(data);
+					notifyInfo("Preview ready", "Review the diff before applying.");
+				} else {
+					notifyInfo("Preview ready", "No changes detected in this configuration.");
+				}
 			} else {
 				notifySuccess("Applied", "Configuration applied");
-				setApplyOpen(false);
 				setApplyResult(null);
 			}
 			qc.invalidateQueries({ queryKey: ["client-config", identifier] });
 		},
 		onError: (e) => notifyError("Apply failed", String(e)),
 	});
+
+    const handlePreviewConfig = () => {
+        if (!identifier) return;
+        applyMutation.mutate({ preview: true });
+    };
+
+    const handleApplyConfig = () => {
+        if (!identifier) return;
+        applyMutation.mutate({ preview: false });
+    };
 
     const importMutation = useMutation({
         mutationFn: async () => {
@@ -396,10 +424,11 @@ export function ClientDetailPage() {
                 {/* 操作按钮移至 Overview 卡片右上角 */}
             </div>
 
-			<Tabs defaultValue="overview">
+			<Tabs value={tabValue} onValueChange={(value) => setTabValue(value as ClientDetailTab)}>
 				<div className="flex items-center justify-between">
 					<TabsList>
 						<TabsTrigger value="overview">Overview</TabsTrigger>
+						<TabsTrigger value="configuration">Configuration</TabsTrigger>
 						<TabsTrigger value="backups">Backups</TabsTrigger>
 					</TabsList>
 				</div>
@@ -488,8 +517,13 @@ export function ClientDetailPage() {
                                                 )}
                                                 {configDetails?.managed ? "Disable" : "Enable"}
                                             </Button>
-                                            <Button size="sm" onClick={() => setApplyOpen(true)} className="gap-2">
-                                                <Upload className="h-4 w-4" /> Apply
+                                            <Button
+                                                size="sm"
+                                                onClick={() => setTabValue("configuration")}
+                                                className="gap-2"
+                                            >
+                                                <Upload className="h-4 w-4" />
+                                                Configure
                                             </Button>
                                         </div>
                                     </div>
@@ -528,17 +562,14 @@ export function ClientDetailPage() {
                                     ))}
                                 </div>
                             ) : currentServers.length ? (
-                                <div className="rounded-[10px] border overflow-hidden">
+                                <CapsuleStripeList>
                                     {currentServers.map((n) => (
-                                        <div
-                                            key={n}
-                                            className="px-3 py-2 text-sm flex items-center justify-between even:bg-white odd:bg-slate-50 dark:even:bg-slate-950 dark:odd:bg-slate-900"
-                                        >
+                                        <CapsuleStripeListItem key={n}>
                                             <div className="font-mono">{n}</div>
                                             <div className="text-xs text-slate-500">configured</div>
-                                        </div>
+                                        </CapsuleStripeListItem>
                                     ))}
-                                </div>
+                                </CapsuleStripeList>
                             ) : (
                                 <div className="text-sm text-slate-500">
                                     No servers extracted from current config.
@@ -549,7 +580,134 @@ export function ClientDetailPage() {
 					</div>
 				</TabsContent>
 
-				<TabsContent value="backups">
+				<TabsContent value="configuration">
+				<div className="grid gap-4">
+					<Card>
+						<CardHeader>
+							<div className="flex flex-col gap-1">
+								<CardTitle>Configuration Mode</CardTitle>
+								<p className="text-sm text-muted-foreground">
+									Choose how MCPMate generates and applies configuration for this client.
+								</p>
+							</div>
+						</CardHeader>
+						<CardContent className="space-y-6">
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-1">
+									<Label htmlFor={modeId}>Mode</Label>
+									<Select value={mode} onValueChange={(v) => setMode(v as ClientConfigMode)}>
+										<SelectTrigger id={modeId}>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="hosted">hosted</SelectItem>
+											<SelectItem value="transparent">transparent</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+								<div className="space-y-1">
+									<Label htmlFor={sourceId}>Source</Label>
+									<Select value={selectedConfig} onValueChange={(v) => setSelectedConfig(v as ClientConfigSelected)}>
+										<SelectTrigger id={sourceId}>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="default">default</SelectItem>
+											<SelectItem value="profile">profile</SelectItem>
+											<SelectItem value="custom">custom</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+							</div>
+							<div className="flex flex-wrap items-center gap-2">
+								<Button
+									variant="outline"
+									onClick={handlePreviewConfig}
+									disabled={applyMutation.isPending || !identifier}
+									className="gap-2"
+								>
+									<RotateCcw className={`h-4 w-4 ${applyMutation.isPending && lastAction === "preview" ? "animate-spin" : ""}`} />
+									Preview Diff
+								</Button>
+								<Button
+									onClick={handleApplyConfig}
+									disabled={applyMutation.isPending || !identifier}
+									className="gap-2"
+								>
+									<Upload className={`h-4 w-4 ${applyMutation.isPending && lastAction === "apply" ? "animate-spin" : ""}`} />
+									Apply Configuration
+								</Button>
+								<Button
+									variant="ghost"
+									onClick={() => refetchDetails()}
+									disabled={loadingConfig}
+									className="gap-2"
+								>
+									<RefreshCw className={`h-4 w-4 ${loadingConfig ? "animate-spin" : ""}`} />
+									Refresh Data
+								</Button>
+							</div>
+							{applyMutation.isPending && (
+								<div className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+							)}
+							{applyResult ? (
+								<div className="space-y-4 rounded border p-3 text-xs">
+									<div className="grid gap-2 sm:grid-cols-3">
+										<div>
+											<span className="text-slate-500">Format</span>
+											<div className="font-medium">{applyResult.diff_format ?? "-"}</div>
+										</div>
+										<div>
+											<span className="text-slate-500">Warnings</span>
+											<div className="font-medium">{applyResult.warnings?.length ?? 0}</div>
+										</div>
+										<div>
+											<span className="text-slate-500">Scheduled</span>
+											<div className="font-medium">{applyResult.scheduled ? "Yes" : "No"}</div>
+										</div>
+									</div>
+									{applyResult.warnings && applyResult.warnings.length > 0 ? (
+										<ul className="list-disc space-y-1 pl-5 text-amber-600 dark:text-amber-400">
+											{applyResult.warnings.map((warning, idx) => (
+												<li key={idx}>{warning}</li>
+											))}
+										</ul>
+									) : null}
+									{applyResult.preview ? (
+										<details>
+											<summary className="cursor-pointer text-slate-500">Preview payload</summary>
+											<pre className="mt-2 max-h-64 overflow-auto rounded bg-slate-50 p-3 text-[11px] leading-relaxed dark:bg-slate-900">
+												{JSON.stringify(applyResult.preview, null, 2)}
+											</pre>
+										</details>
+									) : null}
+									{applyResult.diff_before || applyResult.diff_after ? (
+										<div className="grid gap-3 sm:grid-cols-2">
+											<div>
+												<div className="mb-1 text-slate-500">Before</div>
+												<pre className="max-h-64 overflow-auto rounded bg-slate-50 p-3 text-[11px] leading-relaxed dark:bg-slate-900">
+													{applyResult.diff_before || "-"}
+												</pre>
+											</div>
+											<div>
+												<div className="mb-1 text-slate-500">After</div>
+												<pre className="max-h-64 overflow-auto rounded bg-slate-50 p-3 text-[11px] leading-relaxed dark:bg-slate-900">
+													{applyResult.diff_after || "-"}
+												</pre>
+											</div>
+										</div>
+									) : null}
+								</div>
+							) : lastAction === "preview" && !applyMutation.isPending ? (
+								<p className="text-xs text-slate-500">
+									No preview details available for the selected options.
+								</p>
+							) : null}
+						</CardContent>
+					</Card>
+				</div>
+			</TabsContent>
+			<TabsContent value="backups">
 					<Card>
 						<CardHeader>
 							<div className="flex items-center justify-between">
@@ -705,151 +863,6 @@ export function ClientDetailPage() {
 				isLoading={bulkDeleteMutation.isPending}
 				onConfirm={() => bulkDeleteMutation.mutate()}
 			/>
-
-			{/* Apply Config Drawer */}
-			<Drawer
-				open={applyOpen}
-				onOpenChange={(o) => {
-					setApplyOpen(o);
-					if (!o) setApplyResult(null);
-				}}
-			>
-				<DrawerContent>
-					<DrawerHeader>
-						<DrawerTitle>Apply Configuration</DrawerTitle>
-						<DrawerDescription>
-							Apply or preview configuration for this client.
-						</DrawerDescription>
-					</DrawerHeader>
-					<div className="p-4 space-y-4">
-						<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-							<div className="space-y-1">
-								<Label htmlFor={modeId}>Mode</Label>
-								<Select
-									value={mode}
-									onValueChange={(v) => setMode(v as ClientConfigMode)}
-								>
-									<SelectTrigger id={modeId}>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="hosted">hosted</SelectItem>
-										<SelectItem value="transparent">transparent</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-							<div className="space-y-1">
-								<Label htmlFor={sourceId}>Source</Label>
-								<Select
-									value={selectedConfig}
-									onValueChange={(v) =>
-										setSelectedConfig(v as ClientConfigSelected)
-									}
-								>
-									<SelectTrigger id={sourceId}>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="default">default</SelectItem>
-										<SelectItem value="profile">profile</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-							<div className="space-y-1">
-								<Label>Preview</Label>
-								<div className="flex items-center gap-2">
-									<Switch checked={preview} onCheckedChange={setPreview} />
-									<span className="text-xs text-slate-500">
-										Only generate preview
-									</span>
-								</div>
-							</div>
-						</div>
-						<div className="flex gap-2">
-							<Button
-								onClick={() => applyMutation.mutate()}
-								disabled={applyMutation.isPending}
-							>
-								<Upload className="mr-2 h-4 w-4" />
-								{preview ? "Preview" : "Apply"}
-							</Button>
-							<Button
-								variant="outline"
-								onClick={() => refetchDetails()}
-								disabled={loadingConfig}
-							>
-								<RefreshCw className="mr-2 h-4 w-4" />
-								Refresh
-							</Button>
-						</div>
-						{preview && (
-							<div className="rounded border p-3 text-sm">
-								<div className="font-medium mb-2">Preview Result</div>
-								{applyMutation.isPending ? (
-									<div className="h-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
-								) : applyResult ? (
-									<div className="space-y-4 text-xs">
-										<div className="grid gap-2 sm:grid-cols-3">
-											<div>format: {applyResult.diff_format || "-"}</div>
-											<div>warnings: {applyResult.warnings?.length ?? 0}</div>
-											<div>
-												scheduled: {applyResult.scheduled ? "true" : "false"}
-											</div>
-										</div>
-										{applyResult.warnings && applyResult.warnings.length > 0 ? (
-											<ul className="list-disc pl-4 text-amber-600 dark:text-amber-400">
-												{applyResult.warnings.map((w) => (
-													<li key={w}>{w}</li>
-												))}
-											</ul>
-										) : null}
-										{applyResult.preview ? (
-											<details
-												className="rounded border bg-slate-50 dark:bg-slate-900 p-2"
-												open
-											>
-												<summary className="cursor-pointer text-slate-600 dark:text-slate-300">
-													Rendered preview payload
-												</summary>
-												<pre className="mt-2 whitespace-pre-wrap break-all">
-													{JSON.stringify(applyResult.preview, null, 2)}
-												</pre>
-											</details>
-										) : null}
-										{applyResult.diff_before || applyResult.diff_after ? (
-											<div className="grid gap-3 lg:grid-cols-2">
-												{applyResult.diff_before ? (
-													<div>
-														<div className="mb-1 font-medium text-slate-600 dark:text-slate-200">
-															Before
-														</div>
-														<pre className="h-40 overflow-auto rounded border bg-slate-50 dark:bg-slate-900 p-2 whitespace-pre">
-															{applyResult.diff_before}
-														</pre>
-													</div>
-												) : null}
-												{applyResult.diff_after ? (
-													<div>
-														<div className="mb-1 font-medium text-slate-600 dark:text-slate-200">
-															After
-														</div>
-														<pre className="h-40 overflow-auto rounded border bg-slate-50 dark:bg-slate-900 p-2 whitespace-pre">
-															{applyResult.diff_after}
-														</pre>
-													</div>
-												) : null}
-											</div>
-										) : null}
-									</div>
-								) : (
-									<div className="text-xs text-slate-500">No preview yet.</div>
-								)}
-							</div>
-						)}
-					</div>
-					<DrawerFooter />
-				</DrawerContent>
-			</Drawer>
 
 			{/* Backup Policy Drawer */}
 			<Drawer open={policyOpen} onOpenChange={setPolicyOpen}>
