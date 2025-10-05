@@ -44,13 +44,32 @@ export function InstanceDetailPage() {
 		enabled: !!serverId,
 	});
 
-	const { data: health, isLoading: isLoadingHealth } = useQuery({
-		queryKey: ["instanceHealth", serverId, instanceId],
-		queryFn: () =>
-			serversApi.getInstanceHealth(serverId || "", instanceId || ""),
-		enabled: !!serverId && !!instanceId,
-		refetchInterval: 10000,
-	});
+const { data: health, isLoading: isLoadingHealth } = useQuery({
+	queryKey: ["instanceHealth", serverId, instanceId],
+	queryFn: () =>
+		serversApi.getInstanceHealth(serverId || "", instanceId || ""),
+	enabled: !!serverId && !!instanceId,
+	refetchInterval: 10000,
+});
+
+const healthStatus = (health?.status || "").toLowerCase();
+const benignHealthStatuses = new Set([
+	"idle",
+	"initializing",
+	"validating",
+	"shutdown",
+]);
+const isBenignHealthNotice =
+	!health?.healthy &&
+	!!health?.message &&
+	benignHealthStatuses.has(healthStatus);
+const isCriticalHealthIssue =
+	!health?.healthy &&
+	!!health?.message &&
+	!benignHealthStatuses.has(healthStatus);
+const healthStatusForBadge = health
+	? healthStatus || (health.healthy ? "ready" : "unhealthy")
+	: undefined;
 
 	if (!serverId || !instanceId) {
 		return <div>Server ID or instance ID not provided</div>;
@@ -175,30 +194,26 @@ export function InstanceDetailPage() {
 											<dd>{instance.details.tools_count}</dd>
 										</div>
 									)}
-									{instance.details.process_id && (
+										{instance.details.process_id && (
+											<div className="flex justify-between">
+												<dt className="font-medium">Process ID:</dt>
+												<dd>{instance.details.process_id}</dd>
+											</div>
+										)}
 										<div className="flex justify-between">
-											<dt className="font-medium">Process ID:</dt>
-											<dd>{instance.details.process_id}</dd>
+											<dt className="font-medium">Health:</dt>
+											<dd>
+												{isLoadingHealth ? (
+													<div className="h-5 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+												) : (
+													<StatusBadge
+														status={
+															healthStatusForBadge || "unknown"
+														}
+													/>
+												)}
+											</dd>
 										</div>
-									)}
-									<div className="flex justify-between">
-										<dt className="font-medium">Health:</dt>
-										<dd>
-											{isLoadingHealth ? (
-												<div className="h-5 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-											) : (
-												<StatusBadge
-													status={
-														health?.status === "idle"
-															? "idle"
-															: health?.healthy
-																? "healthy"
-																: "unhealthy"
-													}
-												/>
-											)}
-										</dd>
-									</div>
 								</dl>
 							</CardContent>
 						</Card>
@@ -268,13 +283,24 @@ export function InstanceDetailPage() {
 									)}
 								</div>
 
-								{health && !health.healthy && health.message && (
+								{isCriticalHealthIssue && (
 									<div className="mt-4">
 										<p className="text-sm font-medium text-red-500">
 											Health issue detected:
 										</p>
 										<p className="mt-1 rounded bg-red-50 p-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-											{health.message}
+											{health?.message}
+										</p>
+									</div>
+								)}
+
+								{isBenignHealthNotice && (
+									<div className="mt-4">
+										<p className="text-sm font-medium text-amber-600">
+											Status note:
+										</p>
+										<p className="mt-1 rounded bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+											{health?.message}
 										</p>
 									</div>
 								)}

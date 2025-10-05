@@ -15,6 +15,7 @@ export interface DashboardSettings {
 	autoAddServerToDefaultProfile: boolean;
 	enableServerDebug: boolean;
 	openDebugInNewWindow: boolean;
+	showRawCapabilityJson: boolean;
 	clientDefaultMode: ClientDefaultMode;
 	clientBackupStrategy: ClientBackupStrategy;
 	clientBackupLimit: number;
@@ -58,6 +59,7 @@ const defaultDashboardSettings: DashboardSettings = {
 	autoAddServerToDefaultProfile: true,
 	enableServerDebug: false,
 	openDebugInNewWindow: false,
+	showRawCapabilityJson: false,
 	clientDefaultMode: "hosted",
 	clientBackupStrategy: "keep_last",
 	clientBackupLimit: 3,
@@ -106,6 +108,10 @@ function normalizeDashboardSettings(
 
 	if (typeof patch.openDebugInNewWindow === "boolean") {
 		next.openDebugInNewWindow = patch.openDebugInNewWindow;
+	}
+
+	if (typeof patch.showRawCapabilityJson === "boolean") {
+		next.showRawCapabilityJson = patch.showRawCapabilityJson;
 	}
 
 	if (typeof patch.showApiDocsMenu === "boolean") {

@@ -535,11 +535,12 @@ export function SuitFormDrawer({
 
 		// 首先处理所有可用的服务器
 		allServers.forEach((server) => {
+			const serverType = server.server_type || "Unknown";
 			serverMap.set(server.id, {
 				id: server.id,
 				name: server.name || server.id,
-				description: `${server.server_type || server.kind || "Unknown"} • Status: ${server.status || "Unknown"}`,
-				type: server.server_type || server.kind,
+				description: `${serverType} • Status: ${server.status || "Unknown"}`,
+				type: serverType,
 				status: server.status,
 			});
 		});

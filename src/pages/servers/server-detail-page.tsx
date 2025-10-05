@@ -1,34 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { configSuitsApi, inspectorApi, serversApi } from "../../lib/api";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "../../components/ui/tabs";
-import { CapsuleStripeList, CapsuleStripeListItem } from "../../components/capsule-stripe-list";
-import { Button } from "../../components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "../../components/ui/card";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "../../components/ui/alert-dialog";
-import { notifyError, notifySuccess } from "../../lib/notify";
-import { StatusBadge } from "../../components/status-badge";
-import { ServerFormDrawer } from "../../components/server-form-drawer";
 import {
 	AlertTriangle,
 	Bug,
@@ -42,13 +12,50 @@ import {
 	ShieldAlert,
 	Trash2,
 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CapabilityList from "../../components/capability-list";
+import {
+	CapsuleStripeList,
+	CapsuleStripeListItem,
+} from "../../components/capsule-stripe-list";
 import InspectorDrawer, {
-	InspectorLogEntry,
+	type InspectorLogEntry,
 } from "../../components/inspector-drawer";
-import { Avatar, AvatarFallback } from "../../components/ui/avatar";
+import { ServerEditDrawer } from "../../components/server-edit-drawer";
+import { StatusBadge } from "../../components/status-badge";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "../../components/ui/tabs";
+import { configSuitsApi, inspectorApi, serversApi } from "../../lib/api";
+import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
 
 const VIEW_MODES = {
@@ -422,6 +429,25 @@ export function ServerDetailPage() {
 	}
 
 	const serverDisplayName = server?.name || serverId;
+	const primaryIconSrc = server?.icons?.[0]?.src;
+	const primaryIconAlt = primaryIconSrc
+		? `${serverDisplayName} icon`
+		: undefined;
+	const serverDescription = server?.meta?.description?.trim();
+	const serverCategory = server?.meta?.category?.trim();
+	const serverScenario = server?.meta?.recommendedScenario?.trim();
+	const capabilitySummary = server
+		? (server.capability ?? (server as any).capabilities ?? undefined)
+		: undefined;
+	const capabilityOverviewText = capabilitySummary
+		? `Tools ${capabilitySummary.tools_count} | Prompts ${capabilitySummary.prompts_count} | Resources ${capabilitySummary.resources_count} | Templates ${capabilitySummary.resource_templates_count}`
+		: undefined;
+	const protocolVersion =
+		server?.protocol_version ?? (server as any)?.protocolVersion ?? undefined;
+	const serverVersion =
+		(server as any)?.server_version ??
+		(server as any)?.serverVersion ??
+		undefined;
 	const defaultTab = viewMode === VIEW_MODES.debug ? "tools" : "overview";
 	const serverEnabled = Boolean(server?.enabled ?? server?.globally_enabled);
 	const runtimeStatus = server?.status ?? (serverEnabled ? "idle" : "disabled");
@@ -467,24 +493,15 @@ export function ServerDetailPage() {
 
 			{server && (
 				<>
-					<ServerFormDrawer
+					<ServerEditDrawer
+						server={server}
 						isOpen={isEditOpen}
 						onClose={() => setIsEditOpen(false)}
-						initialData={{
-							name: server.name,
-							kind: (server.kind as any) || "stdio",
-							command: server.command,
-							args: Array.isArray(server.args) ? server.args : [],
-							env: server.env || {},
-						}}
 						onSubmit={async (data) => {
 							await serversApi.updateServer(serverId, data);
-							setIsEditOpen(false);
 							queryClient.invalidateQueries({ queryKey: ["server", serverId] });
+							queryClient.invalidateQueries({ queryKey: ["servers"] });
 						}}
-						title="Edit Server"
-						submitLabel="Update"
-						isEditing
 					/>
 
 					<AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
@@ -545,6 +562,12 @@ export function ServerDetailPage() {
 												<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 													<div className="flex flex-wrap items-start gap-4">
 														<Avatar className="text-sm">
+															{primaryIconSrc ? (
+																<AvatarImage
+																	src={primaryIconSrc}
+																	alt={primaryIconAlt}
+																/>
+															) : null}
 															<AvatarFallback>
 																{serverDisplayName.slice(0, 1).toUpperCase()}
 															</AvatarFallback>
@@ -574,8 +597,68 @@ export function ServerDetailPage() {
 																Type
 															</span>
 															<span className="font-mono text-sm leading-tight">
-																{server.kind}
+																{server.server_type}
 															</span>
+															{protocolVersion ? (
+																<>
+																	<span className="text-xs uppercase text-slate-500">
+																		Protocol
+																	</span>
+																	<span className="font-mono text-xs text-slate-600 dark:text-slate-300">
+																		{protocolVersion}
+																	</span>
+																</>
+															) : null}
+															{serverVersion ? (
+																<>
+																	<span className="text-xs uppercase text-slate-500">
+																		Version
+																	</span>
+																	<span className="font-mono text-xs text-slate-600 dark:text-slate-300">
+																		{serverVersion}
+																	</span>
+																</>
+															) : null}
+															{capabilityOverviewText ? (
+																<>
+																	<span className="text-xs uppercase text-slate-500">
+																		Capabilities
+																	</span>
+																	<span className="text-sm text-slate-600 dark:text-slate-300">
+																		{capabilityOverviewText}
+																	</span>
+																</>
+															) : null}
+															{serverDescription ? (
+																<>
+																	<span className="text-xs uppercase text-slate-500">
+																		Description
+																	</span>
+																	<span className="text-sm text-slate-600 dark:text-slate-300">
+																		{serverDescription}
+																	</span>
+																</>
+															) : null}
+															{serverCategory ? (
+																<>
+																	<span className="text-xs uppercase text-slate-500">
+																		Category
+																	</span>
+																	<span className="text-sm text-slate-600 dark:text-slate-300">
+																		{serverCategory}
+																	</span>
+																</>
+															) : null}
+															{serverScenario ? (
+																<>
+																	<span className="text-xs uppercase text-slate-500">
+																		Scenario
+																	</span>
+																	<span className="text-sm text-slate-600 dark:text-slate-300">
+																		{serverScenario}
+																	</span>
+																</>
+															) : null}
 															{server.command ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
@@ -663,30 +746,28 @@ export function ServerDetailPage() {
 												</CardTitle>
 											</CardHeader>
 											<CardContent>
-                                            {server.instances?.length ? (
-                                                <CapsuleStripeList>
-                                                    {server.instances.map((i) => (
-                                                        <CapsuleStripeListItem
-                                                            key={i.id}
-                                                            interactive
-                                                            onClick={() =>
-                                                                navigate(
-                                                                    `/servers/${encodeURIComponent(serverId)}/instances/${encodeURIComponent(i.id)}`,
-                                                                )
-                                                            }
-                                                        >
-                                                            <div className="font-mono truncate">
-                                                                {i.id}
-                                                            </div>
-                                                            <div className="text-xs text-slate-500">
-                                                                {String(i.status)}
-                                                            </div>
-                                                        </CapsuleStripeListItem>
-                                                    ))}
-                                                </CapsuleStripeList>
-                                            ) : (
-                                                <div className="text-slate-500">No instances.</div>
-                                            )}
+												{server.instances?.length ? (
+													<CapsuleStripeList>
+														{server.instances.map((i) => (
+															<CapsuleStripeListItem
+																key={i.id}
+																interactive
+																onClick={() =>
+																	navigate(
+																		`/servers/${encodeURIComponent(serverId)}/instances/${encodeURIComponent(i.id)}`,
+																	)
+																}
+															>
+																<div className="font-mono truncate">{i.id}</div>
+																<div className="text-xs text-slate-500">
+																	{String(i.status)}
+																</div>
+															</CapsuleStripeListItem>
+														))}
+													</CapsuleStripeList>
+												) : (
+													<div className="text-slate-500">No instances.</div>
+												)}
 											</CardContent>
 										</Card>
 									) : null}

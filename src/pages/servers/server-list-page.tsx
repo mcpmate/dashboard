@@ -1,8 +1,7 @@
-import { useState, useMemo } from "react";
-import React from "react";
-import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Bug, Plug, Plus, RefreshCw, Server } from "lucide-react";
+import { AlertCircle, Bug, Plug, Plus, RefreshCw, Server, Target } from "lucide-react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { EntityCard } from "../../components/entity-card";
@@ -10,7 +9,9 @@ import { EntityListItem } from "../../components/entity-list-item";
 import { ErrorDisplay } from "../../components/error-display";
 import { ListGridContainer } from "../../components/list-grid-container";
 import { EmptyState, PageLayout } from "../../components/page-layout";
-import { ServerFormDrawer } from "../../components/server-form-drawer";
+import { ServerEditDrawer } from "../../components/server-edit-drawer";
+import { ServerInstallDrawer } from "../../components/server-install-drawer";
+import { ServerInstallManualForm, type ServerInstallManualFormHandle } from "../../components/server-install-manual-form";
 import { StatsCards } from "../../components/stats-cards";
 import { StatusBadge } from "../../components/status-badge";
 import { Button } from "../../components/ui/button";
@@ -20,9 +21,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import { Switch } from "../../components/ui/switch";
+// Dropdown removed in favor of a single combined add flow
 import { PageToolbar } from "../../components/ui/page-toolbar";
-
+import { Switch } from "../../components/ui/switch";
+import { useServerInstallPipeline } from "../../hooks/use-server-install-pipeline";
 import { configSuitsApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
@@ -36,45 +38,64 @@ import type {
 // (Removed) isServerActive helper was unused; layout simplified
 
 // Helper function to get the instance count for a server
-function getInstanceCount(server: ServerSummary): number {
-	// If server has instances array, use its length
-	if (server.instances && Array.isArray(server.instances)) {
-		return server.instances.length;
-	}
-
-	// If server has instance_count property, use it
-	if (typeof server.instance_count === "number") {
-		return server.instance_count;
-	}
-
-	// Default to 0 if no instance information is available
-	return 0;
+function getCapabilitySummary(server: ServerSummary) {
+	return server.capability ?? (server as any).capabilities ?? undefined;
 }
 
-function getCapabilityDetails(server: ServerSummary): string {
-	// 由于 ServerSummary 没有直接的 capability 信息，
-	// 我们使用实例数量作为 capability 的代理指标
-	const instanceCount = getInstanceCount(server);
+function canIngestFromDataTransfer(dataTransfer: DataTransfer | null): boolean {
+	if (!dataTransfer) return false;
+	const types = Array.from(dataTransfer.types ?? []);
+	return (
+		types.includes("Files") ||
+		types.includes("text/plain") ||
+		types.includes("text/uri-list")
+	);
+}
 
-	// 基于实例数量提供合理的估算
-	if (instanceCount > 0) {
-		// 根据实例数量提供合理的 capability 估算
-		// 这些是估算值，实际值需要调用具体的 API 接口获取
-		const tools = Math.max(1, instanceCount * 8);
-		const resources = Math.max(1, instanceCount * 12);
-		const prompts = Math.max(0, instanceCount * 2);
+async function extractPayloadFromDataTransfer(
+	dataTransfer: DataTransfer,
+): Promise<{ text?: string; buffer?: ArrayBuffer; fileName?: string } | null> {
+    if (dataTransfer.files && dataTransfer.files.length > 0) {
+        const file = dataTransfer.files[0];
+        if (file.name.endsWith(".mcpb") || file.name.endsWith(".dxt")) {
+            // Try bundle-style parsing first (.mcpb, optionally .dxt if it matches the same layout)
+            return { buffer: await file.arrayBuffer(), fileName: file.name };
+        }
+        return { text: await file.text(), fileName: file.name };
+    }
 
-		return `Tools: ~${tools} Resources: ~${resources} Prompts: ~${prompts}`;
+	const plainText = dataTransfer.getData("text/plain");
+	if (plainText) {
+		return { text: plainText };
 	}
 
-	// 如果没有实例信息，返回默认值
-	return "Tools: 0 Resources: 0 Prompts: 0";
+	const uriList = dataTransfer.getData("text/uri-list");
+	if (uriList) {
+		return { text: uriList };
+	}
+
+	if (dataTransfer.items && dataTransfer.items.length > 0) {
+		for (const item of Array.from(dataTransfer.items)) {
+			if (item.kind === "string") {
+				const value = await new Promise<string | null>((resolve) => {
+					item.getAsString((text) => resolve(text ?? null));
+				});
+				if (value) {
+					return { text: value };
+				}
+			}
+		}
+	}
+
+	return null;
 }
 
 export function ServerListPage() {
 	const navigate = useNavigate();
 	const [debugInfo, setDebugInfo] = useState<string | null>(null);
-	const [isAddServerOpen, setIsAddServerOpen] = useState(false);
+	const [manualOpen, setManualOpen] = useState(false);
+	const manualRef = useRef<ServerInstallManualFormHandle | null>(null);
+	const [isAddDragActive, setAddDragActive] = useState(false);
 	const [editingServer, setEditingServer] = useState<ServerDetail | null>(null);
 	const [deletingServer, setDeletingServer] = useState<string | null>(null);
 	const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -91,6 +112,84 @@ export function ServerListPage() {
 	const [sortedServers, setSortedServers] = React.useState<ServerSummary[]>([]);
 
 	const queryClient = useQueryClient();
+
+	const installPipeline = useServerInstallPipeline({
+		onImported: () => {
+			queryClient.invalidateQueries({ queryKey: ["servers"] });
+			refetch();
+		},
+	});
+
+	const handleAddDragEnter = useCallback(
+		(event: React.DragEvent<HTMLDivElement>) => {
+			if (!canIngestFromDataTransfer(event.dataTransfer)) return;
+			event.preventDefault();
+			event.stopPropagation();
+			setAddDragActive(true);
+		},
+		[],
+	);
+
+	const handleAddDragOver = useCallback(
+		(event: React.DragEvent<HTMLDivElement>) => {
+			if (!canIngestFromDataTransfer(event.dataTransfer)) return;
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.dataTransfer) {
+				event.dataTransfer.dropEffect = "copy";
+			}
+			if (!isAddDragActive) {
+				setAddDragActive(true);
+			}
+		},
+		[isAddDragActive],
+	);
+
+	const handleAddDragLeave = useCallback(
+		(event: React.DragEvent<HTMLDivElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			const nextTarget = event.relatedTarget as Node | null;
+			if (nextTarget && event.currentTarget.contains(nextTarget)) {
+				return;
+			}
+			setAddDragActive(false);
+		},
+		[],
+	);
+
+	const handleAddDragEnd = useCallback(() => {
+		setAddDragActive(false);
+	}, []);
+
+	const handleAddDrop = useCallback(
+		async (event: React.DragEvent<HTMLDivElement>) => {
+			event.preventDefault();
+			event.stopPropagation();
+			setAddDragActive(false);
+			const dataTransfer = event.dataTransfer;
+			if (!dataTransfer || !canIngestFromDataTransfer(dataTransfer)) {
+				notifyError(
+					"Unsupported content",
+					"Drop text, JSON snippets, URLs, or MCP bundles to use Uni-Import.",
+				);
+				return;
+			}
+			const payload = await extractPayloadFromDataTransfer(dataTransfer);
+			if (!payload) {
+				notifyError(
+					"Nothing to import",
+					"We could not detect any usable configuration from the dropped content.",
+				);
+				return;
+			}
+			setManualOpen(true);
+			requestAnimationFrame(() => {
+				manualRef.current?.ingest(payload);
+			});
+		},
+		[],
+	);
 
 	// View mode and developer toggles
 	const defaultView = useAppStore(
@@ -206,26 +305,6 @@ export function ServerListPage() {
 
 	// Note: Reconnect functionality is moved to instance-level pages
 
-	// Create server
-	const createServerMutation = useMutation({
-		mutationFn: async (serverConfig: Partial<MCPServerConfig>) => {
-			return await serversApi.createServer(serverConfig);
-		},
-		onSuccess: () => {
-			notifySuccess(
-				"Server created",
-				"New server has been successfully created",
-			);
-			queryClient.invalidateQueries({ queryKey: ["servers"] });
-		},
-		onError: (error) => {
-			notifyError(
-				"Create failed",
-				`Unable to create server: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		},
-	});
-
 	// Update server
 	const updateServerMutation = useMutation({
 		mutationFn: async ({
@@ -249,12 +328,6 @@ export function ServerListPage() {
 		},
 	});
 
-	// Handle add server
-	const handleAddServer = async (serverConfig: Partial<MCPServerConfig>) => {
-		await createServerMutation.mutateAsync(serverConfig);
-		setIsAddServerOpen(false);
-	};
-
 	// Handle update server
 	const handleUpdateServer = async (config: Partial<MCPServerConfig>) => {
 		if (editingServer) {
@@ -271,22 +344,6 @@ export function ServerListPage() {
 				throw error; // Re-throw to let the mutation handle it
 			}
 		}
-	};
-
-	// Convert ServerDetail to MCPServerConfig for form
-	const convertToMCPConfig = (
-		server: ServerDetail,
-	): Partial<MCPServerConfig> => {
-		return {
-			name: server.name,
-			kind: (server.server_type || server.kind) as
-				| "stdio"
-				| "sse"
-				| "streamable_http",
-			command: server.command,
-			args: server.args,
-			env: server.env,
-		};
 	};
 
 	// Handle delete server
@@ -338,25 +395,24 @@ export function ServerListPage() {
 	const getServerDescription = (server: ServerSummary) => {
 		const profileRefs = profileUsage?.[server.id] ?? [];
 
-		let firstLine = "";
-		const serverType = server.server_type || server.kind || "";
+		const serverTypeRaw = server.server_type || "";
+		const serverType = serverTypeRaw.toLowerCase();
 
-		if (
-			serverType.toLowerCase().includes("stdio") ||
-			serverType.toLowerCase().includes("process")
-		) {
-			// STDIO 类型：显示简化的命令信息
-			firstLine = `stdio://${server.name || server.id}`;
-		} else if (serverType.toLowerCase().includes("http")) {
-			// HTTP 类型：显示 URL
-			firstLine = `http://localhost:3000/${server.id}`;
-		} else if (serverType.toLowerCase().includes("sse")) {
-			// SSE 类型：显示 URL
-			firstLine = `sse://localhost:3000/${server.id}`;
+		let technicalLine = "";
+		if (serverType.includes("stdio") || serverType.includes("process")) {
+			technicalLine = `stdio://${server.name || server.id}`;
+		} else if (serverType.includes("http")) {
+			technicalLine = `http://localhost:3000/${server.id}`;
+		} else if (serverType.includes("sse")) {
+			technicalLine = `sse://localhost:3000/${server.id}`;
 		} else {
-			// 默认类型
-			firstLine = `Server: ${server.name || server.id}`;
+			technicalLine = `Server: ${server.name || server.id}`;
 		}
+
+		const metaDescription = server.meta?.description?.trim();
+		const firstLine = metaDescription
+			? `${metaDescription}${serverTypeRaw ? ` · ${serverTypeRaw}` : ""}`
+			: technicalLine;
 
 		// 第二行：关联的 profiles，使用 title case
 		const profileNames =
@@ -385,7 +441,7 @@ export function ServerListPage() {
 
 	const getConnectionTypeTags = (server: ServerSummary) => {
 		const tags = [];
-		const serverType = server.server_type || server.kind || "";
+		const serverType = server.server_type || "";
 
 		// 根据服务器类型判断连接方式
 		if (
@@ -458,6 +514,25 @@ export function ServerListPage() {
 		const serverInitial = (server.name || server.id || "S")
 			.slice(0, 1)
 			.toUpperCase();
+		const iconSrc = server.icons?.[0]?.src;
+		const iconAlt = server.name ? `${server.name} icon` : "Server icon";
+		const capabilitySummary = getCapabilitySummary(server);
+		const capabilityStats = capabilitySummary
+			? [
+					{ label: "Tools", value: capabilitySummary.tools_count },
+					{ label: "Prompts", value: capabilitySummary.prompts_count },
+					{ label: "Resources", value: capabilitySummary.resources_count },
+					{
+						label: "Templates",
+						value: capabilitySummary.resource_templates_count,
+					},
+				]
+			: [
+					{ label: "Tools", value: 0 },
+					{ label: "Prompts", value: 0 },
+					{ label: "Resources", value: 0 },
+					{ label: "Templates", value: 0 },
+				];
 
 		return (
 			<EntityListItem
@@ -470,10 +545,12 @@ export function ServerListPage() {
 					</div>
 				}
 				avatar={{
+					src: iconSrc,
+					alt: iconSrc ? iconAlt : undefined,
 					fallback: serverInitial,
 				}}
 				titleBadges={[]}
-				stats={[{ label: "Capabilities", value: getCapabilityDetails(server) }]}
+				stats={capabilityStats}
 				bottomTags={[
 					<span key="profiles">
 						Profiles: {profileRefs.length > 0 ? profileRefs.join(", ") : "-"}
@@ -532,6 +609,25 @@ export function ServerListPage() {
 		const serverInitial = (server.name || server.id || "S")
 			.slice(0, 1)
 			.toUpperCase();
+		const iconSrc = server.icons?.[0]?.src;
+		const iconAlt = server.name ? `${server.name} icon` : "Server icon";
+		const capabilitySummary = getCapabilitySummary(server);
+		const cardStats = capabilitySummary
+			? [
+					{ label: "Tools", value: capabilitySummary.tools_count },
+					{ label: "Prompts", value: capabilitySummary.prompts_count },
+					{ label: "Resources", value: capabilitySummary.resources_count },
+					{
+						label: "Templates",
+						value: capabilitySummary.resource_templates_count,
+					},
+				]
+			: [
+					{ label: "Tools", value: 0 },
+					{ label: "Prompts", value: 0 },
+					{ label: "Resources", value: 0 },
+					{ label: "Templates", value: 0 },
+				];
 
 		return (
 			<EntityCard
@@ -540,15 +636,12 @@ export function ServerListPage() {
 				title={server.name}
 				description={getServerDescription(server)}
 				avatar={{
+					src: iconSrc,
+					alt: iconSrc ? iconAlt : undefined,
 					fallback: serverInitial,
 				}}
 				topRightBadge={getConnectionTypeTags(server)}
-				stats={[
-					{ label: "Tools", value: "0" },
-					{ label: "Prompts", value: "0" },
-					{ label: "Resources", value: "0" },
-					{ label: "R/Template", value: "0" },
-				]}
+				stats={cardStats}
 				bottomLeft={
 					<StatusBadge
 						status={server.status}
@@ -741,14 +834,33 @@ export function ServerListPage() {
 					className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
 				/>
 			</Button>
-			<Button
-				onClick={() => setIsAddServerOpen(true)}
-				size="sm"
-				className="h-9 w-9 p-0"
-				title="Add Server"
+			<div
+				onDragEnter={handleAddDragEnter}
+				onDragOver={handleAddDragOver}
+				onDragLeave={handleAddDragLeave}
+				onDrop={handleAddDrop}
+				onDragEnd={handleAddDragEnd}
+				className={`rounded-md ${
+					isAddDragActive ? "ring-2 ring-slate-300 dark:ring-slate-600" : ""
+				}`}
 			>
-				<Plus className="h-4 w-4" />
-			</Button>
+				<Button
+					size="icon"
+					className={`h-9 w-9 transition-colors ${
+						isAddDragActive
+							? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+							: ""
+					}`}
+					title="Add Server"
+					onClick={() => setManualOpen(true)}
+				>
+					{isAddDragActive ? (
+						<Target className="h-4 w-4" />
+					) : (
+						<Plus className="h-4 w-4" />
+					)}
+				</Button>
+			</div>
 		</div>
 	);
 
@@ -762,7 +874,7 @@ export function ServerListPage() {
 					description="Add your first MCP server to get started"
 					action={
 						<Button
-							onClick={() => setIsAddServerOpen(true)}
+							onClick={() => setManualOpen(true)}
 							size="sm"
 							className="mt-4"
 						>
@@ -839,31 +951,37 @@ export function ServerListPage() {
 					: filteredAndSortedServers.map(renderServerListItem)}
 			</ListGridContainer>
 
-			{/* Add server drawer */}
-			<ServerFormDrawer
-				isOpen={isAddServerOpen}
-				onClose={() => setIsAddServerOpen(false)}
-				onSubmit={handleAddServer}
-				title="Add New Server"
-				enableImportTab
-				onImported={() =>
-					queryClient.invalidateQueries({ queryKey: ["servers"] })
-				}
-			/>
+			{/* Server install pipeline */}
+		<ServerInstallManualForm
+			ref={manualRef}
+			isOpen={manualOpen}
+			onClose={() => setManualOpen(false)}
+			onSubmit={(draft) => installPipeline.begin([draft], "manual")}
+			onSubmitMultiple={(drafts) => installPipeline.begin(drafts, "ingest")}
+		/>
+            <ServerInstallDrawer
+                pipeline={installPipeline}
+                onBack={(drafts) => {
+                    // Close preview and reopen manual form with the previous draft
+                    installPipeline.close();
+                    setManualOpen(true);
+                    if (drafts && drafts.length === 1) {
+                        requestAnimationFrame(() => {
+                            manualRef.current?.loadDraft?.(drafts[0]);
+                        });
+                    }
+                }}
+            />
 
 			{/* Edit server drawer */}
-			{editingServer && (
-				<ServerFormDrawer
+			{editingServer ? (
+				<ServerEditDrawer
+					server={editingServer}
 					isOpen={!!editingServer}
 					onClose={() => setEditingServer(null)}
 					onSubmit={handleUpdateServer}
-					initialData={convertToMCPConfig(editingServer)}
-					title={`Edit Server: ${editingServer.name}`}
-					isEditing={true}
 				/>
-			)}
-
-			{/* Import moved into Add Server drawer (tabs) */}
+			) : null}
 
 			{/* Delete confirmation dialog */}
 			<ConfirmDialog

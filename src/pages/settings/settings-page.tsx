@@ -10,6 +10,7 @@ import {
 } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Segment, type SegmentOption } from "../../components/ui/segment";
 import {
 	Select,
 	SelectContent,
@@ -34,12 +35,35 @@ import {
 	useAppStore,
 } from "../../lib/store";
 
+// Options for Segment components
+const THEME_OPTIONS: SegmentOption[] = [
+	{ value: "light", label: "Light", icon: <Sun className="h-4 w-4" /> },
+	{ value: "dark", label: "Dark", icon: <Moon className="h-4 w-4" /> },
+];
+
+const DEFAULT_VIEW_OPTIONS: SegmentOption[] = [
+	{ value: "list", label: "List" },
+	{ value: "grid", label: "Grid" },
+];
+
+const APPLICATION_MODE_OPTIONS: SegmentOption[] = [
+	{ value: "express", label: "Express" },
+	{ value: "expert", label: "Expert" },
+];
+
+const CLIENT_MODE_OPTIONS: SegmentOption[] = [
+	{ value: "hosted", label: "Hosted" },
+	{ value: "transparent", label: "Transparent" },
+];
+
+const BACKUP_STRATEGY_OPTIONS: SegmentOption[] = [
+	{ value: "keep_n", label: "Nub." },
+	{ value: "keep_last", label: "Last" },
+	{ value: "none", label: "None" },
+];
+
 export function SettingsPage() {
-	const defaultViewId = useId();
-	const appModeId = useId();
 	const languageId = useId();
-	const clientModeId = useId();
-	const backupStrategyId = useId();
 	const backupLimitId = useId();
 
 	const theme = useAppStore((state) => state.theme);
@@ -101,46 +125,44 @@ export function SettingsPage() {
 											Choose the default layout for displaying items.
 										</p>
 									</div>
-									<Select
-										value={dashboardSettings.defaultView}
-										onValueChange={(value: DashboardDefaultView) =>
-											setDashboardSetting("defaultView", value)
-										}
-									>
-										<SelectTrigger id={defaultViewId} className="w-48">
-											<SelectValue placeholder="Select a default view" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="list">List</SelectItem>
-											<SelectItem value="grid">Grid</SelectItem>
-										</SelectContent>
-									</Select>
+									<div className="w-48">
+										<Segment
+											options={DEFAULT_VIEW_OPTIONS}
+											value={dashboardSettings.defaultView}
+											onValueChange={(value) =>
+												setDashboardSetting(
+													"defaultView",
+													value as DashboardDefaultView,
+												)
+											}
+											showDots={false}
+										/>
+									</div>
 								</div>
 
 								{/* Application Mode */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
-										<h3 className="text-base font-medium">Application Mode</h3>
+										<h3 className="text-base font-medium">
+											Application Mode (WIP)
+										</h3>
 										<p className="text-sm text-slate-500">
 											Select the interface complexity level.
 										</p>
 									</div>
-									<Select
-										value={dashboardSettings.appMode}
-										onValueChange={(value: DashboardAppMode) =>
-											setDashboardSetting("appMode", value)
-										}
-									>
-										<SelectTrigger id={appModeId} className="w-48">
-											<SelectValue placeholder="Select application mode" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="express">
-												Express Mode (WIP)
-											</SelectItem>
-											<SelectItem value="expert">Expert Mode</SelectItem>
-										</SelectContent>
-									</Select>
+									<div className="w-48">
+										<Segment
+											options={APPLICATION_MODE_OPTIONS}
+											value={dashboardSettings.appMode}
+											onValueChange={(value) =>
+												setDashboardSetting(
+													"appMode",
+													value as DashboardAppMode,
+												)
+											}
+											showDots={false}
+										/>
+									</div>
 								</div>
 
 								{/* Language Selection */}
@@ -191,25 +213,15 @@ export function SettingsPage() {
 												Switch between light and dark mode.
 											</p>
 										</div>
-										<div className="flex gap-2">
-											<Button
-												variant={theme === "light" ? "default" : "outline"}
-												size="sm"
-												onClick={() => setTheme("light")}
-												className="w-24"
-											>
-												<Sun className="mr-2 h-4 w-4" />
-												Light
-											</Button>
-											<Button
-												variant={theme === "dark" ? "default" : "outline"}
-												size="sm"
-												onClick={() => setTheme("dark")}
-												className="w-24"
-											>
-												<Moon className="mr-2 h-4 w-4" />
-												Dark
-											</Button>
+										<div className="w-48">
+											<Segment
+												options={THEME_OPTIONS}
+												value={theme === "system" ? "light" : theme}
+												onValueChange={(value) =>
+													setTheme(value as "light" | "dark")
+												}
+												showDots={false}
+											/>
 										</div>
 									</div>
 
@@ -302,22 +314,19 @@ export function SettingsPage() {
 											Choose how client applications should operate by default.
 										</p>
 									</div>
-									<Select
-										value={dashboardSettings.clientDefaultMode}
-										onValueChange={(value: ClientDefaultMode) =>
-											setDashboardSetting("clientDefaultMode", value)
-										}
-									>
-										<SelectTrigger id={clientModeId} className="w-48">
-											<SelectValue placeholder="Select client mode" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="hosted">Hosted Mode</SelectItem>
-											<SelectItem value="transparent">
-												Transparent Mode
-											</SelectItem>
-										</SelectContent>
-									</Select>
+									<div className="w-48">
+										<Segment
+											options={CLIENT_MODE_OPTIONS}
+											value={dashboardSettings.clientDefaultMode}
+											onValueChange={(value) =>
+												setDashboardSetting(
+													"clientDefaultMode",
+													value as ClientDefaultMode,
+												)
+											}
+											showDots={false}
+										/>
+									</div>
 								</div>
 
 								{/* Client Backup Strategy */}
@@ -330,21 +339,19 @@ export function SettingsPage() {
 											Define how client configurations should be backed up.
 										</p>
 									</div>
-									<Select
-										value={dashboardSettings.clientBackupStrategy}
-										onValueChange={(value: ClientBackupStrategy) =>
-											setDashboardSetting("clientBackupStrategy", value)
-										}
-									>
-										<SelectTrigger id={backupStrategyId} className="w-48">
-											<SelectValue placeholder="Select backup strategy" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="keep_n">Keep_N</SelectItem>
-											<SelectItem value="keep_last">Keep_last</SelectItem>
-											<SelectItem value="none">None</SelectItem>
-										</SelectContent>
-									</Select>
+									<div className="w-48">
+										<Segment
+											options={BACKUP_STRATEGY_OPTIONS}
+											value={dashboardSettings.clientBackupStrategy}
+											onValueChange={(value) =>
+												setDashboardSetting(
+													"clientBackupStrategy",
+													value as ClientBackupStrategy,
+												)
+											}
+											showDots={false}
+										/>
+									</div>
 								</div>
 
 								{/* Maximum Backup Copies */}
@@ -438,6 +445,22 @@ export function SettingsPage() {
 										checked={dashboardSettings.showApiDocsMenu}
 										onCheckedChange={(checked) =>
 											setDashboardSetting("showApiDocsMenu", checked)
+										}
+									/>
+								</div>
+
+								<div className="flex items-center justify-between gap-4">
+									<div>
+										<h3 className="text-base font-medium">Show Raw Capability JSON</h3>
+										<p className="text-sm text-slate-500">
+											Display raw JSON payloads under Details in capability lists
+											(Server details and Uni‑Import preview).
+										</p>
+									</div>
+									<Switch
+										checked={dashboardSettings.showRawCapabilityJson}
+										onCheckedChange={(checked) =>
+											setDashboardSetting("showRawCapabilityJson", checked)
 										}
 									/>
 								</div>

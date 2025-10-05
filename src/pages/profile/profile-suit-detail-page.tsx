@@ -1,15 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-	BadgeCheck,
-	Bug,
-	Check,
-	Edit3,
-	Play,
-	RefreshCw,
-	Server,
-	Square,
-	Trash2,
-} from "lucide-react";
+import { BadgeCheck, Bug, Check, Edit3, Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import CapabilityList from "../../components/capability-list";
@@ -24,6 +14,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "../../components/ui/alert-dialog";
+import { CachedAvatar } from "../../components/cached-avatar";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -972,6 +963,12 @@ const isDefaultAnchor = suitRole === "default_anchor";
 											);
 											const globallyEnabled: boolean | undefined =
 												global?.enabled;
+											const globalIcon = global?.icons?.[0]?.src;
+											const avatarFallback = (server.name || server.id || "S")
+												.slice(0, 1)
+												.toUpperCase();
+											const iconAlt = global?.name || server.name || server.id;
+											const globalDescription = global?.meta?.description?.trim();
 											return (
 												<div
 													key={server.id}
@@ -996,15 +993,26 @@ const isDefaultAnchor = suitRole === "default_anchor";
 														}
 													}}
 												>
-													<div className="flex flex-1 items-center gap-3">
-														<Server className="h-5 w-5 text-slate-500" />
-														<div>
-															<h3 className="font-medium">{server.name}</h3>
-															<p className="text-sm text-slate-500">
-																ID: {server.id}
+												<div className="flex flex-1 items-center gap-3">
+													<CachedAvatar
+														src={globalIcon}
+														alt={iconAlt ? `${iconAlt} icon` : undefined}
+														fallback={avatarFallback}
+														size="sm"
+														shape="rounded"
+													/>
+													<div>
+														<h3 className="font-medium">{server.name}</h3>
+														<p className="text-sm text-slate-500">
+															ID: {server.id}
+														</p>
+														{globalDescription ? (
+															<p className="text-xs text-slate-500 line-clamp-2">
+																{globalDescription}
 															</p>
-														</div>
+														) : null}
 													</div>
+												</div>
 													<div className="flex items-center gap-2">
 														<div className="flex items-center gap-1 text-xs text-slate-600">
 															{server.enabled ? (

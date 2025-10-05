@@ -33,6 +33,12 @@ import type {
 	ServerDetailsResp,
 	ServerListResp,
 	ServerListResponse,
+	ServerSummary,
+	ServerIcon,
+	ServerMetaInfo,
+	RegistryMetaPayload,
+	RegistryRepositoryInfo,
+	ServerCapabilitySummary,
 	ServerCapabilityResp,
 	SystemMetrics,
 	SystemStatus,
@@ -148,6 +154,255 @@ function createApiError(response: Response, parsed?: unknown): Error {
 	return new Error(`API Error: ${response.status} ${response.statusText}`);
 }
 
+const toTrimmedString = (value: unknown): string | undefined => {
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const normalizeServerIcon = (icon: any): ServerIcon | null => {
+	if (!icon || typeof icon !== "object") return null;
+	const src =
+		toTrimmedString(icon.src) ||
+		toTrimmedString(icon.url) ||
+		toTrimmedString(icon.href);
+	if (!src) return null;
+	const mimeType =
+		toTrimmedString(icon.mime_type) ||
+		toTrimmedString(icon.mimeType) ||
+		undefined;
+	const sizes =
+		toTrimmedString(icon.sizes) || toTrimmedString(icon.size) || undefined;
+	const normalized: ServerIcon = { src };
+	if (mimeType) normalized.mimeType = mimeType;
+	if (sizes) normalized.sizes = sizes;
+	return normalized;
+};
+
+const normalizeServerIconList = (icons: any): ServerIcon[] => {
+	if (!icons) return [];
+	const array = Array.isArray(icons) ? icons : [icons];
+	return array
+		.map((icon) => normalizeServerIcon(icon))
+		.filter((icon): icon is ServerIcon => Boolean(icon));
+};
+
+const normalizeRepositoryInfo = (repo: any): RegistryRepositoryInfo | null => {
+	if (!repo) return null;
+	if (typeof repo === "string") {
+		const url = toTrimmedString(repo);
+		return url ? { url } : null;
+	}
+	if (typeof repo !== "object") return null;
+	const info: RegistryRepositoryInfo = {};
+	const url = toTrimmedString(repo.url);
+	const source = toTrimmedString(repo.source);
+	const subfolder = toTrimmedString(repo.subfolder);
+	const id = toTrimmedString(repo.id);
+	if (url) info.url = url;
+	if (source) info.source = source;
+	if (subfolder) info.subfolder = subfolder;
+	if (id) info.id = id;
+	return Object.keys(info).length > 0 ? info : null;
+};
+
+export const normalizeServerMeta = (meta: any): ServerMetaInfo | undefined => {
+	if (!meta || typeof meta !== "object") return undefined;
+	const normalized: ServerMetaInfo = {};
+	const description = toTrimmedString(meta.description);
+	const version = toTrimmedString(meta.version);
+	const websiteUrl =
+		toTrimmedString(meta.websiteUrl) ||
+		toTrimmedString(meta.website_url) ||
+		toTrimmedString(meta.website);
+	const repository = normalizeRepositoryInfo(meta.repository);
+	const icons = normalizeServerIconList(meta.icons);
+
+	if (description) normalized.description = description;
+	if (version) normalized.version = version;
+	if (websiteUrl) normalized.websiteUrl = websiteUrl;
+	if (repository) normalized.repository = repository;
+	if (icons.length) normalized.icons = icons;
+
+	if (meta._meta && typeof meta._meta === "object") {
+		normalized._meta = meta._meta as RegistryMetaPayload;
+	}
+
+	if (meta.extras && typeof meta.extras === "object") {
+		normalized.extras = meta.extras as Record<string, unknown>;
+	}
+
+	// Preserve legacy fields if present
+	const legacy = meta.legacy || (meta.extras && (meta.extras as any).legacy);
+	if (!normalized.extras && legacy && typeof legacy === "object") {
+		normalized.extras = { legacy };
+	}
+
+	return Object.keys(normalized).length > 0 ? normalized : undefined;
+};
+
+const serializeRepositoryForApi = (
+	repo: RegistryRepositoryInfo | null | undefined,
+): Record<string, string> | undefined => {
+	if (!repo || typeof repo !== "object") return undefined;
+	const payload: Record<string, string> = {};
+	const assign = (key: string, value?: string | null) => {
+		const trimmed = toTrimmedString(value);
+		if (trimmed) payload[key] = trimmed;
+	};
+	assign("url", repo.url ?? undefined);
+	assign("source", repo.source ?? undefined);
+	assign("subfolder", repo.subfolder ?? undefined);
+	assign("id", repo.id ?? undefined);
+	return Object.keys(payload).length > 0 ? payload : undefined;
+};
+
+export const serializeMetaForApi = (
+	meta: ServerMetaInfo | null | undefined,
+): Record<string, unknown> | undefined => {
+	if (!meta || typeof meta !== "object") return undefined;
+	const payload: Record<string, unknown> = {};
+
+	const assignString = (key: string, value: string | null | undefined) => {
+		const trimmed = toTrimmedString(value);
+		if (trimmed) {
+			payload[key] = trimmed;
+		}
+	};
+
+	assignString("description", meta.description ?? undefined);
+	assignString("version", meta.version ?? undefined);
+	assignString("websiteUrl", meta.websiteUrl ?? undefined);
+
+	const repositoryPayload = serializeRepositoryForApi(meta.repository);
+	if (repositoryPayload) {
+		payload.repository = repositoryPayload;
+	}
+
+	if (meta._meta && typeof meta._meta === "object") {
+		payload._meta = meta._meta;
+	}
+
+	if (meta.extras && typeof meta.extras === "object") {
+		payload.extras = meta.extras;
+	}
+
+	return Object.keys(payload).length > 0 ? payload : undefined;
+};
+
+const toBoolean = (value: unknown): boolean => {
+	if (typeof value === "boolean") return value;
+	if (typeof value === "number") return value !== 0;
+	if (typeof value === "string") {
+		const normalized = value.trim().toLowerCase();
+		if (!normalized) return false;
+		return ["true", "yes", "1", "y", "on"].includes(normalized);
+	}
+	return false;
+};
+
+const toCount = (value: unknown): number => {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return Math.max(0, Math.round(value));
+	}
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) {
+			return Math.max(0, Math.round(parsed));
+		}
+	}
+	return 0;
+};
+
+const normalizeCapabilitySummary = (
+	capability: any,
+): ServerCapabilitySummary | undefined => {
+	if (!capability || typeof capability !== "object") return undefined;
+
+	const source = capability as Record<string, unknown>;
+	return {
+		supports_tools: toBoolean(
+			source.supports_tools ?? source.supportsTools ?? source.tools_supported,
+		),
+		supports_prompts: toBoolean(
+			source.supports_prompts ??
+				source.supportsPrompts ??
+				source.prompts_supported,
+		),
+		supports_resources: toBoolean(
+			source.supports_resources ??
+				source.supportsResources ??
+				source.resources_supported,
+		),
+		tools_count: toCount(
+			source.tools_count ?? source.toolsCount ?? source.tools,
+		),
+		prompts_count: toCount(
+			source.prompts_count ?? source.promptsCount ?? source.prompts,
+		),
+		resources_count: toCount(
+			source.resources_count ?? source.resourcesCount ?? source.resources,
+		),
+		resource_templates_count: toCount(
+			source.resource_templates_count ??
+				source.resourceTemplatesCount ??
+				source.templates,
+		),
+	};
+};
+
+const uniqBySrc = (icons: ServerIcon[]): ServerIcon[] => {
+	const seen = new Set<string>();
+	const result: ServerIcon[] = [];
+	for (const icon of icons) {
+		if (!seen.has(icon.src)) {
+			seen.add(icon.src);
+			result.push(icon);
+		}
+	}
+	return result;
+};
+
+const enrichServerRecord = <T extends Record<string, any>>(server: T) => {
+	const base: Record<string, any> = { ...server };
+	const meta = normalizeServerMeta(server.meta);
+	const directIcons = normalizeServerIconList(server.icons);
+	const combinedIcons = uniqBySrc([...(meta?.icons ?? []), ...directIcons]);
+	const capability = normalizeCapabilitySummary(
+		server.capability ?? server.capabilities,
+	);
+
+	if (meta || combinedIcons.length) {
+		base.meta = {
+			...(meta ?? {}),
+			...(combinedIcons.length ? { icons: combinedIcons } : {}),
+		} as ServerMetaInfo;
+	} else {
+		delete base.meta;
+	}
+
+	if (combinedIcons.length) {
+		base.icons = combinedIcons;
+	} else {
+		delete base.icons;
+	}
+
+	if (capability) {
+		base.capability = capability;
+		base.capabilities = capability;
+	} else {
+		delete base.capability;
+		delete base.capabilities;
+	}
+
+	return base as T & {
+		meta?: ServerMetaInfo;
+		icons?: ServerIcon[];
+		capability?: ServerCapabilitySummary;
+		capabilities?: ServerCapabilitySummary;
+	};
+};
+
 // Core API request function
 async function fetchApi<T>(
 	endpoint: string,
@@ -221,15 +476,20 @@ export const serversApi = {
 			const rawServers = Array.isArray(resp?.data?.servers)
 				? resp.data.servers
 				: [];
-			return {
-				servers: rawServers.map((server: any) => ({
-					...server,
-					registry_server_id:
-						server?.registry_server_id ??
-						server?.registryServerId ??
-						null,
-				})),
-			};
+			const servers = rawServers.map((server: any) => {
+				const enhanced = enrichServerRecord(server);
+				const registryServerId =
+					enhanced?.registry_server_id ?? enhanced?.registryServerId ?? null;
+				const serverType =
+					(enhanced?.server_type as string | undefined) ||
+					(enhanced as any)?.kind;
+				return {
+					...enhanced,
+					server_type: serverType,
+					registry_server_id: registryServerId,
+				} as ServerSummary;
+			});
+			return { servers };
 		} catch (error) {
 			console.error("Failed to fetch servers:", error);
 			return { servers: [] };
@@ -242,21 +502,24 @@ export const serversApi = {
 			const resp = await fetchApi<ServerDetailsResp>(
 				`/api/mcp/servers/details?${q}`,
 			);
-			const data = resp?.data;
+			const data = resp?.data ?? {};
+			const enhanced = enrichServerRecord(data);
 			const enabledValue =
-				typeof data?.enabled === "boolean"
-					? data.enabled
-					: typeof data?.globally_enabled === "boolean"
-						? data.globally_enabled
+				typeof enhanced?.enabled === "boolean"
+					? enhanced.enabled
+					: typeof enhanced?.globally_enabled === "boolean"
+						? enhanced.globally_enabled
 						: undefined;
 
-			const instances = Array.isArray(data?.instances) ? data.instances : [];
+			const instances = Array.isArray(enhanced?.instances)
+				? (enhanced.instances as InstanceSummary[])
+				: [];
 
 			const rawStatus = (
-				data?.status ??
-				data?.state ??
-				data?.runtime_status ??
-				data?.meta?.state ??
+				enhanced?.status ??
+				enhanced?.state ??
+				enhanced?.runtime_status ??
+				(enhanced?.meta as any)?.state ??
 				""
 			)
 				.toString()
@@ -312,33 +575,48 @@ export const serversApi = {
 				else normalizedStatus = enabledValue ? "idle" : "disabled";
 			}
 
+			const registryServerId =
+				enhanced?.registry_server_id ?? enhanced?.registryServerId ?? null;
+
+			const serverType =
+				(enhanced?.server_type as string | undefined) ||
+				(enhanced as any)?.kind;
+
 			return {
-				id: data?.id ?? id,
-				name: data?.name ?? id,
+				id: (enhanced?.id as string) ?? id,
+				name: enhanced?.name ?? id,
 				status: normalizedStatus,
-				kind: data?.kind ?? data?.server_type ?? "unknown",
-				server_type: data?.server_type,
-				registry_server_id:
-					data?.registry_server_id ??
-					data?.registryServerId ??
-					null,
+				server_type: serverType,
+				registry_server_id: registryServerId,
 				enabled: enabledValue,
 				globally_enabled:
-					typeof data?.globally_enabled === "boolean"
-						? data.globally_enabled
+					typeof enhanced?.globally_enabled === "boolean"
+						? enhanced.globally_enabled
 						: undefined,
 				enabled_in_suits:
-					typeof data?.enabled_in_suits === "boolean"
-						? data.enabled_in_suits
+					typeof enhanced?.enabled_in_suits === "boolean"
+						? enhanced.enabled_in_suits
 						: undefined,
 				enabled_in_profile:
-					typeof data?.enabled_in_profile === "boolean"
-						? data.enabled_in_profile
+					typeof enhanced?.enabled_in_profile === "boolean"
+						? enhanced.enabled_in_profile
 						: undefined,
 				instances,
-				command: data?.command,
-				args: data?.args,
-				env: data?.env,
+				command: enhanced?.command,
+				args: Array.isArray(enhanced?.args)
+					? (enhanced.args as string[])
+					: undefined,
+				env:
+					typeof enhanced?.env === "object" && enhanced?.env !== null
+						? (enhanced.env as Record<string, string>)
+						: undefined,
+				url: typeof enhanced?.url === "string" ? enhanced.url : undefined,
+				headers:
+					typeof enhanced?.headers === "object" && enhanced?.headers !== null
+						? (enhanced.headers as Record<string, string>)
+						: undefined,
+				meta: enhanced?.meta,
+				icons: enhanced?.icons,
 			};
 		} catch (error) {
 			console.error(`Error fetching server details for ${id}:`, error);
@@ -485,6 +763,11 @@ export const serversApi = {
 		} else {
 			base.url = sc.url ?? serverConfig.command ?? undefined;
 		}
+		// Add meta information if present
+		const metaPayload = serializeMetaForApi(serverConfig.meta ?? undefined);
+		if (metaPayload) {
+			base.meta = metaPayload;
+		}
 		try {
 			return await fetchApi<ServerDetailsResp>("/api/mcp/servers/create", {
 				method: "POST",
@@ -545,6 +828,7 @@ export const serversApi = {
 			kind: serverConfig.kind ?? undefined,
 			args: serverConfig.args ?? undefined,
 			env: serverConfig.env ?? undefined,
+			headers: serverConfig.headers ?? undefined,
 			enabled: sc.enabled ?? undefined,
 		};
 		if (serverType === "stdio" || !serverType) {
@@ -553,6 +837,11 @@ export const serversApi = {
 		} else {
 			body.url = sc.url ?? serverConfig.command ?? undefined;
 			body.command = undefined;
+		}
+		// Add meta information if present
+		const metaPayload = serializeMetaForApi(serverConfig.meta ?? undefined);
+		if (metaPayload) {
+			body.meta = metaPayload;
 		}
 		return fetchApi<ServerDetailsResp>("/api/mcp/servers/update", {
 			method: "POST",
@@ -966,8 +1255,8 @@ export const configApi = {
 					config.servers = serversResponse.servers.map((server) => ({
 						name: server.name,
 						kind:
-							server.kind === "stdio" || server.kind === "sse"
-								? server.kind
+							server.server_type === "stdio" || server.server_type === "sse"
+								? (server.server_type as MCPServerConfig["kind"])
 								: "streamable_http",
 						command: "",
 						command_path: undefined,

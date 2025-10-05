@@ -1,8 +1,53 @@
 // API Response Types
+export interface ServerIcon {
+	src: string;
+	mimeType?: string | null;
+	sizes?: string | null;
+}
+
+export interface RegistryRepositoryInfo {
+	url?: string | null;
+	source?: string | null;
+	subfolder?: string | null;
+	id?: string | null;
+}
+
+export interface RegistryOfficialMeta {
+	status?: string | null;
+	publishedAt?: string | null;
+	updatedAt?: string | null;
+	isLatest?: boolean | null;
+}
+
+export interface RegistryMetaPayload {
+	"io.modelcontextprotocol.registry/official"?: RegistryOfficialMeta | null;
+	"io.modelcontextprotocol.registry/publisher-provided"?: Record<string, unknown> | null;
+	[namespace: string]: unknown;
+}
+
+export interface ServerCapabilitySummary {
+	supports_tools: boolean;
+	supports_prompts: boolean;
+	supports_resources: boolean;
+	tools_count: number;
+	prompts_count: number;
+	resources_count: number;
+	resource_templates_count: number;
+}
+
+export interface ServerMetaInfo {
+	description?: string | null;
+	version?: string | null;
+	websiteUrl?: string | null;
+	repository?: RegistryRepositoryInfo | null;
+	_meta?: RegistryMetaPayload | null;
+	extras?: Record<string, unknown> | null;
+	icons?: ServerIcon[];
+}
+
 export interface ServerSummary {
 	id: string;
 	name: string;
-	kind?: string;
 	server_type?: string;
 	status: string;
 	enabled?: boolean;
@@ -12,6 +57,14 @@ export interface ServerSummary {
 	registry_server_id?: string | null;
 	instance_count?: number;
 	instances?: InstanceSummary[];
+	meta?: ServerMetaInfo;
+	icons?: ServerIcon[];
+	capability?: ServerCapabilitySummary;
+	capabilities?: ServerCapabilitySummary;
+	protocol_version?: string | null;
+	server_version?: string | null;
+	created_at?: string | null;
+	updated_at?: string | null;
 }
 
 export interface ServerListResponse {
@@ -33,6 +86,8 @@ export interface ServerDetail extends ServerSummary {
 	commandPath?: string;
 	args?: string[];
 	env?: Record<string, string>;
+	url?: string | null;
+	headers?: Record<string, string> | null;
 	instances: InstanceSummary[];
 }
 
@@ -251,17 +306,26 @@ export interface MCPServerConfig {
 	/** 命令路径 */
 	command_path?: string;
 
+	/** HTTP/SSE endpoint URL (non-stdio servers) */
+	url?: string;
+
 	/** 命令参数 */
 	args?: string[];
 
 	/** 环境变量 */
 	env?: Record<string, string>;
 
+	/** HTTP headers for non-stdio servers */
+	headers?: Record<string, string>;
+
 	/** 最大实例数 */
 	max_instances?: number;
 
 	/** 重试策略 */
 	retry_policy?: RetryPolicy;
+
+	/** 服务器元数据信息 */
+	meta?: ServerMetaInfo;
 }
 
 export interface MCPToolConfig {

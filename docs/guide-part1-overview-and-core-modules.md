@@ -90,7 +90,7 @@ MCPMate 是一个综合性的 Model Context Protocol (MCP) 管理中心，旨在
   - 客户端（Clients）列表排序与管理开关稳定性；
   - 客户端详情页：Apply 配置 Drawer、Backup Policy Drawer、备份还原/删除；
   - 配置（Profiles）：各能力项的启用/禁用、筛选条布局与懒加载详情；
-- 运行开发服务：`npm run dev`，后端在 `http://localhost:8080`；Vite 已将 `/api` 与 `/ws` 代理到后端。
+- 运行开发服务：`bun run dev`（或 `npm run dev`），后端在 `http://localhost:8080`；Vite 已将 `/api` 与 `/ws` 代理到后端。
 
 ---
 

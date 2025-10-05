@@ -25,10 +25,10 @@ Conventions
 - Pages should be small and composable. Extract subcomponents once they exceed ~200–300 lines.
 
 ## Build, Test, and Development Commands
-- Install deps: `npm install` (package-lock is present; prefer npm over pnpm/yarn here).
-- Dev server: `npm run dev` (Vite, ports 5173/5174 by default) with API proxied to `http://localhost:8080`.
-- Production build: `npm run build` → output in `dist/`.
-- Preview build: `npm run preview`.
+- Install deps: `bun install` (fallback: `npm install`).
+- Dev server: `bun run dev` (Vite, ports 5173/5174 by default) with API proxied to `http://localhost:8080`.
+- Production build: `bun run build` → output in `dist/`.
+- Preview build: `bun run preview`.
 
 Backend expectations
 - Backend must run at `http://localhost:8080` exposing `/api` and `/ws`. The UI is developed against the OpenAPI in `docs/openapi.json` and the live server.
@@ -61,7 +61,7 @@ Backend expectations
 - Prefer early returns and small helpers; keep files readable and under ~400 lines when feasible.
 
 ## Testing Workflow
-- Manual validation: run `npm run dev`, verify pages load against live backend at `http://localhost:8080`.
+- Manual validation: run `bun run dev` (or `npm run dev`), verify pages load against live backend at `http://localhost:8080`.
 - Preferred e2e: Playwright (or equivalent). If/when a Playwright setup exists, target:
   - Servers list CRUD, enable/disable, refresh behavior
   - Server Detail tabs (Overview/Capabilities) lazy load and error boundaries
