@@ -21,7 +21,10 @@ export interface RegistryOfficialMeta {
 
 export interface RegistryMetaPayload {
 	"io.modelcontextprotocol.registry/official"?: RegistryOfficialMeta | null;
-	"io.modelcontextprotocol.registry/publisher-provided"?: Record<string, unknown> | null;
+	"io.modelcontextprotocol.registry/publisher-provided"?: Record<
+		string,
+		unknown
+	> | null;
 	[namespace: string]: unknown;
 }
 
@@ -165,6 +168,23 @@ export interface RegistryServerListResponse {
 export interface RegistryServerEntryWrapper {
 	server: RegistryServerEntry;
 	_meta?: RegistryServerMeta;
+}
+
+export interface ServersImportData {
+	imported_count: number;
+	imported_servers: string[];
+	skipped_count: number;
+	skipped_servers: SkippedServer[];
+	failed_count: number;
+	failed_servers: string[];
+	error_details?: Record<string, string> | null;
+}
+
+export interface SkippedServer {
+	name: string;
+	reason: string;
+	existing_query?: string | null;
+	incoming_query?: string | null;
 }
 
 export interface ServerInstanceDetails {

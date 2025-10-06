@@ -6,6 +6,17 @@ import type {
 	CapabilitiesStatsResponse,
 	CapabilitiesStorageStats,
 	ClearCacheResponse,
+	ClientBackupActionResp,
+	ClientBackupListResp,
+	ClientBackupPolicyResp,
+	ClientBackupPolicySetReq,
+	ClientCheckResp,
+	ClientConfigResp,
+	ClientConfigRestoreReq,
+	ClientConfigUpdateReq,
+	ClientConfigUpdateResp,
+	ClientManageAction,
+	ClientManageResp,
 	ConfigPreset,
 	ConfigSuit,
 	ConfigSuitListResponse,
@@ -27,34 +38,25 @@ import type {
 	MCPConfig,
 	MCPServerConfig,
 	OperationResponseResp,
-	RuntimeCacheResponse,
-	RuntimeStatusResponse,
-	ServerDetail,
-	ServerDetailsResp,
-	ServerListResp,
-	ServerListResponse,
-	ServerSummary,
-	ServerIcon,
-	ServerMetaInfo,
 	RegistryMetaPayload,
 	RegistryRepositoryInfo,
-	ServerCapabilitySummary,
+	RuntimeCacheResponse,
+	RuntimeStatusResponse,
 	ServerCapabilityResp,
+	ServerCapabilitySummary,
+	ServerDetail,
+	ServerDetailsResp,
+	ServerIcon,
+	ServerListResp,
+	ServerListResponse,
+	ServerMetaInfo,
+	ServerSummary,
+	ServersImportData,
+	SkippedServer,
 	SystemMetrics,
 	SystemStatus,
 	ToolDetail,
 	UpdateConfigSuitRequest,
-	ClientCheckResp,
-	ClientManageResp,
-	ClientManageAction,
-	ClientConfigResp,
-	ClientConfigUpdateReq,
-	ClientConfigUpdateResp,
-	ClientConfigRestoreReq,
-	ClientBackupListResp,
-	ClientBackupActionResp,
-	ClientBackupPolicyResp,
-	ClientBackupPolicySetReq,
 } from "./types";
 
 // Base API configuration
@@ -908,11 +910,7 @@ export const serversApi = {
 	// Import servers from JSON-like configuration object
 	importServers: async (payload: {
 		mcpServers: Record<string, any>;
-	}): Promise<{
-		success: boolean;
-		data?: any;
-		error?: unknown | null;
-	}> => {
+	}): Promise<ApiWrapper<ServersImportData>> => {
 		return await fetchApi(`/api/mcp/servers/import`, {
 			method: "POST",
 			body: JSON.stringify(payload),
@@ -942,6 +940,67 @@ export const serversApi = {
 		});
 	},
 };
+
+export interface ImportStats {
+	importedCount: number;
+	importedServers: string[];
+	skippedCount: number;
+	skippedServers: string[];
+	skippedDetails: SkippedServer[];
+	failedCount: number;
+	failedServers: string[];
+	errorDetails?: Record<string, string> | null;
+}
+
+export function extractImportStats(
+	response:
+		| ApiWrapper<ServersImportData>
+		| ServersImportData
+		| null
+		| undefined,
+): ImportStats {
+	let payload: ServersImportData | null = null;
+	if (response && typeof response === "object") {
+		if ("data" in response && response.data) {
+			payload = response.data as ServersImportData;
+		} else if ("imported_count" in response) {
+			payload = response as ServersImportData;
+		}
+	}
+
+	const importedServers = Array.isArray(payload?.imported_servers)
+		? payload!.imported_servers
+		: [];
+	const importedCount =
+		typeof payload?.imported_count === "number"
+			? payload.imported_count
+			: importedServers.length;
+	const skippedDetails = Array.isArray(payload?.skipped_servers)
+		? payload!.skipped_servers
+		: [];
+	const skippedServers = skippedDetails.map((item) => item.name);
+	const skippedCount =
+		typeof payload?.skipped_count === "number"
+			? payload.skipped_count
+			: skippedServers.length;
+	const failedServers = Array.isArray(payload?.failed_servers)
+		? payload!.failed_servers
+		: [];
+	const failedCount =
+		typeof payload?.failed_count === "number"
+			? payload.failed_count
+			: failedServers.length;
+	return {
+		importedCount,
+		importedServers,
+		skippedCount,
+		skippedServers,
+		skippedDetails,
+		failedCount,
+		failedServers,
+		errorDetails: payload?.error_details ?? null,
+	};
+}
 
 // Inspector API
 export const inspectorApi = {

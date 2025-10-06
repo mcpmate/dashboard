@@ -17,7 +17,7 @@ import { Badge } from "./ui/badge";
 import { useNotify } from "../lib/notify";
 
 export function NotificationCenter() {
-	const { items, markAllRead, markRead, clear } = useNotify();
+	const { items, markAllRead, markRead, clear, isOpen, setOpen } = useNotify();
 	const unreadCount = items.reduce((acc, it) => acc + (it.read ? 0 : 1), 0);
 
 	function icon(level: string) {
@@ -34,7 +34,7 @@ export function NotificationCenter() {
 	}
 
 	return (
-		<DropdownMenu>
+		<DropdownMenu open={isOpen} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"

@@ -1,7 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { serversApi } from "../lib/api";
-import { notifyError, notifySuccess } from "../lib/notify";
+import { extractImportStats, serversApi } from "../lib/api";
+import { notifyError, notifyInfo, notifySuccess } from "../lib/notify";
+import { formatNameList, summarizeSkipped } from "../lib/server-import-utils";
 import { Button } from "./ui/button";
 import {
 	Drawer,
@@ -118,12 +119,41 @@ export function ServerImportDrawer({
 		try {
 			setImporting(true);
 			const res = await serversApi.importServers(p.payload);
-			notifySuccess(
-				res.success ? "Imported" : "Import finished",
-				res.success ? "Servers imported successfully" : "See summary above",
-			);
-			if (onImported) onImported();
-			onOpenChange(false);
+			const stats = extractImportStats(res);
+			const didSucceed =
+				typeof res?.success === "boolean"
+					? res.success
+					: (res as { status?: string })?.status === "success" ||
+						!("error" in (res ?? {}));
+			if (didSucceed) {
+				const { importedCount, skippedCount, skippedServers, skippedDetails } =
+					stats;
+				const skippedSummary = summarizeSkipped(skippedDetails);
+				const fallbackList = formatNameList(skippedServers);
+				const skippedDescription = skippedSummary
+					? skippedSummary
+					: skippedCount > 0
+						? `${skippedCount} server${skippedCount > 1 ? "s" : ""} skipped${fallbackList ? ` (${fallbackList})` : ""}`
+						: "";
+				const messageParts: string[] = [
+					`Imported ${importedCount} server${importedCount === 1 ? "" : "s"}`,
+				];
+				if (skippedCount > 0) {
+					messageParts.push(skippedDescription);
+				}
+				notifySuccess("Import completed", messageParts.join("; "));
+				if (skippedCount > 0 && importedCount === 0) {
+					notifyInfo(
+						"Skipped existing servers",
+						skippedDescription ||
+							`${skippedCount} server${skippedCount > 1 ? "s" : ""} skipped (already installed).`,
+					);
+				}
+				if (onImported) onImported();
+				onOpenChange(false);
+				return;
+			}
+			notifyError("Import failed", String(res.error ?? "Unknown error"));
 		} catch (e) {
 			notifyError("Import failed", String(e));
 		} finally {

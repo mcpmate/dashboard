@@ -1,6 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
-import { serializeMetaForApi, serversApi } from "../lib/api";
-import { notifyError, notifySuccess } from "../lib/notify";
+import {
+	extractImportStats,
+	serializeMetaForApi,
+	serversApi,
+} from "../lib/api";
+import { notifyError, notifyInfo, notifySuccess } from "../lib/notify";
+import { formatNameList, summarizeSkipped } from "../lib/server-import-utils";
 import type { ServerMetaInfo } from "../lib/types";
 
 export type InstallSource = "manual" | "ingest" | "market";
@@ -199,7 +204,33 @@ export function useServerInstallPipeline(
 					: (result as { status?: string })?.status === "success" ||
 						!("error" in (result ?? {}));
 			if (didSucceed) {
-				notifySuccess("Servers installed", "Import completed successfully");
+				const stats = extractImportStats(result);
+				const { importedCount, skippedCount, skippedServers, skippedDetails } =
+					stats;
+				const skippedSummary = summarizeSkipped(skippedDetails);
+				const fallbackList = formatNameList(skippedServers);
+				const skippedDescription = skippedSummary
+					? skippedSummary
+					: skippedCount > 0
+						? `${skippedCount} server${skippedCount > 1 ? "s" : ""} skipped${fallbackList ? ` (${fallbackList})` : ""}`
+						: "";
+				if (importedCount > 0) {
+					const parts: string[] = [
+						`${importedCount} server${importedCount > 1 ? "s" : ""} imported`,
+					];
+					if (skippedCount > 0) {
+						parts.push(skippedDescription);
+					}
+					notifySuccess("Servers installed", parts.join("; "));
+				} else if (skippedCount > 0) {
+					notifyInfo(
+						"No new servers installed",
+						skippedDescription ||
+							`${skippedCount} server${skippedCount > 1 ? "s" : ""} skipped (already installed).`,
+					);
+				} else {
+					notifySuccess("Servers installed", "Import completed (no changes)");
+				}
 				opts.onImported?.();
 				reset();
 				return;
