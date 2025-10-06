@@ -1,5 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Copy } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { inspectorApi } from "../lib/api";
+import { notifyError, notifySuccess } from "../lib/notify";
+import { defaultFromSchema, SchemaForm } from "./schema-form";
 import { Button } from "./ui/button";
+import { ButtonGroup } from "./ui/button-group";
+import { Card, CardContent } from "./ui/card";
 import {
 	Drawer,
 	DrawerContent,
@@ -11,9 +17,14 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { notifyError, notifySuccess } from "../lib/notify";
-import { inspectorApi } from "../lib/api";
-import { SchemaForm, defaultFromSchema } from "./schema-form";
+import {
+	Tooltip,
+	TooltipArrow,
+	TooltipContent,
+	TooltipPortal,
+	TooltipProvider,
+	TooltipTrigger,
+} from "./ui/tooltip";
 
 type InspectorKind = "tool" | "resource" | "prompt";
 
@@ -53,6 +64,19 @@ function newLogId() {
 	return `log_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 }
 
+function pickToolNameForMode(source: any, mode: "proxy" | "native"): string {
+	if (!source) return "";
+	const uniqueName =
+		typeof source.unique_name === "string" ? source.unique_name : undefined;
+	const toolName =
+		typeof source.tool_name === "string" ? source.tool_name : undefined;
+	const rawName = typeof source.name === "string" ? source.name : undefined;
+	if (mode === "proxy") {
+		return uniqueName || toolName || rawName || "";
+	}
+	return toolName || rawName || uniqueName || "";
+}
+
 export function InspectorDrawer({
 	open,
 	onOpenChange,
@@ -83,10 +107,6 @@ export function InspectorDrawer({
 	);
 	const [submitting, setSubmitting] = useState(false);
 	const [result, setResult] = useState<any | null>(null);
-	const [callId, setCallId] = useState<string | null>(null);
-	const sseRef = useRef<EventSource | null>(null);
-	const [progressInfo, setProgressInfo] = useState<{ percent?: number; message?: string } | null>(null);
-	const [streamError, setStreamError] = useState<string | null>(null);
 
 	// Build mock from JSON Schema types
 	function mockOfType(t?: string): any {
@@ -188,24 +208,20 @@ export function InspectorDrawer({
 		if (!open) {
 			return;
 		}
-		// Rebuild schema / initial values on open or item change
 		const source = item ?? {};
 		let schema: any | null = null;
 		if (kind === "tool") {
 			schema = extractToolSchema(source);
 			if (!schema) {
-				// As a last resort, build schema from arguments if present
 				const args = Array.isArray(source?.arguments) ? source.arguments : [];
 				if (args.length) {
 					const props: Record<string, any> = {};
 					const req: string[] = [];
 					args.forEach((a: any) => {
 						const t = String(a?.type || "string");
-						props[String(a?.name || "arg")] = {
-							type: t,
-							description: a?.description,
-						};
-						if (a?.required) req.push(String(a?.name));
+						const nameKey = String(a?.name || "arg");
+						props[nameKey] = { type: t, description: a?.description };
+						if (a?.required) req.push(nameKey);
 					});
 					schema = { type: "object", properties: props, required: req };
 				}
@@ -216,14 +232,13 @@ export function InspectorDrawer({
 			const args = Array.isArray(source?.arguments) ? source.arguments : [];
 			args.forEach((a: any) => {
 				const t = String(a?.type || "string");
-				props[String(a?.name || "arg")] = {
-					type: t,
-					description: a?.description,
-				};
-				if (a?.required) req.push(String(a?.name));
+				const nameKey = String(a?.name || "arg");
+				props[nameKey] = { type: t, description: a?.description };
+				if (a?.required) req.push(nameKey);
 			});
 			schema = { type: "object", properties: props, required: req };
 		}
+
 		if (
 			schema &&
 			schema.type === "object" &&
@@ -262,164 +277,25 @@ export function InspectorDrawer({
 				const mock = fillMock(fs);
 				setValues(mock);
 				setArgsJson(JSON.stringify(mock, null, 2));
+				setUseRaw(false);
 			}
+		}
+
+		if (kind === "tool") {
+			setName(pickToolNameForMode(source, mode));
+		} else if (kind === "prompt") {
+			const promptName =
+				(mode === "proxy"
+					? source?.unique_name || source?.prompt_name || source?.name
+					: source?.prompt_name || source?.name || source?.unique_name) || "";
+			setName(String(promptName));
+		} else if (kind === "resource") {
+			const resourceUri =
+				source?.resource_uri || source?.uri || source?.name || "";
+			setUri(String(resourceUri));
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [open, item, kind]);
-
-	useEffect(() => {
-		if (!callId) {
-			return;
-		}
-		const es = new EventSource(
-			`/api/mcp/inspector/tool/call/stream?call_id=${encodeURIComponent(callId)}`,
-		);
-		sseRef.current = es;
-
-		const handleEvent = (type: string) => (event: MessageEvent) => {
-			try {
-				const payload = JSON.parse(event.data || "{}");
-				const data = payload.data ?? {};
-				switch (type) {
-					case "progress": {
-						const percent =
-							typeof data.percent === "number"
-								? data.percent
-								: typeof data.progress === "number"
-									? data.progress
-									: undefined;
-						setProgressInfo({
-							percent,
-							message: data.message,
-						});
-						onLog?.({
-							id: newLogId(),
-							timestamp: Date.now(),
-							channel: "inspector",
-							event: "success",
-							method: "tools/call",
-							mode,
-							message: data.message || "progress",
-							payload: data,
-						});
-						break;
-					}
-					case "log": {
-						onLog?.({
-							id: newLogId(),
-							timestamp: Date.now(),
-							channel: "inspector",
-							event: "success",
-							method: "tools/call",
-							mode,
-							message: data.message || data.level || "log",
-							payload: data,
-						});
-						break;
-					}
-					case "result": {
-						setProgressInfo(null);
-						setCallId(null);
-						if (sseRef.current) {
-							sseRef.current.close();
-							sseRef.current = null;
-						}
-						setSubmitting(false);
-						setResult(data.result ?? data);
-						notifySuccess("Inspector executed", "See response below");
-						onLog?.({
-							id: newLogId(),
-							timestamp: Date.now(),
-							channel: "inspector",
-							event: "success",
-							method: "tools/call",
-							mode,
-							payload: data,
-						});
-						break;
-					}
-					case "error": {
-						setProgressInfo(null);
-						setCallId(null);
-						if (sseRef.current) {
-							sseRef.current.close();
-							sseRef.current = null;
-						}
-						setSubmitting(false);
-						setStreamError(data.message || "Tool call failed");
-						onLog?.({
-							id: newLogId(),
-							timestamp: Date.now(),
-							channel: "inspector",
-							event: "error",
-							method: "tools/call",
-							mode,
-							payload: data,
-						});
-						notifyError("Inspector request failed", data.message || "Tool error");
-						break;
-					}
-					case "cancelled": {
-						setProgressInfo(null);
-						setCallId(null);
-						if (sseRef.current) {
-							sseRef.current.close();
-							sseRef.current = null;
-						}
-						setSubmitting(false);
-						setStreamError(data.reason || "Call cancelled");
-						onLog?.({
-							id: newLogId(),
-							timestamp: Date.now(),
-							channel: "inspector",
-							event: "error",
-							method: "tools/call",
-							mode,
-							message: data.reason || "cancelled",
-							payload: data,
-						});
-						break;
-					}
-				}
-			} catch (err) {
-				console.error("Failed to process inspector SSE", err);
-			}
-		};
-
-		["progress", "result", "error", "cancelled", "log"].forEach((eventName) => {
-			es.addEventListener(eventName, handleEvent(eventName));
-		});
-
-		es.onerror = () => {
-			setStreamError("Inspector stream disconnected");
-			setSubmitting(false);
-			setProgressInfo(null);
-			setCallId(null);
-			es.close();
-			sseRef.current = null;
-		};
-
-		return () => {
-			es.close();
-			sseRef.current = null;
-		};
-	}, [callId, mode, onLog, serverId, serverName]);
-
-	useEffect(() => {
-		if (!open) {
-			if (callId) {
-				inspectorApi
-					.toolCallCancel({ call_id: callId })
-					.catch(() => undefined);
-			}
-			if (sseRef.current) {
-				sseRef.current.close();
-				sseRef.current = null;
-			}
-			setCallId(null);
-			setProgressInfo(null);
-		}
-	}, [open, callId]);
+	}, [open, item, kind, mode]);
 
 	function parseArgs(): Record<string, any> | undefined {
 		try {
@@ -432,19 +308,18 @@ export function InspectorDrawer({
 		}
 	}
 
+	const hasSchemaInputs =
+		schemaObj &&
+		schemaObj.properties &&
+		Object.keys(schemaObj.properties).length > 0;
+	const hasFieldInputs = fields.length > 0;
+	const expectsArguments =
+		kind !== "resource" && (hasSchemaInputs || hasFieldInputs);
+
 	async function onSubmit() {
 		try {
 			setSubmitting(true);
 			setResult(null);
-			setStreamError(null);
-			setProgressInfo(null);
-			if (sseRef.current) {
-				sseRef.current.close();
-				sseRef.current = null;
-			}
-			if (callId) {
-				setCallId(null);
-			}
 			let resp: any = null;
 			const baseLog = {
 				id: newLogId(),
@@ -453,8 +328,12 @@ export function InspectorDrawer({
 				mode,
 			};
 			if (kind === "tool") {
-				const args = useRaw ? parseArgs() : values;
-				if (args === undefined) return;
+				const args = expectsArguments
+					? useRaw
+						? parseArgs()
+						: values
+					: undefined;
+				if (expectsArguments && args === undefined) return;
 				onLog?.({
 					...baseLog,
 					event: "request",
@@ -481,37 +360,21 @@ export function InspectorDrawer({
 					);
 				}
 				const data = resp.data ?? {};
-				if (data.result) {
-					setResult(data);
-					onLog?.({
-						...baseLog,
-						event: "success",
-						method: "tools/call",
-						payload: data,
-					});
-					notifySuccess("Inspector executed", "See response below");
-				} else if (data.call_id) {
-					setCallId(String(data.call_id));
-					onLog?.({
-						...baseLog,
-						event: "success",
-						method: "tools/call",
-						payload: data,
-						message: data.message || "accepted",
-					});
-				} else {
-					setResult(data);
-					onLog?.({
-						...baseLog,
-						event: "success",
-						method: "tools/call",
-						payload: data,
-					});
-					notifySuccess("Inspector executed", "See response below");
-				}
+				setResult(data);
+				onLog?.({
+					...baseLog,
+					event: "success",
+					method: "tools/call",
+					payload: data,
+				});
+				notifySuccess("Inspector executed", "See response below");
 			} else if (kind === "prompt") {
-				const args = useRaw ? parseArgs() : values;
-				if (args === undefined) return;
+				const args = expectsArguments
+					? useRaw
+						? parseArgs()
+						: values
+					: undefined;
+				if (expectsArguments && args === undefined) return;
 				onLog?.({
 					...baseLog,
 					event: "request",
@@ -603,10 +466,28 @@ export function InspectorDrawer({
 		}
 	}
 
+	const handleCopy = useCallback(async () => {
+		if (result == null) return;
+		try {
+			const text =
+				typeof result === "string" ? result : JSON.stringify(result, null, 2);
+			await navigator.clipboard.writeText(text);
+			notifySuccess(
+				"Response copied",
+				"Inspector response copied to clipboard.",
+			);
+		} catch (err) {
+			notifyError(
+				"Copy failed",
+				err instanceof Error ? err.message : String(err),
+			);
+		}
+	}, [result]);
+
 	return (
 		<Drawer open={open} onOpenChange={onOpenChange}>
-			<DrawerContent>
-				<DrawerHeader>
+			<DrawerContent className="flex h-full flex-col overflow-hidden">
+				<DrawerHeader className="shrink-0">
 					<DrawerTitle>
 						Inspector ·{" "}
 						{kind === "tool"
@@ -621,7 +502,7 @@ export function InspectorDrawer({
 					</DrawerDescription>
 				</DrawerHeader>
 
-				<div className="px-4 py-3 space-y-4">
+				<div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
 					<div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 						<div className="space-y-1">
 							<Label>Mode</Label>
@@ -643,10 +524,21 @@ export function InspectorDrawer({
 						) : null}
 						<div className="space-y-1">
 							<Label>Server</Label>
-							<Input value={serverName || serverId || "-"} disabled />
-							{serverName && serverId ? (
-								<p className="text-[11px] text-slate-500">ID: {serverId}</p>
-							) : null}
+							<TooltipProvider delayDuration={200}>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Input value={serverName || serverId || "-"} disabled />
+									</TooltipTrigger>
+									{serverName && serverId ? (
+										<TooltipPortal>
+											<TooltipContent side="top" align="start">
+												<p className="text-xs">ID: {serverId}</p>
+												<TooltipArrow />
+											</TooltipContent>
+										</TooltipPortal>
+									) : null}
+								</Tooltip>
+							</TooltipProvider>
 						</div>
 					</div>
 
@@ -663,109 +555,111 @@ export function InspectorDrawer({
 					)}
 
 					{kind !== "resource" ? (
-						<div className="space-y-2">
-							<div className="flex items-center justify-between">
-								<Label>Arguments</Label>
-								<div className="flex items-center gap-2 text-xs">
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={() => {
-											if (schemaObj) {
-												const mock = defaultFromSchema(schemaObj);
-												setValues(mock);
-												setArgsJson(JSON.stringify(mock, null, 2));
-											} else {
-												const mock = fillMock(fields);
-												setValues(mock);
-												setArgsJson(JSON.stringify(mock, null, 2));
-											}
-										}}
-									>
-										Fill Mock
-									</Button>
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={() => {
-											setValues({});
-											setArgsJson("{}");
-										}}
-									>
-										Clean
-									</Button>
-									<Button
-										size="sm"
-										variant={useRaw ? "default" : "outline"}
-										onClick={() => setUseRaw((v) => !v)}
-									>
-										{useRaw ? "Form" : "JSON"}
-									</Button>
+						expectsArguments ? (
+							<div className="space-y-4">
+								<div className="flex items-center justify-between">
+									<Label>Parameters</Label>
+									<ButtonGroup>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => {
+												if (schemaObj) {
+													const mock = defaultFromSchema(schemaObj);
+													setValues(mock);
+													setArgsJson(JSON.stringify(mock, null, 2));
+												} else {
+													const mock = fillMock(fields);
+													setValues(mock);
+													setArgsJson(JSON.stringify(mock, null, 2));
+												}
+											}}
+										>
+											Fill Mock
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => {
+												setValues({});
+												setArgsJson("{}");
+											}}
+										>
+											Clean
+										</Button>
+										<Button
+											size="sm"
+											variant={useRaw ? "default" : "outline"}
+											onClick={() => setUseRaw((v) => !v)}
+										>
+											{useRaw ? "Form" : "JSON"}
+										</Button>
+									</ButtonGroup>
 								</div>
+								{useRaw ? (
+									<Textarea
+										rows={8}
+										className="font-mono text-xs"
+										value={argsJson}
+										onChange={(e) => setArgsJson(e.target.value)}
+									/>
+								) : schemaObj ? (
+									<Card>
+										<CardContent className="p-4">
+											<SchemaForm
+												schema={schemaObj}
+												value={values}
+												onChange={(v) => {
+													setValues(v);
+													setArgsJson(JSON.stringify(v, null, 2));
+												}}
+											/>
+										</CardContent>
+									</Card>
+								) : (
+									<Textarea
+										rows={6}
+										className="font-mono text-xs"
+										value={argsJson}
+										onChange={(e) => setArgsJson(e.target.value)}
+									/>
+								)}
 							</div>
-							{useRaw ? (
-								<Textarea
-									rows={8}
-									className="font-mono text-xs"
-									value={argsJson}
-									onChange={(e) => setArgsJson(e.target.value)}
-								/>
-							) : schemaObj ? (
-								<SchemaForm
-									schema={schemaObj}
-									value={values}
-									onChange={(v) => {
-										setValues(v);
-										setArgsJson(JSON.stringify(v, null, 2));
-									}}
-								/>
-							) : (
-								<Textarea
-									rows={6}
-									className="font-mono text-xs"
-									value={argsJson}
-									onChange={(e) => setArgsJson(e.target.value)}
-								/>
-							)}
-						</div>
-					) : null}
-
-					{progressInfo ? (
-						<div className="rounded border border-sky-200 bg-sky-50 dark:bg-slate-900/40 p-2 text-xs text-sky-700 dark:text-sky-300">
-							Progress:
-							{typeof progressInfo.percent === "number"
-								? ` ${progressInfo.percent.toFixed(1)}%`
-								: " updating"}
-							{progressInfo.message ? ` · ${progressInfo.message}` : ""}
-						</div>
-					) : null}
-
-					{streamError ? (
-						<div className="rounded border border-red-200 bg-red-50 dark:bg-red-900/30 p-2 text-xs text-red-700 dark:text-red-300">
-							{streamError}
-						</div>
+						) : (
+							<div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+								No arguments required for this capability.
+							</div>
+						)
 					) : null}
 
 					{result ? (
 						<div className="space-y-2">
 							<Label>Response</Label>
-							<pre className="bg-slate-50 dark:bg-slate-900 rounded p-3 text-xs overflow-auto max-h-[40vh]">
-								{pretty(result)}
-							</pre>
+							<div className="group/response relative">
+								<pre className="max-h-[40vh] overflow-auto rounded bg-slate-50 p-3 text-xs whitespace-pre-wrap break-words dark:bg-slate-900">
+									{pretty(result)}
+								</pre>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={handleCopy}
+									className="absolute top-2 right-2 h-8 w-8 px-0 opacity-0 transition-opacity group-hover/response:opacity-100 focus:opacity-100 bg-background/80 hover:bg-background"
+								>
+									<Copy className="h-4 w-4" />
+									<span className="sr-only">Copy response</span>
+								</Button>
+							</div>
 						</div>
 					) : null}
 				</div>
 
-				<DrawerFooter>
-					<div className="flex gap-2 w-full">
-						<Button
-							variant="outline"
-							className="flex-1"
-							onClick={() => onOpenChange(false)}
-						>
+				<DrawerFooter className="shrink-0 border-t px-6 py-4">
+					<div className="flex w-full items-center justify-between gap-3">
+						<Button variant="outline" onClick={() => onOpenChange(false)}>
 							Close
 						</Button>
-						<Button className="flex-1" onClick={onSubmit} disabled={submitting}>
+						<Button onClick={onSubmit} disabled={submitting}>
 							{submitting ? "Running..." : "Run"}
 						</Button>
 					</div>

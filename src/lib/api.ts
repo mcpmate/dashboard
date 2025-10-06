@@ -1029,24 +1029,6 @@ export const inspectorApi = {
 			method: "POST",
 			body: JSON.stringify(req),
 		}),
-	toolCallStream: (q: {
-		server_id?: string;
-		server_name?: string;
-		tool: string;
-		mode?: "proxy" | "native";
-	}) => {
-		const qs = new URLSearchParams();
-		if (q.server_id) qs.set("server_id", q.server_id);
-		if (q.server_name) qs.set("server_name", q.server_name);
-		if (q.tool) qs.set("tool", q.tool);
-		if (q.mode) qs.set("mode", q.mode);
-		return fetchApi(`/api/mcp/inspector/tool/call/stream?${qs}`);
-	},
-	toolCallCancel: (req: any) =>
-		fetchApi(`/api/mcp/inspector/tool/call/cancel`, {
-			method: "POST",
-			body: JSON.stringify(req),
-		}),
 	resourcesList: (q: {
 		server_id?: string;
 		server_name?: string;
@@ -1095,14 +1077,6 @@ export const inspectorApi = {
 		fetchApi(`/api/mcp/inspector/prompt/get`, {
 			method: "POST",
 			body: JSON.stringify(req),
-		}),
-	callsRecent: () => fetchApi(`/api/mcp/inspector/calls/recent`),
-	callsDetails: (q: { id: string }) =>
-		fetchApi(`/api/mcp/inspector/calls/details?id=${encodeURIComponent(q.id)}`),
-	callsClear: () =>
-		fetchApi(`/api/mcp/inspector/calls/clear`, {
-			method: "POST",
-			body: JSON.stringify({}),
 		}),
 };
 
