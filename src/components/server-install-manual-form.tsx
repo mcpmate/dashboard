@@ -209,6 +209,7 @@ interface StdioState {
 interface HttpState {
 	url: string;
 	headers: KeyValuePair[];
+	urlParams?: KeyValuePair[];
 }
 
 interface IconState {
@@ -264,6 +265,7 @@ export interface ServerInstallManualFormHandle {
 		fileName?: string;
 	}) => Promise<void>;
 	loadDraft: (draft: ServerInstallDraft) => Promise<void> | void;
+	getCurrentDraft: () => ServerInstallDraft | null;
 }
 
 interface ServerInstallManualFormProps {
@@ -272,14 +274,18 @@ interface ServerInstallManualFormProps {
 	onSubmit: (draft: ServerInstallDraft) => Promise<void> | void;
 	onSubmitMultiple?: (drafts: ServerInstallDraft[]) => Promise<void> | void;
 	/**
-	 * Controls whether the form behaves as a creation flow or an edit experience.
+	 * Controls whether the form behaves as a creation flow, edit experience, or market import.
 	 * Edit mode disables ingest-only UX like drag & drop and forces JSON view to be read-only.
+	 * Market mode shows server information and transport options for registry imports.
 	 */
-	mode?: "create" | "edit";
+	mode?: "create" | "edit" | "market";
 	/** Optional initial draft used to hydrate the form when editing an existing server. */
 	initialDraft?: ServerInstallDraft | null;
 	/** Allow users to modify the JSON representation. Defaults to true in create mode. */
 	allowJsonEditing?: boolean;
+	/** Market mode specific props */
+	onPreview?: () => void;
+	onImport?: () => void;
 }
 
 export const ServerInstallManualForm = forwardRef<
@@ -295,12 +301,16 @@ export const ServerInstallManualForm = forwardRef<
 			mode = "create",
 			initialDraft,
 			allowJsonEditing,
+			onPreview,
+			onImport,
 		}: ServerInstallManualFormProps,
 		ref,
 	) => {
 		const isEditMode = mode === "edit";
+		const isMarketMode = mode === "market";
 		const jsonEditingEnabled = allowJsonEditing ?? !isEditMode;
-		const ingestEnabled = !isEditMode;
+		const ingestEnabled = !isEditMode && !isMarketMode;
+
 		const {
 			control,
 			handleSubmit,
@@ -346,6 +356,47 @@ export const ServerInstallManualForm = forwardRef<
 		const [deleteConfirmStates, setDeleteConfirmStates] = useState<
 			Record<string, boolean>
 		>({});
+
+		const buildFormValuesFromState = useCallback(
+			(state: ManualFormStateJson): ManualServerFormValues => {
+				const commonMeta = state.meta;
+				const base: ManualServerFormValues = {
+					name: state.name ?? "",
+					kind: state.kind,
+					command: "",
+					url: "",
+					args: [],
+					env: [],
+					headers: [],
+					meta_description: commonMeta.description,
+					meta_version: commonMeta.version,
+					meta_website_url: commonMeta.websiteUrl,
+					meta_repository_url: commonMeta.repository.url,
+					meta_repository_source: commonMeta.repository.source,
+					meta_repository_subfolder: commonMeta.repository.subfolder,
+					meta_repository_id: commonMeta.repository.id,
+				};
+
+				if (state.kind === "stdio") {
+					base.command = state.stdio.command ?? "";
+					base.args = cloneArgs(state.stdio.args);
+					base.env = cloneKeyValuePairs(state.stdio.env);
+				} else if (state.kind === "sse") {
+					base.url = state.sse.url ?? "";
+					base.headers = cloneKeyValuePairs(state.sse.headers);
+					(base as any).urlParams = cloneKeyValuePairs(state.sse.urlParams);
+				} else {
+					base.url = state.streamable_http.url ?? "";
+					base.headers = cloneKeyValuePairs(state.streamable_http.headers);
+					(base as any).urlParams = cloneKeyValuePairs(
+						state.streamable_http.urlParams,
+					);
+				}
+
+				return base;
+			},
+			[],
+		);
 
 		const createInitialFormState = useCallback(
 			(): ManualFormStateJson => ({
@@ -414,47 +465,6 @@ export const ServerInstallManualForm = forwardRef<
 			append: appendUrlParam,
 			remove: removeUrlParam,
 		} = useFieldArray({ control, name: "urlParams" });
-
-		const buildFormValuesFromState = useCallback(
-			(state: ManualFormStateJson): ManualServerFormValues => {
-				const commonMeta = state.meta;
-				const base: ManualServerFormValues = {
-					name: state.name ?? "",
-					kind: state.kind,
-					command: "",
-					url: "",
-					args: [],
-					env: [],
-					headers: [],
-					meta_description: commonMeta.description,
-					meta_version: commonMeta.version,
-					meta_website_url: commonMeta.websiteUrl,
-					meta_repository_url: commonMeta.repository.url,
-					meta_repository_source: commonMeta.repository.source,
-					meta_repository_subfolder: commonMeta.repository.subfolder,
-					meta_repository_id: commonMeta.repository.id,
-				};
-
-				if (state.kind === "stdio") {
-					base.command = state.stdio.command ?? "";
-					base.args = cloneArgs(state.stdio.args);
-					base.env = cloneKeyValuePairs(state.stdio.env);
-				} else if (state.kind === "sse") {
-					base.url = state.sse.url ?? "";
-					base.headers = cloneKeyValuePairs(state.sse.headers);
-					(base as any).urlParams = cloneKeyValuePairs(state.sse.urlParams);
-				} else {
-					base.url = state.streamable_http.url ?? "";
-					base.headers = cloneKeyValuePairs(state.streamable_http.headers);
-					(base as any).urlParams = cloneKeyValuePairs(
-						state.streamable_http.urlParams,
-					);
-				}
-
-				return base;
-			},
-			[],
-		);
 
 		const kind = watch("kind");
 		const isStdio = kind === "stdio";
@@ -966,6 +976,10 @@ export const ServerInstallManualForm = forwardRef<
 				setIngestError(null);
 				setActiveTab("core");
 			},
+			getCurrentDraft: () => {
+				const values = getValues();
+				return buildDraftFromValues(values);
+			},
 		}));
 
 		// Handle form interaction to collapse drop zone
@@ -1383,8 +1397,16 @@ export const ServerInstallManualForm = forwardRef<
 			await formSubmitHandler(event);
 		};
 
-		const submitButtonLabel = isEditMode ? "Save changes" : "Preview";
-		const pendingButtonLabel = isEditMode ? "Saving..." : "Processing...";
+		const submitButtonLabel = isEditMode
+			? "Save changes"
+			: isMarketMode
+				? "Import server"
+				: "Preview";
+		const pendingButtonLabel = isEditMode
+			? "Saving..."
+			: isMarketMode
+				? "Importing..."
+				: "Processing...";
 
 		const commandField =
 			viewMode === "form" ? (
@@ -1637,12 +1659,18 @@ export const ServerInstallManualForm = forwardRef<
 							<div className="flex items-start justify-between gap-2">
 								<div>
 									<DrawerTitle>
-										{isEditMode ? "Editing server" : "Server Uni-Import"}
+										{isEditMode
+											? "Editing server"
+											: isMarketMode
+												? "Import Server"
+												: "Server Uni-Import"}
 									</DrawerTitle>
 									<DrawerDescription className="mt-1 text-sm text-muted-foreground">
 										{isEditMode
 											? "Review and update the existing server settings. JSON preview remains read-only in this mode."
-											: "You can directly drag and drop the configuration information, or enter it manually."}
+											: isMarketMode
+												? "Configure and import this server from the registry."
+												: "You can directly drag and drop the configuration information, or enter it manually."}
 									</DrawerDescription>
 								</div>
 								{ingestEnabled ? (
@@ -2086,16 +2114,33 @@ export const ServerInstallManualForm = forwardRef<
 								>
 									Cancel
 								</Button>
-								<Button type="submit" disabled={isSubmitting}>
-									{isSubmitting ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											{pendingButtonLabel}
-										</>
-									) : (
-										submitButtonLabel
-									)}
-								</Button>
+								{isMarketMode ? (
+									<Button
+										type="button"
+										onClick={onPreview}
+										disabled={isSubmitting}
+									>
+										{isSubmitting ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												Previewing...
+											</>
+										) : (
+											"Preview"
+										)}
+									</Button>
+								) : (
+									<Button type="submit" disabled={isSubmitting}>
+										{isSubmitting ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												{pendingButtonLabel}
+											</>
+										) : (
+											submitButtonLabel
+										)}
+									</Button>
+								)}
 							</div>
 						</DrawerFooter>
 					</form>

@@ -1,15 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, ExternalLink, EyeOff, Loader2, Plug } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ErrorDisplay } from "../../components/error-display";
+import { Pagination } from "../../components/pagination";
+import { ServerInstallDrawer } from "../../components/server-install-drawer";
 import {
-	useCallback,
-	useEffect,
-	useId,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
-
+	ServerInstallManualForm,
+	type ServerInstallManualFormHandle,
+} from "../../components/server-install-manual-form";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import {
 	Card,
 	CardDescription,
@@ -17,27 +18,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import { ErrorDisplay } from "../../components/error-display";
-import { Pagination } from "../../components/pagination";
-import {
-	Accordion,
-	AccordionContent,
-	AccordionItem,
-	AccordionTrigger,
-} from "../../components/ui/accordion";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
-import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
-import {
-	Drawer,
-	DrawerContent,
-	DrawerDescription,
-	DrawerFooter,
-	DrawerHeader,
-	DrawerTitle,
-} from "../../components/ui/drawer";
 import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -45,17 +26,15 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "../../components/ui/select";
-import { Textarea } from "../../components/ui/textarea";
 import { useCursorPagination } from "../../hooks/use-cursor-pagination";
-import { serversApi } from "../../lib/api";
-import { useAppStore } from "../../lib/store";
-import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
+import {
+	type ServerInstallDraft,
+	useServerInstallPipeline,
+} from "../../hooks/use-server-install-pipeline";
+import { notifyError, notifyInfo } from "../../lib/notify";
 import { fetchRegistryServers, getOfficialMeta } from "../../lib/registry";
-import type {
-	RegistryPackage,
-	RegistryServerEntry,
-	RegistryTransportHeader,
-} from "../../lib/types";
+import { useAppStore } from "../../lib/store";
+import type { RegistryServerEntry } from "../../lib/types";
 import { cn, formatRelativeTime, truncate } from "../../lib/utils";
 
 interface MarketCardProps {
@@ -67,6 +46,27 @@ interface MarketCardProps {
 
 type SortOption = "recent" | "name";
 
+// Market mode types and interfaces
+interface RemoteOption {
+	id: string;
+	label: string;
+	kind: string;
+	source: "remote" | "package";
+	url: string | null;
+	headers: Array<{
+		name: string;
+		isRequired?: boolean;
+		description?: string;
+	}> | null;
+	envVars: Array<{
+		name: string;
+		isRequired?: boolean;
+		description?: string;
+	}> | null;
+	packageIdentifier: string | null;
+	packageMeta: unknown;
+}
+
 function useDebouncedValue<T>(value: T, delay = 300) {
 	const [debounced, setDebounced] = useState(value);
 	useEffect(() => {
@@ -74,31 +74,6 @@ function useDebouncedValue<T>(value: T, delay = 300) {
 		return () => window.clearTimeout(handle);
 	}, [value, delay]);
 	return debounced;
-}
-
-function getRemoteTypeLabel(remoteType: string) {
-	const normalized = remoteType.toLowerCase();
-	switch (normalized) {
-		case "sse":
-			return "SSE";
-		case "streamable-http":
-		case "streamable_http":
-			return "HTTP";
-		case "stdio":
-			return "Stdio";
-		default:
-			return remoteType;
-	}
-}
-
-function normalizeRemoteKind(value?: string | null): string | null {
-	if (!value) return null;
-	const lower = value.toLowerCase();
-	if (lower === "sse") return "sse";
-	if (lower === "streamable-http" || lower === "streamable_http")
-		return "streamable_http";
-	if (lower === "stdio") return "stdio";
-	return null;
 }
 
 function hasPreviewableOption(server: RegistryServerEntry | null): boolean {
@@ -111,14 +86,6 @@ function hasPreviewableOption(server: RegistryServerEntry | null): boolean {
 		Boolean(normalizeRemoteKind(pkg.transport?.type)),
 	);
 	return hasRemote || hasPackage;
-}
-
-function slugifyForConfig(value: string): string {
-	const slug = value
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return slug || "registry-server";
 }
 
 function formatServerName(raw: string) {
@@ -141,194 +108,97 @@ function getRegistryIdentity(server: RegistryServerEntry): string {
 	return `${server.name}@${server.version}`;
 }
 
-function parseArgsInput(raw: string): string[] {
-	return raw
-		.split(/\r?\n/)
-		.map((value) => value.trim())
-		.filter(Boolean);
-}
-
-interface SerializedConfig {
-	name: string;
-	kind: string;
-	command: string | null;
-	args: string[] | null;
-	env: Record<string, string> | null;
-	url: string | null;
-}
-
-function formatIsoDate(value?: string | null): string | null {
+// Market mode helper functions
+function normalizeRemoteKind(value?: string | null): string | null {
 	if (!value) return null;
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
-		return value;
-	}
-	return date.toLocaleString(undefined, {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
+	const lower = value.toLowerCase();
+	if (lower === "sse") return "sse";
+	if (lower === "streamable-http" || lower === "streamable_http")
+		return "streamable_http";
+	if (lower === "stdio") return "stdio";
+	return null;
 }
 
-function buildPackageLaunchSuggestion(
-	pkg?: RegistryPackage | null,
-): { command: string; args: string[] } | null {
-	if (!pkg) return null;
-	const identifier = (pkg.identifier ?? "").trim();
-	if (!identifier) return null;
-	const registryType = (pkg.registryType ?? "").toLowerCase();
-	const cleanedVersion = (pkg.version ?? "").replace(/^v/i, "").trim();
-	let spec = identifier;
-	if (cleanedVersion && !identifier.endsWith(`@${cleanedVersion}`)) {
-		spec = `${identifier}@${cleanedVersion}`;
+function getRemoteTypeLabel(type: string): string {
+	switch (type.toLowerCase()) {
+		case "sse":
+			return "SSE";
+		case "streamable_http":
+		case "streamable-http":
+			return "Streamable HTTP";
+		case "stdio":
+			return "Stdio";
+		default:
+			return type;
 	}
-	if (
-		registryType === "pip" ||
-		registryType === "pypi" ||
-		registryType === "python"
-	) {
-		const pepSpec = cleanedVersion
-			? `${identifier}==${cleanedVersion}`
-			: identifier;
-		return { command: "uvx", args: [pepSpec] };
-	}
-	if (registryType === "bun" || registryType === "bunx") {
-		return { command: "bunx", args: ["-y", spec] };
-	}
-	if (registryType === "oci") {
-		return null;
-	}
-	return { command: "npx", args: ["-y", spec] };
 }
 
-function buildDraftFromOption(
+function slugifyForConfig(value: string): string {
+	const slug = value
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return slug || "registry-server";
+}
+
+function buildDraftFromRemoteOption(
 	option: RemoteOption,
 	fallbackName: string,
-	previousEnv?: Record<string, string> | null,
-): DraftConfig {
+): ServerInstallDraft {
 	const descriptors =
 		option.source === "package"
 			? (option.envVars ?? [])
 			: (option.headers ?? []);
+
 	const env: Record<string, string> = {};
 	descriptors.forEach((descriptor) => {
-		const prior = previousEnv?.[descriptor.name];
-		env[descriptor.name] = typeof prior === "string" ? prior : "";
+		env[descriptor.name] = "";
 	});
 
 	if (option.source === "package") {
-		const suggestion = buildPackageLaunchSuggestion(option.packageMeta);
+		// For packages, we need to build command and args
+		const identifier = option.packageIdentifier || "";
+		const registryType =
+			(
+				option.packageMeta as { registryType?: string }
+			)?.registryType?.toLowerCase() || "";
+
+		let command = "";
+		let args: string[] = [];
+
+		if (
+			registryType === "pip" ||
+			registryType === "pypi" ||
+			registryType === "python"
+		) {
+			command = "uvx";
+			args = [identifier];
+		} else if (registryType === "bun" || registryType === "bunx") {
+			command = "bunx";
+			args = ["-y", identifier];
+		} else {
+			command = "npx";
+			args = ["-y", identifier];
+		}
+
 		return {
 			name: fallbackName,
-			kind: option.kind,
-			url: null,
-			command: suggestion?.command ?? "",
-			args: suggestion?.args ?? [],
+			kind: option.kind as "stdio" | "sse" | "streamable_http",
+			url: undefined,
+			command,
+			args,
 			env,
 		};
 	}
 
 	return {
 		name: fallbackName,
-		kind: option.kind,
-		url: option.url ?? "",
+		kind: option.kind as "stdio" | "sse" | "streamable_http",
+		url: option.url || "",
 		command: "",
 		args: [],
 		env,
 	};
-}
-
-function serializeConfig(
-	draft: DraftConfig,
-	fallbackName: string,
-): SerializedConfig {
-	const name = (draft.name ?? "").trim() || fallbackName;
-	const kind = draft.kind;
-	const envEntries = Object.entries(draft.env ?? {}).flatMap(([key, value]) => {
-		if (value == null) return [] as Array<[string, string]>;
-		const trimmed = value.toString().trim();
-		return trimmed.length > 0
-			? ([[key, trimmed]] as Array<[string, string]>)
-			: [];
-	});
-	const env = envEntries.length ? Object.fromEntries(envEntries) : null;
-	const args = draft.args
-		.map((item) => item.trim())
-		.filter((item) => item.length > 0);
-	const commandValue = draft.command?.trim() ?? "";
-	const urlValue = draft.url?.toString().trim() ?? "";
-
-	return {
-		name,
-		kind,
-		command: kind === "stdio" ? (commandValue ? commandValue : null) : null,
-		args: kind === "stdio" ? (args.length ? args : null) : null,
-		env,
-		url: kind === "stdio" ? null : urlValue ? urlValue : null,
-	};
-}
-
-function normalizeConfigFromJson(
-	value: unknown,
-	fallbackName: string,
-	fallbackKind: string,
-	descriptorKeys: string[],
-): DraftConfig {
-	const raw =
-		value && typeof value === "object"
-			? (value as Record<string, unknown>)
-			: {};
-	const rawName = typeof raw.name === "string" ? raw.name.trim() : "";
-	const kindCandidate = typeof raw.kind === "string" ? raw.kind : fallbackKind;
-	const normalizedKind = normalizeRemoteKind(kindCandidate) ?? kindCandidate;
-	const urlCandidate =
-		typeof raw.url === "string"
-			? raw.url
-			: typeof raw.endpoint === "string"
-				? raw.endpoint
-				: "";
-	let args: string[] = [];
-	if (Array.isArray(raw.args)) {
-		args = raw.args.map((item) => String(item).trim()).filter(Boolean);
-	} else if (typeof raw.args === "string") {
-		args = parseArgsInput(raw.args);
-	}
-	const env: Record<string, string> = {};
-	if (raw.env && typeof raw.env === "object") {
-		Object.entries(raw.env as Record<string, unknown>).forEach(
-			([key, value]) => {
-				if (value == null) return;
-				const stringValue = typeof value === "string" ? value : String(value);
-				env[key] = stringValue;
-			},
-		);
-	}
-	descriptorKeys.forEach((key) => {
-		if (!(key in env)) {
-			env[key] = "";
-		}
-	});
-	const draft: DraftConfig = {
-		name: rawName || fallbackName,
-		kind: normalizedKind,
-		url: urlCandidate,
-		command: typeof raw.command === "string" ? raw.command : "",
-		args,
-		env,
-	};
-	if (draft.kind === "stdio") {
-		draft.url = null;
-	}
-	return draft;
-}
-
-function formatArgsMultiline(args: string[]): string {
-	return args
-		.map((value) => value.trim())
-		.filter(Boolean)
-		.join("\n");
 }
 
 function MarketCard({
@@ -390,53 +260,60 @@ function MarketCard({
 			)}
 		>
 			<CardHeader className="p-4">
-				<div className="grid grid-cols-[1fr_auto] gap-3 items-start">
-					<div className="flex items-start gap-3 min-w-0">
-						<Avatar className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-sm font-medium">
-							<AvatarFallback>
-								{displayName.charAt(0).toUpperCase()}
-							</AvatarFallback>
-						</Avatar>
-						<div className="flex-1 space-y-2 min-w-0">
+				<div className="flex items-start gap-3">
+					<Avatar className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 text-sm font-medium flex-shrink-0">
+						<AvatarFallback>
+							{displayName.charAt(0).toUpperCase()}
+						</AvatarFallback>
+					</Avatar>
+
+					<div className="flex-1 min-w-0 space-y-1">
+						{/* 标题和传输类型标签在同一行 */}
+						<div className="flex items-start justify-between gap-3">
 							<CardTitle
 								className="text-lg font-semibold leading-tight truncate"
 								title={displayName}
 							>
 								{displayName}
 							</CardTitle>
-							{/* 版本和更新时间行 */}
-							<div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-								<span>{`Version ${server.version}`}</span>
-								{relativeTimestamp ? (
+
+							{/* 右上角传输类型标签 */}
+							{transportBadges.length > 0 && (
+								<div className="flex justify-end items-start flex-shrink-0">
+									<div className="flex flex-row-reverse gap-1 flex-nowrap">
+										{transportBadges.map((type) => (
+											<Badge
+												key={type}
+												variant="outline"
+												className="rounded-full border-primary/40 bg-primary/5 px-2 py-0 text-[11px] font-medium text-primary"
+											>
+												<Plug className="mr-1 h-3 w-3" />
+												{getRemoteTypeLabel(type)}
+											</Badge>
+										))}
+									</div>
+								</div>
+							)}
+						</div>
+
+						{/* 版本和更新时间 - 与标题左对齐 */}
+						<div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+							<span>{`Version ${server.version}`}</span>
+							{relativeTimestamp && (
+								<>
+									<span>•</span>
 									<span>Updated {relativeTimestamp}</span>
-								) : null}
-							</div>
-							{/* 描述行 */}
-							<div className="h-15 flex items-start">
-								<CardDescription className="text-sm text-slate-500 line-clamp-3 leading-5">
-									{truncate(server.description, 320) || "N/A"}
-								</CardDescription>
-							</div>
+								</>
+							)}
+						</div>
+
+						{/* 描述 - 与标题左对齐 */}
+						<div className="h-15 flex items-start">
+							<CardDescription className="text-sm text-slate-500 line-clamp-3 leading-5">
+								{truncate(server.description, 320) || "N/A"}
+							</CardDescription>
 						</div>
 					</div>
-
-					{/* 右上角传输类型标签 */}
-					{transportBadges.length > 0 && (
-						<div className="flex justify-end items-start pt-1">
-							<div className="flex flex-row-reverse gap-1 flex-nowrap">
-								{transportBadges.map((type) => (
-									<Badge
-										key={type}
-										variant="outline"
-										className="rounded-full border-primary/40 bg-primary/5 px-2 py-0 text-[11px] font-medium text-primary"
-									>
-										<Plug className="mr-1 h-3 w-3" />
-										{getRemoteTypeLabel(type)}
-									</Badge>
-								))}
-							</div>
-						</div>
-					)}
 				</div>
 			</CardHeader>
 
@@ -636,6 +513,28 @@ export function MarketPage() {
 		null,
 	);
 	const [drawerOpen, setDrawerOpen] = useState(false);
+	const [selectedTransportId, setSelectedTransportId] = useState<string>("");
+
+	// Market mode state
+	const [remoteOptions, setRemoteOptions] = useState<RemoteOption[]>([]);
+	const [selectedRemote, setSelectedRemote] = useState<RemoteOption | null>(
+		null,
+	);
+	const [initialDraft, setInitialDraft] = useState<ServerInstallDraft | null>(
+		null,
+	);
+	const formRef = useRef<ServerInstallManualFormHandle>(null);
+
+	// Install pipeline for preview and import
+	const installPipeline = useServerInstallPipeline({
+		onImported: () => {
+			// Refresh the market data after successful import
+			queryClient.invalidateQueries({ queryKey: ["market", "registry"] });
+			// Close both drawers and return to market page
+			setDrawerOpen(false);
+			setDrawerServer(null);
+		},
+	});
 
 	// Reset pagination when search changes
 	const previousSearch = useRef(debouncedSearch);
@@ -687,16 +586,135 @@ export function MarketPage() {
 		setDrawerOpen(true);
 	};
 
-	const handleDrawerChange = (open: boolean) => {
+	const handleDrawerChange = useCallback((open: boolean) => {
 		setDrawerOpen(open);
 		if (!open) {
 			setDrawerServer(null);
 		}
-	};
+	}, []);
 
-	const handleImported = () => {
-		handleRefresh();
-	};
+	// Preview handler for ServerInstallManualForm
+	const handlePreview = useCallback(async () => {
+		if (!drawerServer || !formRef.current) return;
+
+		try {
+			const currentDraft = formRef.current.getCurrentDraft();
+			if (!currentDraft) {
+				notifyError("Preview failed", "No server configuration found");
+				return;
+			}
+
+			// Use the install pipeline to preview the server
+			await installPipeline.begin([currentDraft], "market");
+		} catch (error) {
+			notifyError("Preview failed", String(error));
+		}
+	}, [drawerServer, installPipeline]);
+
+	// Import handler (not used in market mode, but kept for compatibility)
+	const handleImport = useCallback(async () => {
+		// This should not be called in market mode
+		// The import happens through the ServerInstallDrawer
+		console.warn("handleImport called in market mode - this should not happen");
+	}, []);
+
+	// Build remote options from registry server
+	useEffect(() => {
+		if (!drawerServer) {
+			setRemoteOptions([]);
+			setSelectedRemote(null);
+			setInitialDraft(null);
+			return;
+		}
+
+		const options: RemoteOption[] = [];
+
+		// Add remote options
+		(drawerServer.remotes ?? []).forEach((remote, idx) => {
+			const kind = normalizeRemoteKind(remote.type);
+			if (!kind || !remote?.url) return;
+			options.push({
+				id: `${drawerServer.name}-remote-${idx}`,
+				label: `${getRemoteTypeLabel(kind)} • ${remote.url}`,
+				kind,
+				source: "remote",
+				url: remote.url,
+				headers: remote.headers ?? null,
+				envVars: null,
+				packageIdentifier: null,
+				packageMeta: null,
+			});
+		});
+
+		// Add package options
+		(drawerServer.packages ?? []).forEach((pkg, idx) => {
+			const kind = normalizeRemoteKind(pkg.transport?.type);
+			if (!kind) return;
+			const identifier =
+				pkg.identifier ?? pkg.registryType ?? `package-${idx + 1}`;
+			const label = `${getRemoteTypeLabel(kind)} • ${identifier}`;
+			options.push({
+				id: `${drawerServer.name}-package-${idx}`,
+				label,
+				kind,
+				source: "package",
+				url: null,
+				headers: null,
+				envVars: pkg.environmentVariables ?? null,
+				packageIdentifier: identifier,
+				packageMeta: pkg,
+			});
+		});
+
+		setRemoteOptions(options);
+
+		// Set default selection
+		if (options.length > 0) {
+			const defaultOption = options[0];
+			setSelectedRemote(defaultOption);
+			setSelectedTransportId(defaultOption.id);
+		}
+	}, [drawerServer]);
+
+	// Update selected remote when transport ID changes
+	useEffect(() => {
+		if (!selectedTransportId || !remoteOptions.length) return;
+		const option = remoteOptions.find((opt) => opt.id === selectedTransportId);
+		if (option) {
+			setSelectedRemote(option);
+		}
+	}, [selectedTransportId, remoteOptions]);
+
+	// Build initial draft from selected remote
+	useEffect(() => {
+		if (!selectedRemote || !drawerServer) {
+			setInitialDraft(null);
+			return;
+		}
+
+		const fallbackName = slugifyForConfig(drawerServer.name);
+		const draft = buildDraftFromRemoteOption(selectedRemote, fallbackName);
+
+		// Add meta information
+		const draftWithMeta: ServerInstallDraft = {
+			...draft,
+			meta: {
+				description: drawerServer.description || "",
+				version: drawerServer.version || "",
+				websiteUrl: drawerServer.websiteUrl || "",
+				repository: drawerServer.repository
+					? {
+							url: drawerServer.repository.url || "",
+							source: "",
+							subfolder: "",
+							id: "",
+						}
+					: undefined,
+			},
+		};
+
+		setInitialDraft(draftWithMeta);
+	}, [selectedRemote, drawerServer]);
 
 	const scrollToTop = () => {
 		window.scrollTo({ top: 0, behavior: "smooth" });
@@ -761,6 +779,14 @@ export function MarketPage() {
 								/>
 								Refresh
 							</Button>
+						</div>
+					</div>
+
+					{/* Tab 栏预留空间 */}
+					<div className="mt-4 h-10 flex items-center">
+						{/* 这里将来可以添加 Tab 组件 */}
+						<div className="text-sm text-slate-500 dark:text-slate-400">
+							Tab 栏预留空间
 						</div>
 					</div>
 				</div>
@@ -870,807 +896,73 @@ export function MarketPage() {
 					</Button>
 				) : null}
 			</div>
-			<MarketPreviewDrawer
-				open={drawerOpen}
-				server={drawerServer}
-				onOpenChange={handleDrawerChange}
-				onImported={handleImported}
-			/>
-		</>
-	);
-}
 
-interface RemoteOption {
-	id: string;
-	label: string;
-	kind: string;
-	source: "remote" | "package";
-	url: string | null;
-	headers?: RegistryTransportHeader[] | null;
-	envVars?: RegistryTransportHeader[] | null;
-	packageIdentifier?: string | null;
-	packageMeta?: RegistryPackage | null;
-}
-
-interface DraftConfig {
-	name: string;
-	kind: string;
-	url: string | null;
-	command: string | null;
-	args: string[];
-	env: Record<string, string>;
-}
-
-interface PreviewResultItem {
-	name: string;
-	error?: string;
-	tools?: { items?: unknown[] };
-	resources?: { items?: unknown[] };
-	resource_templates?: { items?: unknown[] };
-	prompts?: { items?: unknown[] };
-}
-
-interface PreviewResult {
-	success: boolean;
-	data?: {
-		items?: PreviewResultItem[];
-	} | null;
-	error?: unknown;
-}
-
-function MarketPreviewDrawer({
-	open,
-	server,
-	onOpenChange,
-	onImported,
-}: {
-	open: boolean;
-	server: RegistryServerEntry | null;
-	onOpenChange: (open: boolean) => void;
-	onImported: () => void;
-}) {
-	const configNameId = useId();
-	const configCommandId = useId();
-	const configArgsId = useId();
-	const configUrlId = useId();
-	const configJsonId = useId();
-
-	const [configView, setConfigView] = useState<"form" | "json">("form");
-	const [selectedRemoteId, setSelectedRemoteId] = useState<string>("");
-	const [configSourceId, setConfigSourceId] = useState<string | null>(null);
-	const [configDraft, setConfigDraft] = useState<DraftConfig | null>(null);
-	const [jsonText, setJsonText] = useState<string>("");
-	const [jsonError, setJsonError] = useState<string | null>(null);
-	const [previewResult, setPreviewResult] = useState<PreviewResult | null>(
-		null,
-	);
-
-	const remoteOptions = useMemo<RemoteOption[]>(() => {
-		if (!server) return [];
-		const options: RemoteOption[] = [];
-		(server.remotes ?? []).forEach((remote, idx) => {
-			const kind = normalizeRemoteKind(remote.type);
-			if (!kind || !remote?.url) return;
-			options.push({
-				id: `${server.name}-remote-${idx}`,
-				label: `${getRemoteTypeLabel(kind)} • ${remote.url}`,
-				kind,
-				source: "remote",
-				url: remote.url,
-				headers: remote.headers ?? null,
-				envVars: null,
-				packageIdentifier: null,
-				packageMeta: null,
-			});
-		});
-
-		(server.packages ?? []).forEach((pkg, idx) => {
-			const kind = normalizeRemoteKind(pkg.transport?.type);
-			if (!kind) return;
-			const identifier =
-				pkg.identifier ?? pkg.registryType ?? `package-${idx + 1}`;
-			const label = `${getRemoteTypeLabel(kind)} • ${identifier}`;
-			options.push({
-				id: `${server.name}-package-${idx}`,
-				label,
-				kind,
-				source: "package",
-				url: null,
-				headers: null,
-				envVars: pkg.environmentVariables ?? null,
-				packageIdentifier: identifier,
-				packageMeta: pkg,
-			});
-		});
-
-		return options;
-	}, [server]);
-
-	const selectedRemote = useMemo(() => {
-		return (
-			remoteOptions.find((option) => option.id === selectedRemoteId) ?? null
-		);
-	}, [remoteOptions, selectedRemoteId]);
-
-	useEffect(() => {
-		if (!open) {
-			setSelectedRemoteId("");
-			setConfigSourceId(null);
-			setConfigDraft(null);
-			setJsonText("");
-			setJsonError(null);
-			setPreviewResult(null);
-			setConfigView("form");
-		}
-	}, [open]);
-
-	useEffect(() => {
-		if (!open) return;
-		if (!remoteOptions.length) {
-			setSelectedRemoteId("");
-			return;
-		}
-		if (
-			!selectedRemoteId ||
-			!remoteOptions.some((option) => option.id === selectedRemoteId)
-		) {
-			setSelectedRemoteId(remoteOptions[0].id);
-		}
-	}, [open, remoteOptions, selectedRemoteId]);
-
-	const descriptorList = useMemo(() => {
-		if (!selectedRemote) return [] as RegistryTransportHeader[];
-		return selectedRemote.source === "package"
-			? (selectedRemote.envVars ?? [])
-			: (selectedRemote.headers ?? []);
-	}, [selectedRemote]);
-
-	useEffect(() => {
-		if (!open || !server) return;
-		if (!selectedRemote) {
-			setConfigDraft(null);
-			setConfigSourceId(null);
-			return;
-		}
-		if (configSourceId === selectedRemote.id && configDraft) {
-			return;
-		}
-		const fallbackName =
-			configDraft?.name?.trim() || slugifyForConfig(server.name);
-		const nextDraft = buildDraftFromOption(
-			selectedRemote,
-			fallbackName,
-			configDraft?.env ?? null,
-		);
-		setConfigDraft(nextDraft);
-		setConfigSourceId(selectedRemote.id);
-		setPreviewResult(null);
-	}, [open, server, selectedRemote, configDraft, configSourceId]);
-
-	useEffect(() => {
-		if (!configDraft || !server) {
-			setJsonText("");
-			return;
-		}
-		const serialized = JSON.stringify(
-			serializeConfig(configDraft, slugifyForConfig(server.name)),
-			null,
-			2,
-		);
-		setJsonText(serialized);
-		setJsonError(null);
-	}, [configDraft, server]);
-
-	useEffect(() => {
-		if (!configDraft || !descriptorList.length) return;
-		const missing = descriptorList.filter(
-			(descriptor) => !(descriptor.name in configDraft.env),
-		);
-		if (!missing.length) return;
-		setConfigDraft((prev) => {
-			if (!prev) return prev;
-			const nextEnv = { ...prev.env };
-			missing.forEach((descriptor) => {
-				if (!(descriptor.name in nextEnv)) {
-					nextEnv[descriptor.name] = "";
-				}
-			});
-			return { ...prev, env: nextEnv };
-		});
-	}, [descriptorList, configDraft]);
-
-	const missingRequired = descriptorList.filter((descriptor) => {
-		const value = configDraft?.env?.[descriptor.name];
-		return descriptor.isRequired && (!value || value.trim().length === 0);
-	});
-
-	const fallbackName = server
-		? slugifyForConfig(server.name)
-		: "registry-server";
-	const normalizedConfig = configDraft
-		? serializeConfig(configDraft, fallbackName)
-		: null;
-	const hasTransportTarget = normalizedConfig
-		? normalizedConfig.kind === "stdio"
-			? Boolean(normalizedConfig.command)
-			: Boolean(normalizedConfig.url)
-		: false;
-	const canPreview = Boolean(
-		normalizedConfig?.kind &&
-			hasTransportTarget &&
-			!jsonError &&
-			missingRequired.length === 0,
-	);
-
-	const official = server ? getOfficialMeta(server) : undefined;
-	const publishedAt = formatIsoDate(official?.publishedAt);
-	const updatedAt = formatIsoDate(official?.updatedAt);
-
-	const handleNameChange = (value: string) =>
-		setConfigDraft((prev) => (prev ? { ...prev, name: value } : prev));
-	const handleUrlChange = (value: string) =>
-		setConfigDraft((prev) => (prev ? { ...prev, url: value } : prev));
-	const handleCommandChange = (value: string) =>
-		setConfigDraft((prev) => (prev ? { ...prev, command: value } : prev));
-	const handleArgsChange = (value: string) =>
-		setConfigDraft((prev) =>
-			prev ? { ...prev, args: parseArgsInput(value) } : prev,
-		);
-	const handleEnvChange = (key: string, value: string) =>
-		setConfigDraft((prev) =>
-			prev ? { ...prev, env: { ...prev.env, [key]: value } } : prev,
-		);
-
-	const handleJsonChange = (value: string) => {
-		setConfigView("json");
-		setJsonText(value);
-		if (!server) return;
-		try {
-			const descriptorKeys = descriptorList.map(
-				(descriptor) => descriptor.name,
-			);
-			const normalized = normalizeConfigFromJson(
-				JSON.parse(value),
-				fallbackName,
-				configDraft?.kind ?? selectedRemote?.kind ?? "streamable_http",
-				descriptorKeys,
-			);
-			setConfigDraft(normalized);
-			setJsonError(null);
-		} catch (error) {
-			setJsonError(
-				error instanceof Error ? error.message : "Invalid configuration JSON",
-			);
-		}
-	};
-
-	const buildConfigPayload = () => {
-		if (!server || !configDraft) return null;
-		return serializeConfig(configDraft, slugifyForConfig(server.name));
-	};
-
-	const previewMutation = useMutation({
-		mutationFn: async () => {
-			const config = buildConfigPayload();
-			if (!config) {
-				throw new Error("Configuration incomplete");
-			}
-			setPreviewResult(null);
-			return serversApi.previewServers({
-				servers: [config],
-				include_details: true,
-				timeout_ms: 5000,
-			});
-		},
-		onSuccess: (res: PreviewResult) => {
-			setPreviewResult(res);
-			notifySuccess("Preview generated", "Capability snapshot ready.");
-		},
-		onError: (err) => {
-			notifyError(
-				"Preview failed",
-				err instanceof Error ? err.message : String(err),
-			);
-		},
-	});
-
-	const importMutation = useMutation({
-		mutationFn: async () => {
-			const config = buildConfigPayload();
-			if (!config) {
-				throw new Error("Configuration incomplete");
-			}
-			const payload = {
-				mcpServers: {
-					[config.name]: {
-						type: config.kind,
-						command: config.command ?? null,
-						args: config.args ?? null,
-						url: config.url ?? null,
-						env: config.env ?? null,
-						registry_server_id: official?.serverId ?? null,
-					},
-				},
-			};
-			return serversApi.importServers(payload);
-		},
-		onSuccess: () => {
-			notifySuccess("Server imported", "Configuration added to MCPMate.");
-			onImported();
-			onOpenChange(false);
-		},
-		onError: (err) => {
-			notifyError(
-				"Import failed",
-				err instanceof Error ? err.message : String(err),
-			);
-		},
-	});
-
-	if (!server) {
-		return null;
-	}
-
-	const unsupported = !remoteOptions.length;
-	const repositoryUrl = server.repository?.url;
-	const websiteUrl = server.websiteUrl;
-	const argsMultiline = configDraft
-		? formatArgsMultiline(configDraft.args)
-		: "";
-
-	return (
-		<Drawer open={open} onOpenChange={onOpenChange}>
-			<DrawerContent className="flex h-full flex-col">
-				<DrawerHeader className="border-b p-4 text-left space-y-2">
-					<DrawerTitle className="text-2xl font-semibold leading-tight text-slate-900 dark:text-slate-50">
-						{formatServerName(server.name)}
-						{server.version ? (
-							<sup className="ml-2 align-super text-xs font-normal text-slate-500 dark:text-slate-400">
-								v{server.version}
-							</sup>
-						) : null}
-					</DrawerTitle>
-					<DrawerDescription className="text-left text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-						{server.description || "No description provided by the registry."}
-					</DrawerDescription>
-				</DrawerHeader>
-				<div className="flex flex-1 flex-col overflow-hidden">
-					<div className="flex h-full flex-col">
-						<div className="p-4">
-							<Accordion type="single" collapsible className="w-full">
-								<AccordionItem value="server-info">
-									<AccordionTrigger className="text-sm font-medium">
-										Server Information
-									</AccordionTrigger>
-									<AccordionContent>
-										<div className="space-y-4 pr-1">
-											<section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-												<dl className="grid gap-3 text-sm md:grid-cols-2">
-													<div>
-														<dt className="font-medium text-slate-600 dark:text-slate-300">
-															Server ID
-														</dt>
-														<dd className="text-slate-900 dark:text-slate-100">
-															{official?.serverId ?? "—"}
-														</dd>
-													</div>
-													<div>
-														<dt className="font-medium text-slate-600 dark:text-slate-300">
-															Status
-														</dt>
-														<dd className="text-slate-900 dark:text-slate-100">
-															{server.status ?? "—"}
-														</dd>
-													</div>
-													<div>
-														<dt className="font-medium text-slate-600 dark:text-slate-300">
-															Published
-														</dt>
-														<dd className="text-slate-900 dark:text-slate-100">
-															{publishedAt
-																? `${publishedAt} (${formatRelativeTime(official!.publishedAt)})`
-																: "—"}
-														</dd>
-													</div>
-													<div>
-														<dt className="font-medium text-slate-600 dark:text-slate-300">
-															Updated
-														</dt>
-														<dd className="text-slate-900 dark:text-slate-100">
-															{updatedAt
-																? `${updatedAt} (${formatRelativeTime(official!.updatedAt ?? official!.publishedAt)})`
-																: "—"}
-														</dd>
-													</div>
-													<div>
-														<dt className="font-medium text-slate-600 dark:text-slate-300">
-															Repository
-														</dt>
-														<dd className="text-slate-900 dark:text-slate-100">
-															{repositoryUrl ? (
-																<a
-																	href={repositoryUrl}
-																	target="_blank"
-																	rel="noreferrer"
-																	className="text-primary underline"
-																>
-																	Open
-																</a>
-															) : (
-																<span>—</span>
-															)}
-														</dd>
-													</div>
-													<div>
-														<dt className="font-medium text-slate-600 dark:text-slate-300">
-															Website
-														</dt>
-														<dd className="text-slate-900 dark:text-slate-100">
-															{websiteUrl ? (
-																<a
-																	href={websiteUrl}
-																	target="_blank"
-																	rel="noreferrer"
-																	className="text-primary underline"
-																>
-																	Open
-																</a>
-															) : (
-																<span>—</span>
-															)}
-														</dd>
-													</div>
-												</dl>
-											</section>
-											{server.remotes?.length ? (
-												<section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-													<h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-														Remotes
-													</h4>
-													<ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-														{server.remotes.map((remote, idx) => (
-															<li
-																key={remote.url ?? `${remote.type}-${idx}`}
-																className="space-y-1"
-															>
-																<div className="flex items-center justify-between gap-2">
-																	<span className="font-medium text-slate-700 dark:text-slate-100">
-																		{getRemoteTypeLabel(remote.type ?? "")}
-																	</span>
-																	<span className="truncate text-xs text-primary">
-																		{remote.url ?? "—"}
-																	</span>
-																</div>
-																{remote.headers?.length ? (
-																	<div className="text-xs text-slate-500 dark:text-slate-400">
-																		Requires {remote.headers.length} header(s)
-																	</div>
-																) : null}
-															</li>
-														))}
-													</ul>
-												</section>
-											) : null}
-											{server.packages?.length ? (
-												<section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-													<h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-														Packages
-													</h4>
-													<ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-														{server.packages.map((pkg, idx) => (
-															<li
-																key={`${pkg.identifier ?? "pkg"}-${idx}`}
-																className="space-y-1"
-															>
-																<div className="flex flex-wrap items-center justify-between gap-2">
-																	<span className="font-medium text-slate-700 dark:text-slate-100">
-																		{pkg.identifier ?? "Unnamed package"}
-																	</span>
-																	<span className="text-xs text-slate-500 dark:text-slate-400">
-																		{[pkg.registryType, pkg.version]
-																			.filter(Boolean)
-																			.join(" • ") || "—"}
-																	</span>
-																</div>
-																{pkg.transport?.type ? (
-																	<div className="text-xs text-slate-500 dark:text-slate-400">
-																		Transport:{" "}
-																		{getRemoteTypeLabel(pkg.transport.type)}
-																	</div>
-																) : null}
-															</li>
-														))}
-													</ul>
-												</section>
-											) : null}
-										</div>
-									</AccordionContent>
-								</AccordionItem>
-							</Accordion>
-						</div>
-
-						<div className="flex-1 overflow-auto px-6 pb-6">
-							{!unsupported ? (
-								<div className="space-y-4">
-									{remoteOptions.length > 1 ? (
-										<div className="space-y-2">
-											<Label
-												htmlFor="remote-select"
-												className="text-sm font-medium"
-											>
-												Transport Option
-											</Label>
-											<Select
-												value={selectedRemoteId}
-												onValueChange={setSelectedRemoteId}
-											>
-												<SelectTrigger>
-													<SelectValue placeholder="Select transport option" />
-												</SelectTrigger>
-												<SelectContent>
-													{remoteOptions.map((option) => (
-														<SelectItem key={option.id} value={option.id}>
-															{option.label}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-									) : null}
-
-									{configDraft ? (
-										<div className="space-y-4">
-											<div className="flex items-center justify-between">
-												<Label className="text-sm font-medium">
-													Configuration
-												</Label>
-												<div className="flex rounded-lg border border-slate-200 p-1 dark:border-slate-700">
-													<button
-														type="button"
-														onClick={() => setConfigView("form")}
-														className={cn(
-															"rounded-l-md rounded-r-none px-3 py-1 text-xs font-medium transition-colors",
-															configView === "form"
-																? "bg-primary text-primary-foreground"
-																: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100",
-														)}
-													>
-														Form
-													</button>
-													<button
-														type="button"
-														onClick={() => setConfigView("json")}
-														className={cn(
-															"rounded-r-md rounded-l-none px-3 py-1 text-xs font-medium transition-colors",
-															configView === "json"
-																? "bg-primary text-primary-foreground"
-																: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100",
-														)}
-													>
-														JSON
-													</button>
-												</div>
-											</div>
-
-											{configView === "form" ? (
-												<div className="space-y-4">
-													<div className="space-y-2">
-														<Label htmlFor={configNameId}>Server Name</Label>
-														<Input
-															id={configNameId}
-															value={configDraft.name}
-															onChange={(e) => handleNameChange(e.target.value)}
-															placeholder="Enter server name"
-														/>
-													</div>
-
-													{configDraft.kind === "stdio" ? (
-														<>
-															<div className="space-y-2">
-																<Label htmlFor={configCommandId}>Command</Label>
-																<Input
-																	id={configCommandId}
-																	value={configDraft.command ?? ""}
-																	onChange={(e) =>
-																		handleCommandChange(e.target.value)
-																	}
-																	placeholder="Command to execute"
-																/>
-															</div>
-															<div className="space-y-2">
-																<Label htmlFor={configArgsId}>Arguments</Label>
-																<Textarea
-																	id={configArgsId}
-																	value={argsMultiline}
-																	onChange={(e) =>
-																		handleArgsChange(e.target.value)
-																	}
-																	placeholder="One argument per line"
-																	rows={4}
-																/>
-															</div>
-														</>
-													) : (
-														<div className="space-y-2">
-															<Label htmlFor={configUrlId}>URL</Label>
-															<Input
-																id={configUrlId}
-																value={configDraft.url ?? ""}
-																onChange={(e) =>
-																	handleUrlChange(e.target.value)
-																}
-																placeholder="Server URL"
-															/>
-														</div>
-													)}
-
-													{descriptorList.length > 0 ? (
-														<div className="space-y-4">
-															<Label className="text-sm font-medium">
-																{selectedRemote?.source === "package"
-																	? "Environment Variables"
-																	: "Headers"}
-															</Label>
-															<div className="space-y-4">
-																{descriptorList.map((descriptor) => (
-																	<div
-																		key={descriptor.name}
-																		className="space-y-2"
-																	>
-																		<Label
-																			htmlFor={`env-${descriptor.name}`}
-																			className="text-sm"
-																		>
-																			{descriptor.name}
-																			{descriptor.isRequired ? (
-																				<span className="ml-1 text-red-500">
-																					*
-																				</span>
-																			) : null}
-																		</Label>
-																		<Input
-																			id={`env-${descriptor.name}`}
-																			value={
-																				configDraft.env[descriptor.name] ?? ""
-																			}
-																			onChange={(e) =>
-																				handleEnvChange(
-																					descriptor.name,
-																					e.target.value,
-																				)
-																			}
-																			placeholder={
-																				descriptor.description ||
-																				`Enter ${descriptor.name}`
-																			}
-																		/>
-																	</div>
-																))}
-															</div>
-														</div>
-													) : null}
-
-													{missingRequired.length ? (
-														<Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100">
-															<AlertTitle>Missing required fields</AlertTitle>
-															<AlertDescription>
-																Provide values for{" "}
-																{missingRequired
-																	.map((item) => item.name)
-																	.join(", ")}
-															</AlertDescription>
-														</Alert>
-													) : null}
-												</div>
-											) : (
-												<div className="space-y-2">
-													<Label htmlFor={configJsonId}>
-														Configuration JSON
-													</Label>
-													<Textarea
-														id={configJsonId}
-														value={jsonText}
-														onChange={(e) => handleJsonChange(e.target.value)}
-														rows={12}
-														className="font-mono text-sm"
-													/>
-													{jsonError ? (
-														<div className="text-sm text-red-500">
-															{jsonError}
-														</div>
-													) : null}
-												</div>
-											)}
-
-											{previewResult ? (
-												<div className="rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-sm dark:border-slate-800 dark:bg-slate-950">
-													{previewResult.success &&
-													previewResult.data?.items?.length ? (
-														<div className="space-y-2">
-															{previewResult.data.items.map(
-																(item: PreviewResultItem) => (
-																	<div
-																		key={item.name}
-																		className="rounded border border-slate-200 p-2 text-xs dark:border-slate-700"
-																	>
-																		<div className="font-medium text-slate-700 dark:text-slate-200">
-																			{item.name}
-																			{item.error ? " (error)" : ""}
-																		</div>
-																		{item.error ? (
-																			<div className="text-red-500">
-																				{item.error}
-																			</div>
-																		) : (
-																			<div className="text-slate-500">
-																				Tools: {item.tools?.items?.length ?? 0}{" "}
-																				• Resources:{" "}
-																				{item.resources?.items?.length ?? 0} •
-																				Templates:{" "}
-																				{item.resource_templates?.items
-																					?.length ?? 0}{" "}
-																				• Prompts:{" "}
-																				{item.prompts?.items?.length ?? 0}
-																			</div>
-																		)}
-																	</div>
-																),
-															)}
-														</div>
-													) : (
-														<div className="text-xs text-slate-500">
-															Preview returned no capabilities.
-														</div>
-													)}
-												</div>
-											) : null}
-										</div>
-									) : (
-										<div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-											Select a transport option to configure.
-										</div>
-									)}
-								</div>
-							) : (
-								<div className="rounded-lg border border-dashed border-slate-300 bg-slate-100 p-8 text-center dark:border-slate-700 dark:bg-slate-800">
-									<div className="text-lg font-medium text-slate-700 dark:text-slate-200">
-										Configuration Not Supported
+			{/* Transport Options Selector for Market Mode */}
+			{drawerOpen && remoteOptions.length > 1 && (
+				<div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
+					<button
+						type="button"
+						className="fixed inset-0 bg-black/50"
+						onClick={() => handleDrawerChange(false)}
+						onKeyDown={(e) => {
+							if (e.key === "Escape") {
+								handleDrawerChange(false);
+							}
+						}}
+						aria-label="Close transport selector"
+					/>
+					<div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-slate-800">
+						<h3 className="text-lg font-semibold mb-4">
+							Select Transport Option
+						</h3>
+						<div className="space-y-2">
+							{remoteOptions.map((option) => (
+								<button
+									type="button"
+									key={option.id}
+									onClick={() => {
+										setSelectedTransportId(option.id);
+										handleDrawerChange(false);
+									}}
+									className={`w-full text-left p-3 rounded-lg border transition-colors ${
+										selectedTransportId === option.id
+											? "border-primary bg-primary/5"
+											: "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600"
+									}`}
+								>
+									<div className="font-medium">{option.label}</div>
+									<div className="text-sm text-slate-500 dark:text-slate-400">
+										{option.source === "remote"
+											? "Remote endpoint"
+											: "Package installation"}
 									</div>
-									<div className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-										This server entry doesn't provide compatible transport
-										options for preview and import.
-									</div>
-								</div>
-							)}
+								</button>
+							))}
 						</div>
 					</div>
 				</div>
-				<DrawerFooter className="border-t px-6 py-4">
-					<div className="flex items-center justify-end gap-3">
-						<Button
-							variant="outline"
-							onClick={() => previewMutation.mutate()}
-							disabled={!canPreview || previewMutation.isPending || unsupported}
-							className="gap-2"
-						>
-							{previewMutation.isPending ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : null}
-							Preview capabilities
-						</Button>
-						<Button
-							onClick={() => importMutation.mutate()}
-							disabled={!canPreview || importMutation.isPending || unsupported}
-							className="gap-2"
-						>
-							{importMutation.isPending ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : null}
-							Import server
-						</Button>
-					</div>
-				</DrawerFooter>
-			</DrawerContent>
-		</Drawer>
+			)}
+
+			<ServerInstallManualForm
+				ref={formRef}
+				isOpen={drawerOpen}
+				onClose={() => handleDrawerChange(false)}
+				onSubmit={() => {}} // Not used in market mode
+				mode="market"
+				initialDraft={initialDraft}
+				onPreview={handlePreview}
+				onImport={handleImport}
+			/>
+
+			{/* Install pipeline drawer for preview and import */}
+			<ServerInstallDrawer
+				pipeline={installPipeline}
+				onBack={() => {
+					// Close preview drawer and return to configuration form
+					installPipeline.close();
+					setDrawerOpen(true);
+				}}
+			/>
+		</>
 	);
 }
