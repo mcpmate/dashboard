@@ -6,7 +6,7 @@ import type {
 	ServerIcon,
 	ServerMetaInfo,
 } from "../lib/types";
-import { ServerInstallManualForm } from "./server-install-manual-form";
+import { ServerInstallManualForm } from "./server-uni-import";
 
 interface ServerEditDrawerProps {
 	server: ServerDetail | null;

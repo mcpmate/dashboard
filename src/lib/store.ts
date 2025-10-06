@@ -8,6 +8,79 @@ export type ClientDefaultMode = "hosted" | "transparent";
 export type ClientBackupStrategy = "keep_n" | "keep_last" | "none";
 export type DefaultMarket = "official" | "mcpmarket";
 
+export interface MarketPortalMeta {
+	id: string;
+	label: string;
+	origin: string;
+	proxyPath: string;
+	favicon?: string;
+	proxyFavicon?: string;
+}
+
+export const DEFAULT_MARKET_PORTALS: Readonly<
+	Record<string, MarketPortalMeta>
+> = Object.freeze({
+	mcpmarket: {
+		id: "mcpmarket",
+		label: "MCP Market",
+		origin: "https://mcpmarket.cn",
+		proxyPath: "/market-proxy/",
+		favicon: "https://mcpmarket.cn/static/img/favicon.ico",
+		proxyFavicon: "/market-proxy/static/img/favicon.ico",
+	},
+});
+
+function cloneMarketPortals(
+	portals: Record<string, MarketPortalMeta>,
+): Record<string, MarketPortalMeta> {
+	return Object.fromEntries(
+		Object.entries(portals).map(([key, meta]) => [key, { ...meta }]),
+	);
+}
+
+function sanitizeMarketPortalMeta(
+	id: string,
+	value: unknown,
+	fallback?: MarketPortalMeta,
+): MarketPortalMeta | null {
+	if (!value || typeof value !== "object") return null;
+	const input = value as Partial<MarketPortalMeta>;
+	const targetId =
+		typeof input.id === "string" && input.id.trim() ? input.id.trim() : id;
+	const label =
+		typeof input.label === "string" && input.label.trim()
+			? input.label.trim()
+			: (fallback?.label ?? "");
+	const origin =
+		typeof input.origin === "string" && input.origin.trim()
+			? input.origin.trim()
+			: (fallback?.origin ?? "");
+	const proxyPathRaw =
+		typeof input.proxyPath === "string" && input.proxyPath.trim()
+			? input.proxyPath.trim()
+			: (fallback?.proxyPath ?? "");
+	if (!label || !proxyPathRaw) return null;
+	const proxyPath = proxyPathRaw.endsWith("/")
+		? proxyPathRaw
+		: `${proxyPathRaw}/`;
+	const favicon =
+		typeof input.favicon === "string" && input.favicon.trim()
+			? input.favicon.trim()
+			: fallback?.favicon;
+	const proxyFavicon =
+		typeof input.proxyFavicon === "string" && input.proxyFavicon.trim()
+			? input.proxyFavicon.trim()
+			: fallback?.proxyFavicon;
+	return {
+		id: targetId,
+		label,
+		origin,
+		proxyPath,
+		favicon,
+		proxyFavicon,
+	};
+}
+
 export interface DashboardSettings {
 	defaultView: DashboardDefaultView;
 	appMode: DashboardAppMode;
@@ -24,6 +97,7 @@ export interface DashboardSettings {
 	enableMarketBlacklist: boolean;
 	showApiDocsMenu: boolean;
 	defaultMarket: DefaultMarket;
+	marketPortals: Record<string, MarketPortalMeta>;
 }
 
 export interface MarketBlacklistEntry {
@@ -69,6 +143,7 @@ const defaultDashboardSettings: DashboardSettings = {
 	enableMarketBlacklist: true,
 	showApiDocsMenu: false,
 	defaultMarket: "official",
+	marketPortals: cloneMarketPortals(DEFAULT_MARKET_PORTALS),
 };
 
 function normalizeDashboardSettings(
@@ -76,10 +151,16 @@ function normalizeDashboardSettings(
 	patch?: Partial<DashboardSettings>,
 ): DashboardSettings {
 	if (!patch || typeof patch !== "object") {
-		return { ...base };
+		return {
+			...base,
+			marketPortals: cloneMarketPortals(base.marketPortals),
+		};
 	}
 
-	const next: DashboardSettings = { ...base };
+	const next: DashboardSettings = {
+		...base,
+		marketPortals: cloneMarketPortals(base.marketPortals),
+	};
 
 	if (patch.defaultView === "list" || patch.defaultView === "grid") {
 		next.defaultView = patch.defaultView;
@@ -177,6 +258,20 @@ function normalizeDashboardSettings(
 		next.marketBlacklist = Array.from(unique.values()).sort(
 			(a, b) => b.hiddenAt - a.hiddenAt,
 		);
+	}
+
+	if (patch.marketPortals && typeof patch.marketPortals === "object") {
+		const merged = cloneMarketPortals(next.marketPortals);
+		for (const [rawId, value] of Object.entries(patch.marketPortals)) {
+			const fallback = merged[rawId] ?? DEFAULT_MARKET_PORTALS[rawId];
+			const sanitized = sanitizeMarketPortalMeta(rawId, value, fallback);
+			if (!sanitized) continue;
+			if (sanitized.id !== rawId) {
+				delete merged[rawId];
+			}
+			merged[sanitized.id] = sanitized;
+		}
+		next.marketPortals = merged;
 	}
 
 	return next;

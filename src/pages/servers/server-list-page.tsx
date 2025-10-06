@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Bug, Plug, Plus, RefreshCw, Server, Target } from "lucide-react";
+import {
+	AlertCircle,
+	Bug,
+	Plug,
+	Plus,
+	RefreshCw,
+	Server,
+	Target,
+} from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -11,7 +19,10 @@ import { ListGridContainer } from "../../components/list-grid-container";
 import { EmptyState, PageLayout } from "../../components/page-layout";
 import { ServerEditDrawer } from "../../components/server-edit-drawer";
 import { ServerInstallDrawer } from "../../components/server-install-drawer";
-import { ServerInstallManualForm, type ServerInstallManualFormHandle } from "../../components/server-install-manual-form";
+import {
+	ServerInstallManualForm,
+	type ServerInstallManualFormHandle,
+} from "../../components/server-uni-import";
 import { StatsCards } from "../../components/stats-cards";
 import { StatusBadge } from "../../components/status-badge";
 import { Button } from "../../components/ui/button";
@@ -55,14 +66,14 @@ function canIngestFromDataTransfer(dataTransfer: DataTransfer | null): boolean {
 async function extractPayloadFromDataTransfer(
 	dataTransfer: DataTransfer,
 ): Promise<{ text?: string; buffer?: ArrayBuffer; fileName?: string } | null> {
-    if (dataTransfer.files && dataTransfer.files.length > 0) {
-        const file = dataTransfer.files[0];
-        if (file.name.endsWith(".mcpb") || file.name.endsWith(".dxt")) {
-            // Try bundle-style parsing first (.mcpb, optionally .dxt if it matches the same layout)
-            return { buffer: await file.arrayBuffer(), fileName: file.name };
-        }
-        return { text: await file.text(), fileName: file.name };
-    }
+	if (dataTransfer.files && dataTransfer.files.length > 0) {
+		const file = dataTransfer.files[0];
+		if (file.name.endsWith(".mcpb") || file.name.endsWith(".dxt")) {
+			// Try bundle-style parsing first (.mcpb, optionally .dxt if it matches the same layout)
+			return { buffer: await file.arrayBuffer(), fileName: file.name };
+		}
+		return { text: await file.text(), fileName: file.name };
+	}
 
 	const plainText = dataTransfer.getData("text/plain");
 	if (plainText) {
@@ -952,26 +963,26 @@ export function ServerListPage() {
 			</ListGridContainer>
 
 			{/* Server install pipeline */}
-		<ServerInstallManualForm
-			ref={manualRef}
-			isOpen={manualOpen}
-			onClose={() => setManualOpen(false)}
-			onSubmit={(draft) => installPipeline.begin([draft], "manual")}
-			onSubmitMultiple={(drafts) => installPipeline.begin(drafts, "ingest")}
-		/>
-            <ServerInstallDrawer
-                pipeline={installPipeline}
-                onBack={(drafts) => {
-                    // Close preview and reopen manual form with the previous draft
-                    installPipeline.close();
-                    setManualOpen(true);
-                    if (drafts && drafts.length === 1) {
-                        requestAnimationFrame(() => {
-                            manualRef.current?.loadDraft?.(drafts[0]);
-                        });
-                    }
-                }}
-            />
+			<ServerInstallManualForm
+				ref={manualRef}
+				isOpen={manualOpen}
+				onClose={() => setManualOpen(false)}
+				onSubmit={(draft) => installPipeline.begin([draft], "manual")}
+				onSubmitMultiple={(drafts) => installPipeline.begin(drafts, "ingest")}
+			/>
+			<ServerInstallDrawer
+				pipeline={installPipeline}
+				onBack={(drafts) => {
+					// Close preview and reopen manual form with the previous draft
+					installPipeline.close();
+					setManualOpen(true);
+					if (drafts && drafts.length === 1) {
+						requestAnimationFrame(() => {
+							manualRef.current?.loadDraft?.(drafts[0]);
+						});
+					}
+				}}
+			/>
 
 			{/* Edit server drawer */}
 			{editingServer ? (

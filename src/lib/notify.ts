@@ -18,7 +18,10 @@ interface NotifyState {
 	unread: number;
 	isOpen: boolean;
 	push: (
-		n: Omit<NotificationItem, "id" | "createdAt" | "read"> & { id?: string },
+		n: Omit<NotificationItem, "id" | "createdAt" | "read"> & {
+			id?: string;
+			autoOpen?: boolean;
+		},
 	) => string;
 	markRead: (id: string) => void;
 	markAllRead: () => void;
@@ -39,7 +42,7 @@ export const useNotify = create<NotifyState>()(
 			items: [],
 			unread: 0,
 			isOpen: false,
-			push: ({ id, level, title, description, href }) => {
+			push: ({ id, level, title, description, href, autoOpen }) => {
 				const item: NotificationItem = {
 					id: id || genId(),
 					level,
@@ -49,10 +52,18 @@ export const useNotify = create<NotifyState>()(
 					createdAt: Date.now(),
 					read: false,
 				};
+
+				// Smart default: only auto-open for warning and error types
+				// unless explicitly specified via autoOpen parameter
+				const shouldAutoOpen =
+					autoOpen !== undefined
+						? autoOpen
+						: level === "warning" || level === "error";
+
 				set((s) => {
 					const items = [item, ...s.items].slice(0, 200);
 					const unread = items.filter((it) => !it.read).length;
-					return { items, unread, isOpen: true };
+					return { items, unread, isOpen: shouldAutoOpen };
 				});
 				return item.id;
 			},
@@ -96,31 +107,41 @@ export function notifySuccess(
 	title: string,
 	description?: string,
 	href?: string,
+	autoOpen?: boolean,
 ) {
 	return useNotify
 		.getState()
-		.push({ level: "success", title, description, href });
+		.push({ level: "success", title, description, href, autoOpen });
 }
-export function notifyInfo(title: string, description?: string, href?: string) {
-	return useNotify.getState().push({ level: "info", title, description, href });
+export function notifyInfo(
+	title: string,
+	description?: string,
+	href?: string,
+	autoOpen?: boolean,
+) {
+	return useNotify
+		.getState()
+		.push({ level: "info", title, description, href, autoOpen });
 }
 export function notifyWarning(
 	title: string,
 	description?: string,
 	href?: string,
+	autoOpen?: boolean,
 ) {
 	return useNotify
 		.getState()
-		.push({ level: "warning", title, description, href });
+		.push({ level: "warning", title, description, href, autoOpen });
 }
 export function notifyError(
 	title: string,
 	description?: string,
 	href?: string,
+	autoOpen?: boolean,
 ) {
 	return useNotify
 		.getState()
-		.push({ level: "error", title, description, href });
+		.push({ level: "error", title, description, href, autoOpen });
 }
 
 export function stringifyError(e: unknown): string {
@@ -132,6 +153,6 @@ export function stringifyError(e: unknown): string {
 	}
 }
 
-export function notifyException(title: string, e: unknown) {
-	return notifyError(title, stringifyError(e));
+export function notifyException(title: string, e: unknown, autoOpen?: boolean) {
+	return notifyError(title, stringifyError(e), undefined, autoOpen);
 }

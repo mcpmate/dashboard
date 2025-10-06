@@ -307,6 +307,20 @@ const draftFromJson = (value: unknown): ServerInstallDraft[] => {
 			.filter((draft): draft is ServerInstallDraft => Boolean(draft));
 	}
 
+	if (
+		raw.servers &&
+		typeof raw.servers === "object" &&
+		!Array.isArray(raw.servers)
+	) {
+		const container = raw.servers as Record<string, unknown>;
+		const drafts = Object.entries(container)
+			.map(([name, config]) => buildDraft(name, config))
+			.filter((draft): draft is ServerInstallDraft => Boolean(draft));
+		if (drafts.length) {
+			return drafts;
+		}
+	}
+
 	if (Array.isArray(raw.servers)) {
 		return raw.servers
 			.map((entry: unknown) =>
@@ -314,6 +328,8 @@ const draftFromJson = (value: unknown): ServerInstallDraft[] => {
 			)
 			.filter((draft): draft is ServerInstallDraft => Boolean(draft));
 	}
+
+	// TODO: Support secure `inputs` (e.g., VS Code promptString) for credential handling.
 
 	// Single server object fallback
 	const draft = buildDraft(
@@ -374,6 +390,10 @@ const buildDraft = (
 	}
 	const args = toStringArray(raw.args);
 	const env = toEnvRecord(raw.env);
+	const headers =
+		toEnvRecord(raw.headers) ||
+		toEnvRecord((raw as any)?.httpHeaders) ||
+		toEnvRecord((raw as any)?.requestHeaders);
 	const registryServerId = typedefString(
 		raw.registry_server_id ?? raw.registryServerId,
 	);
@@ -393,7 +413,7 @@ const buildDraft = (
 	const meta = hydrateMeta(baseMeta, extras);
 
 	const envForDraft = env && Object.keys(env).length ? env : undefined;
-	const headersForDraft = kind === "stdio" ? undefined : envForDraft;
+	const headersForDraft = headers && Object.keys(headers).length ? headers : undefined;
 
 	// If no kind was provided but we do have a URL, assume streamable_http
 	if ((rawKind === undefined || rawKind === null) && url) {
