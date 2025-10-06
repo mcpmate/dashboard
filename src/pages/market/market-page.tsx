@@ -1,5 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, ExternalLink, EyeOff, Loader2, Plug } from "lucide-react";
+import {
+	ArrowUp,
+	ExternalLink,
+	EyeOff,
+	Loader2,
+	Plug,
+	Plus,
+	X,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorDisplay } from "../../components/error-display";
 import { Pagination } from "../../components/pagination";
@@ -18,6 +26,12 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import { Input } from "../../components/ui/input";
 import {
 	Select,
@@ -45,6 +59,15 @@ interface MarketCardProps {
 }
 
 type SortOption = "recent" | "name";
+
+// Tab management types
+interface TabItem {
+	id: string;
+	label: string;
+	type: "official" | "third-party";
+	url?: string;
+	closable: boolean;
+}
 
 // Market mode types and interfaces
 interface RemoteOption {
@@ -392,7 +415,164 @@ function MarketCard({
 	);
 }
 
+// Server Grid Component - Unified component for server cards and pagination
+interface ServerGridProps {
+	servers: RegistryServerEntry[];
+	isInitialLoading: boolean;
+	isPageLoading: boolean;
+	isEmpty: boolean;
+	pagination: {
+		currentPage: number;
+		hasPreviousPage: boolean;
+		hasNextPage: boolean;
+		itemsPerPage: number;
+	};
+	onServerPreview: (server: RegistryServerEntry) => void;
+	onServerHide: (server: RegistryServerEntry) => void;
+	enableBlacklist: boolean;
+	onNextPage: () => void;
+	onPreviousPage: () => void;
+}
+
+function ServerGrid({
+	servers,
+	isInitialLoading,
+	isPageLoading,
+	isEmpty,
+	pagination,
+	onServerPreview,
+	onServerHide,
+	enableBlacklist,
+	onNextPage,
+	onPreviousPage,
+}: ServerGridProps) {
+	return (
+		<>
+			{/* Loading Skeleton */}
+			{isInitialLoading ? (
+				<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+					{Array.from({ length: 9 }, (_, index) => {
+						const uniqueKey = `skeleton-card-${Date.now()}-${index}`;
+						return (
+							<Card
+								key={uniqueKey}
+								className="group flex h-full cursor-pointer flex-col overflow-hidden border border-slate-200 transition-all duration-200 hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800"
+							>
+								<CardHeader className="p-4">
+									<div className="grid grid-cols-1 grid-rows-1">
+										<div className="flex items-start gap-3 col-start-1 row-start-1">
+											<div className="h-12 w-12 rounded-[10px] bg-slate-200 animate-pulse dark:bg-slate-700" />
+											<div className="flex-1 space-y-2">
+												<div className="h-5 w-3/4 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+												<div className="h-3 w-1/2 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+												<div className="h-3 w-full rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+												<div className="h-3 w-2/3 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+											</div>
+										</div>
+										<div className="col-start-1 row-start-1 flex justify-end items-start pt-1 pr-1">
+											<div className="h-6 w-16 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+										</div>
+									</div>
+								</CardHeader>
+								<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0 mt-auto">
+									<div className="flex items-center gap-3">
+										<div className="w-12"></div>
+										<div className="h-5 w-5 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+									</div>
+									<div className="flex items-center gap-3">
+										<div className="h-5 w-5 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+									</div>
+								</CardFooter>
+							</Card>
+						);
+					})}
+				</div>
+			) : null}
+
+			{/* Empty State */}
+			{isEmpty ? (
+				<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+					No entries matched your filters. Try another name or clear the search
+					above.
+				</div>
+			) : null}
+
+			{/* Server Cards Grid */}
+			{!isInitialLoading && !isEmpty ? (
+				<div className="relative">
+					{isPageLoading ? (
+						<div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-slate-950/80">
+							<div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-lg dark:bg-slate-800">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								<span className="text-sm font-medium">Loading...</span>
+							</div>
+						</div>
+					) : null}
+					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+						{servers.map((server) => {
+							return (
+								<MarketCard
+									key={`${server.name}-${server.version}`}
+									server={server}
+									onPreview={onServerPreview}
+									onHide={onServerHide}
+									enableBlacklist={enableBlacklist}
+								/>
+							);
+						})}
+					</div>
+				</div>
+			) : null}
+
+			{/* Pagination */}
+			{!isEmpty ? (
+				<Pagination
+					currentPage={pagination.currentPage}
+					hasPreviousPage={pagination.hasPreviousPage}
+					hasNextPage={pagination.hasNextPage}
+					isLoading={isInitialLoading || isPageLoading}
+					itemsPerPage={pagination.itemsPerPage}
+					currentPageItemCount={servers.length}
+					onPreviousPage={onPreviousPage}
+					onNextPage={onNextPage}
+					className="mt-6"
+				/>
+			) : null}
+		</>
+	);
+}
+
 export function MarketPage() {
+	// Get default market setting
+	const defaultMarket = useAppStore(
+		(state) => state.dashboardSettings.defaultMarket,
+	);
+
+	// Tab management state - initialize based on default market setting
+	const [tabs, setTabs] = useState<TabItem[]>(() => {
+		const officialTab = {
+			id: "official",
+			label: "Official MCP Registry",
+			type: "official" as const,
+			closable: defaultMarket !== "official", // Only closable if not default
+		};
+		const mcpMarketTab = {
+			id: "mcpmarket",
+			label: "MCP Market",
+			type: "third-party" as const,
+			url: "https://mcpmarket.cn/",
+			closable: defaultMarket !== "mcpmarket", // Only closable if not default
+		};
+
+		if (defaultMarket === "official") {
+			return [officialTab];
+		} else {
+			return [mcpMarketTab];
+		}
+	});
+	const [activeTab, setActiveTab] = useState<string>(defaultMarket);
+
+	// Search and sort state (only for official tab)
 	const [search, setSearch] = useState("");
 	const [sort, setSort] = useState<SortOption>("recent");
 	const debouncedSearch = useDebouncedValue(search.trim(), 300);
@@ -405,6 +585,52 @@ export function MarketPage() {
 	);
 	const enableMarketBlacklist = useAppStore(
 		(state) => state.dashboardSettings.enableMarketBlacklist,
+	);
+
+	// Tab management functions
+	const addTab = useCallback(
+		(label: string, url?: string) => {
+			// Handle adding official registry when default is mcpmarket
+			if (label === "Official MCP Registry") {
+				const officialTab: TabItem = {
+					id: "official",
+					label: "Official MCP Registry",
+					type: "official",
+					closable: defaultMarket !== "official", // Only closable if not default
+				};
+				setTabs((prev) => [...prev, officialTab]);
+				setActiveTab("official");
+				return;
+			}
+
+			// Handle adding third-party markets
+			const newTab: TabItem = {
+				id: `tab-${Date.now()}`,
+				label,
+				type: "third-party",
+				url,
+				closable: true, // Third-party markets are always closable
+			};
+			setTabs((prev) => [...prev, newTab]);
+			setActiveTab(newTab.id);
+		},
+		[defaultMarket],
+	);
+
+	const closeTab = useCallback(
+		(tabId: string) => {
+			// Cannot close the default market tab
+			if (tabId === defaultMarket) return;
+			setTabs((prev) => {
+				const newTabs = prev.filter((tab) => tab.id !== tabId);
+				// If closing active tab, switch to default market tab
+				if (activeTab === tabId) {
+					setActiveTab(defaultMarket);
+				}
+				return newTabs;
+			});
+		},
+		[activeTab, defaultMarket],
 	);
 
 	const handlePaginationReset = useCallback(() => {
@@ -566,8 +792,25 @@ export function MarketPage() {
 	}, []);
 
 	const handleRefresh = () => {
-		queryClient.removeQueries({ queryKey: ["market", "registry"] });
-		registryQuery.refetch();
+		const currentTab = tabs.find((tab) => tab.id === activeTab);
+
+		if (currentTab?.type === "official") {
+			// Refresh official registry data
+			queryClient.removeQueries({ queryKey: ["market", "registry"] });
+			registryQuery.refetch();
+		} else if (currentTab?.type === "third-party" && currentTab.url) {
+			// Refresh iframe by reloading it
+			const iframe = document.querySelector(
+				`iframe[src="${currentTab.url}"]`,
+			) as HTMLIFrameElement;
+			if (iframe) {
+				const currentSrc = iframe.src;
+				iframe.src = ""; // Clear first
+				setTimeout(() => {
+					iframe.src = currentSrc; // Then reload
+				}, 0);
+			}
+		}
 	};
 
 	const handleHideServer = (entry: RegistryServerEntry) => {
@@ -744,27 +987,38 @@ export function MarketPage() {
 								</sup>
 							</h2>
 						</div>
-						<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-							<div className="flex-1">
-								<Input
-									value={search}
-									onChange={(event) => setSearch(event.target.value)}
-									placeholder="Search by server name"
-									className="h-9 w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-600"
-								/>
-							</div>
-							<Select
-								value={sort}
-								onValueChange={(value: SortOption) => setSort(value)}
-							>
-								<SelectTrigger className="h-9 w-full sm:w-[160px]">
-									<SelectValue placeholder="Sort" />
-								</SelectTrigger>
-								<SelectContent align="end">
-									<SelectItem value="recent">Recently updated</SelectItem>
-									<SelectItem value="name">Alphabetical</SelectItem>
-								</SelectContent>
-							</Select>
+						{/* Search, Sort, and Refresh Controls - Right aligned */}
+						<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+							{/* Search and Sort - Only show for official tab */}
+							{(() => {
+								const currentTab = tabs.find((tab) => tab.id === activeTab);
+								return currentTab?.type === "official";
+							})() && (
+								<>
+									<div className="flex-1 sm:flex-none">
+										<Input
+											value={search}
+											onChange={(event) => setSearch(event.target.value)}
+											placeholder="Search by server name"
+											className="h-9 w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-600 sm:w-64"
+										/>
+									</div>
+									<Select
+										value={sort}
+										onValueChange={(value: SortOption) => setSort(value)}
+									>
+										<SelectTrigger className="h-9 w-full sm:w-[160px]">
+											<SelectValue placeholder="Sort" />
+										</SelectTrigger>
+										<SelectContent align="end">
+											<SelectItem value="recent">Recently updated</SelectItem>
+											<SelectItem value="name">Alphabetical</SelectItem>
+										</SelectContent>
+									</Select>
+								</>
+							)}
+							
+							{/* Refresh Button - Always show for all tabs */}
 							<Button
 								variant="outline"
 								size="sm"
@@ -774,7 +1028,16 @@ export function MarketPage() {
 								<Loader2
 									className={cn(
 										"h-4 w-4",
-										registryQuery.isFetching ? "animate-spin" : "",
+										(() => {
+											const currentTab = tabs.find(
+												(tab) => tab.id === activeTab,
+											);
+											if (currentTab?.type === "official") {
+												return registryQuery.isFetching;
+											}
+											// For third-party tabs, we could add a loading state if needed
+											return false;
+										})(),
 									)}
 								/>
 								Refresh
@@ -782,107 +1045,132 @@ export function MarketPage() {
 						</div>
 					</div>
 
-					{/* Tab 栏预留空间 */}
-					<div className="mt-4 h-10 flex items-center">
-						{/* 这里将来可以添加 Tab 组件 */}
-						<div className="text-sm text-slate-500 dark:text-slate-400">
-							Tab 栏预留空间
+					{/* Tab Bar */}
+					<div className="mt-4">
+						<div className="flex items-center border-b border-slate-200 dark:border-slate-700">
+							{/* Tab triggers */}
+							<div className="flex items-center">
+								{tabs.map((tab, index) => (
+									<div key={tab.id} className="flex items-center group">
+										<button
+											type="button"
+											onClick={() => setActiveTab(tab.id)}
+											className={`py-2 text-sm font-medium border-b-2 transition-colors ${
+												index === 0 ? "pl-0 pr-4" : "px-4"
+											} ${
+												activeTab === tab.id
+													? "border-primary text-primary"
+													: "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-300"
+											}`}
+										>
+											{tab.label}
+										</button>
+										{tab.closable && (
+											<button
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													closeTab(tab.id);
+												}}
+												className="ml-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+											>
+												<X className="h-3 w-3" />
+											</button>
+										)}
+									</div>
+								))}
+							</div>
+
+							{/* Add tab button */}
+							<div className="ml-4">
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+											<Plus className="h-4 w-4" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="start">
+										{defaultMarket === "official" && (
+											<DropdownMenuItem
+												onClick={() =>
+													addTab("MCP Market", "https://mcpmarket.cn/")
+												}
+											>
+												MCP Market
+											</DropdownMenuItem>
+										)}
+										{defaultMarket === "mcpmarket" && (
+											<DropdownMenuItem
+												onClick={() => addTab("Official MCP Registry")}
+											>
+												Official MCP Registry
+											</DropdownMenuItem>
+										)}
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</div>
 						</div>
 					</div>
 				</div>
 
-				<ErrorDisplay
-					title="Failed to load registry"
-					error={fetchError ?? null}
-					onRetry={handleRefresh}
-				/>
+				{/* Content based on active tab */}
+				{(() => {
+					const currentTab = tabs.find((tab) => tab.id === activeTab);
+					return currentTab?.type === "official";
+				})() ? (
+					<>
+						<ErrorDisplay
+							title="Failed to load registry"
+							error={fetchError ?? null}
+							onRetry={handleRefresh}
+						/>
 
-				{isInitialLoading ? (
-					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-						{Array.from({ length: 9 }, (_, index) => {
-							const uniqueKey = `skeleton-card-${Date.now()}-${index}`;
-							return (
-								<Card
-									key={uniqueKey}
-									className="group flex h-full cursor-pointer flex-col overflow-hidden border border-slate-200 transition-all duration-200 hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800"
-								>
-									<CardHeader className="p-4">
-										<div className="grid grid-cols-1 grid-rows-1">
-											<div className="flex items-start gap-3 col-start-1 row-start-1">
-												<div className="h-12 w-12 rounded-[10px] bg-slate-200 animate-pulse dark:bg-slate-700" />
-												<div className="flex-1 space-y-2">
-													<div className="h-5 w-3/4 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
-													<div className="h-3 w-1/2 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
-													<div className="h-3 w-full rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
-													<div className="h-3 w-2/3 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
-												</div>
-											</div>
-											<div className="col-start-1 row-start-1 flex justify-end items-start pt-1 pr-1">
-												<div className="h-6 w-16 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
-											</div>
-										</div>
-									</CardHeader>
-									<CardFooter className="flex items-center justify-between gap-2 px-4 pb-4 pt-0 mt-auto">
-										<div className="flex items-center gap-3">
-											<div className="w-12"></div>
-											<div className="h-5 w-5 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
-										</div>
-										<div className="flex items-center gap-3">
-											<div className="h-5 w-5 rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
-										</div>
-									</CardFooter>
-								</Card>
-							);
-						})}
-					</div>
-				) : null}
-
-				{isEmpty ? (
-					<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-						No entries matched your filters. Try another name or clear the
-						search above.
-					</div>
-				) : null}
-
-				{!isInitialLoading && !isEmpty ? (
-					<div className="relative">
-						{isPageLoading ? (
-							<div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-slate-950/80">
-								<div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-lg dark:bg-slate-800">
-									<Loader2 className="h-4 w-4 animate-spin" />
-									<span className="text-sm font-medium">Loading...</span>
-								</div>
-							</div>
-						) : null}
-						<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-							{sortedServers.map((server) => {
+						<ServerGrid
+							servers={sortedServers}
+							isInitialLoading={isInitialLoading}
+							isPageLoading={isPageLoading}
+							isEmpty={isEmpty}
+							pagination={pagination}
+							onServerPreview={handleOpenDrawer}
+							onServerHide={handleHideServer}
+							enableBlacklist={enableMarketBlacklist}
+							onNextPage={handleNextPage}
+							onPreviousPage={handlePreviousPage}
+						/>
+					</>
+				) : (
+					/* Third-party portal content */
+					<div className="mt-6">
+						{(() => {
+							const activeTabData = tabs.find((tab) => tab.id === activeTab);
+							if (activeTabData?.type === "third-party" && activeTabData.url) {
 								return (
-									<MarketCard
-										key={`${server.name}-${server.version}`}
-										server={server}
-										onPreview={handleOpenDrawer}
-										onHide={handleHideServer}
-										enableBlacklist={enableMarketBlacklist}
-									/>
+									<div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+										<iframe
+											src={activeTabData.url}
+											className="w-full h-[calc(100vh-300px)] min-h-[600px] rounded-xl"
+											title={activeTabData.label}
+											sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+										/>
+									</div>
 								);
-							})}
-						</div>
+							}
+							return (
+								<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+									<div className="space-y-2">
+										<h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
+											{activeTabData?.label || "Third-Party Portal"}
+										</h3>
+										<p>第三方门户内容将在这里显示</p>
+										<p className="text-xs text-slate-400">
+											URL: {activeTabData?.url || "未配置"}
+										</p>
+									</div>
+								</div>
+							);
+						})()}
 					</div>
-				) : null}
-
-				{!isEmpty ? (
-					<Pagination
-						currentPage={pagination.currentPage}
-						hasPreviousPage={pagination.hasPreviousPage}
-						hasNextPage={pagination.hasNextPage}
-						isLoading={isInitialLoading || isPageLoading}
-						itemsPerPage={pagination.itemsPerPage}
-						currentPageItemCount={sortedServers.length}
-						onPreviousPage={handlePreviousPage}
-						onNextPage={handleNextPage}
-						className="mt-6"
-					/>
-				) : null}
+				)}
 
 				{showScrollTop ? (
 					<Button

@@ -31,6 +31,7 @@ import {
 	type DashboardAppMode,
 	type DashboardDefaultView,
 	type DashboardLanguage,
+	type DashboardSettings,
 	type MarketBlacklistEntry,
 	useAppStore,
 } from "../../lib/store";
@@ -100,7 +101,7 @@ export function SettingsPage() {
 						Client Defaults
 					</TabsTrigger>
 					<TabsTrigger value="market" className={tabTriggerClass}>
-						Market Blacklist
+						MCP Market
 					</TabsTrigger>
 					<TabsTrigger value="develop" className={tabTriggerClass}>
 						Developer
@@ -451,10 +452,12 @@ export function SettingsPage() {
 
 								<div className="flex items-center justify-between gap-4">
 									<div>
-										<h3 className="text-base font-medium">Show Raw Capability JSON</h3>
+										<h3 className="text-base font-medium">
+											Show Raw Capability JSON
+										</h3>
 										<p className="text-sm text-slate-500">
-											Display raw JSON payloads under Details in capability lists
-											(Server details and Uni‑Import preview).
+											Display raw JSON payloads under Details in capability
+											lists (Server details and Uni‑Import preview).
 										</p>
 									</div>
 									<Switch
@@ -473,6 +476,7 @@ export function SettingsPage() {
 							entries={dashboardSettings.marketBlacklist}
 							onRestore={removeFromMarketBlacklist}
 							setDashboardSetting={setDashboardSetting}
+							dashboardSettings={dashboardSettings}
 						/>
 					</TabsContent>
 				</div>
@@ -488,15 +492,18 @@ interface MarketBlacklistCardProps {
 		key: K,
 		value: DashboardSettings[K],
 	) => void;
+	dashboardSettings: DashboardSettings;
 }
 
 function MarketBlacklistCard({
 	entries,
 	onRestore,
 	setDashboardSetting,
+	dashboardSettings,
 }: MarketBlacklistCardProps) {
 	const searchId = useId();
 	const sortId = useId();
+	const enableBlacklistId = useId();
 
 	const [searchTerm, setSearchTerm] = useState("");
 	const [sortOrder, setSortOrder] = useState<"recent" | "name">("recent");
@@ -529,13 +536,39 @@ function MarketBlacklistCard({
 	return (
 		<Card className="h-full">
 			<CardHeader>
-				<CardTitle>Market Blacklist</CardTitle>
+				<CardTitle>MCP Market</CardTitle>
 				<CardDescription>
-					Manage hidden marketplace servers so they stay out of browse and
-					search views.
+					Configure default market and manage hidden marketplace servers.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex h-full flex-col gap-4">
+				{/* Default Market 设置项 */}
+				<div className="flex items-center justify-between gap-4">
+					<div className="space-y-0.5">
+						<h3 className="text-base font-medium">Default Market</h3>
+						<p className="text-sm text-slate-500">
+							Choose which market appears first and cannot be closed
+						</p>
+					</div>
+					<Select
+						value={dashboardSettings.defaultMarket}
+						onValueChange={(value) =>
+							setDashboardSetting(
+								"defaultMarket",
+								value as "official" | "mcpmarket",
+							)
+						}
+					>
+						<SelectTrigger className="w-48">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="official">Official MCP Registry</SelectItem>
+							<SelectItem value="mcpmarket">MCP Market</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
 				{/* Enable Blacklist 设置项 */}
 				<div className="flex items-center justify-between gap-4">
 					<div className="space-y-0.5">
@@ -546,7 +579,7 @@ function MarketBlacklistCard({
 						</p>
 					</div>
 					<Switch
-						id="enable-market-blacklist"
+						id={enableBlacklistId}
 						checked={enableMarketBlacklist}
 						onCheckedChange={(checked) =>
 							setDashboardSetting("enableMarketBlacklist", checked)

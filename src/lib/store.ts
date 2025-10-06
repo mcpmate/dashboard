@@ -6,6 +6,7 @@ export type DashboardAppMode = "express" | "expert";
 export type DashboardLanguage = "en" | "zh-cn" | "ja";
 export type ClientDefaultMode = "hosted" | "transparent";
 export type ClientBackupStrategy = "keep_n" | "keep_last" | "none";
+export type DefaultMarket = "official" | "mcpmarket";
 
 export interface DashboardSettings {
 	defaultView: DashboardDefaultView;
@@ -22,6 +23,7 @@ export interface DashboardSettings {
 	marketBlacklist: MarketBlacklistEntry[];
 	enableMarketBlacklist: boolean;
 	showApiDocsMenu: boolean;
+	defaultMarket: DefaultMarket;
 }
 
 export interface MarketBlacklistEntry {
@@ -66,6 +68,7 @@ const defaultDashboardSettings: DashboardSettings = {
 	marketBlacklist: [],
 	enableMarketBlacklist: true,
 	showApiDocsMenu: false,
+	defaultMarket: "official",
 };
 
 function normalizeDashboardSettings(
@@ -120,6 +123,13 @@ function normalizeDashboardSettings(
 
 	if (typeof patch.enableMarketBlacklist === "boolean") {
 		next.enableMarketBlacklist = patch.enableMarketBlacklist;
+	}
+
+	if (
+		patch.defaultMarket === "official" ||
+		patch.defaultMarket === "mcpmarket"
+	) {
+		next.defaultMarket = patch.defaultMarket;
 	}
 
 	if (
