@@ -1523,7 +1523,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 				suit={suit}
 				onSuccess={() => {
 					handleEditDrawerClose(false);
-					refetchSuit();
+					handleRefreshAll();
 				}}
 			/>
 
