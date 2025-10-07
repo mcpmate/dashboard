@@ -1,4 +1,12 @@
 import { create } from "zustand";
+import type {
+	MarketPortalDefinition,
+	MarketPortalId,
+} from "../pages/market/portal-registry";
+import {
+	MARKET_PORTAL_MAP,
+	mergePortalOverrides,
+} from "../pages/market/portal-registry";
 import type { Theme } from "./types";
 
 export type DashboardDefaultView = "list" | "grid";
@@ -6,29 +14,13 @@ export type DashboardAppMode = "express" | "expert";
 export type DashboardLanguage = "en" | "zh-cn" | "ja";
 export type ClientDefaultMode = "hosted" | "transparent";
 export type ClientBackupStrategy = "keep_n" | "keep_last" | "none";
-export type DefaultMarket = "official" | "mcpmarket";
+export type DefaultMarket = "official" | MarketPortalId;
 
-export interface MarketPortalMeta {
-	id: string;
-	label: string;
-	origin: string;
-	proxyPath: string;
-	favicon?: string;
-	proxyFavicon?: string;
-}
+export type MarketPortalMeta = MarketPortalDefinition;
 
 export const DEFAULT_MARKET_PORTALS: Readonly<
 	Record<string, MarketPortalMeta>
-> = Object.freeze({
-	mcpmarket: {
-		id: "mcpmarket",
-		label: "MCP Market",
-		origin: "https://mcpmarket.cn",
-		proxyPath: "/market-proxy/",
-		favicon: "https://mcpmarket.cn/static/img/favicon.ico",
-		proxyFavicon: "/market-proxy/static/img/favicon.ico",
-	},
-});
+> = Object.freeze(mergePortalOverrides());
 
 function cloneMarketPortals(
 	portals: Record<string, MarketPortalMeta>,
@@ -47,18 +39,23 @@ function sanitizeMarketPortalMeta(
 	const input = value as Partial<MarketPortalMeta>;
 	const targetId =
 		typeof input.id === "string" && input.id.trim() ? input.id.trim() : id;
+	const canonical = MARKET_PORTAL_MAP[targetId];
+	if (!canonical) return null;
+
 	const label =
 		typeof input.label === "string" && input.label.trim()
 			? input.label.trim()
-			: (fallback?.label ?? "");
-	const origin =
-		typeof input.origin === "string" && input.origin.trim()
-			? input.origin.trim()
-			: (fallback?.origin ?? "");
+			: fallback?.label ?? canonical.label;
+	const remoteOrigin =
+		typeof (input as Partial<MarketPortalDefinition>).remoteOrigin ===
+			"string" &&
+		(input as Partial<MarketPortalDefinition>).remoteOrigin?.trim()
+			? (input as Partial<MarketPortalDefinition>).remoteOrigin.trim()
+			: fallback?.remoteOrigin ?? canonical.remoteOrigin;
 	const proxyPathRaw =
 		typeof input.proxyPath === "string" && input.proxyPath.trim()
 			? input.proxyPath.trim()
-			: (fallback?.proxyPath ?? "");
+			: fallback?.proxyPath ?? canonical.proxyPath;
 	if (!label || !proxyPathRaw) return null;
 	const proxyPath = proxyPathRaw.endsWith("/")
 		? proxyPathRaw
@@ -66,18 +63,34 @@ function sanitizeMarketPortalMeta(
 	const favicon =
 		typeof input.favicon === "string" && input.favicon.trim()
 			? input.favicon.trim()
-			: fallback?.favicon;
+			: fallback?.favicon ?? canonical.favicon;
 	const proxyFavicon =
 		typeof input.proxyFavicon === "string" && input.proxyFavicon.trim()
 			? input.proxyFavicon.trim()
-			: fallback?.proxyFavicon;
+			: fallback?.proxyFavicon ?? canonical.proxyFavicon;
+	const adapter =
+		typeof (input as Partial<MarketPortalDefinition>).adapter === "string" &&
+		(input as Partial<MarketPortalDefinition>).adapter?.trim()
+			? (input as Partial<MarketPortalDefinition>).adapter!.trim()
+			: fallback?.adapter ?? canonical.adapter ?? "default";
+	const locales =
+		Array.isArray((input as Partial<MarketPortalDefinition>).locales) &&
+		((input as Partial<MarketPortalDefinition>).locales?.length ?? 0) > 0
+			? ((input as Partial<MarketPortalDefinition>).locales ?? []).filter(
+					(locale): locale is string =>
+						typeof locale === "string" && locale.trim().length > 0,
+				)
+			: fallback?.locales ?? canonical.locales;
+
 	return {
 		id: targetId,
 		label,
-		origin,
+		remoteOrigin,
 		proxyPath,
 		favicon,
 		proxyFavicon,
+		adapter,
+		...(locales ? { locales } : {}),
 	};
 }
 
@@ -88,8 +101,10 @@ export interface DashboardSettings {
 	syncServerStateToClients: boolean;
 	autoAddServerToDefaultProfile: boolean;
 	enableServerDebug: boolean;
-	openDebugInNewWindow: boolean;
-	showRawCapabilityJson: boolean;
+    openDebugInNewWindow: boolean;
+    showRawCapabilityJson: boolean;
+    // Developer: show default HTTP headers (redacted) in Server Details
+    showDefaultHeaders: boolean;
 	clientDefaultMode: ClientDefaultMode;
 	clientBackupStrategy: ClientBackupStrategy;
 	clientBackupLimit: number;
@@ -134,8 +149,9 @@ const defaultDashboardSettings: DashboardSettings = {
 	syncServerStateToClients: false,
 	autoAddServerToDefaultProfile: true,
 	enableServerDebug: false,
-	openDebugInNewWindow: false,
-	showRawCapabilityJson: false,
+    openDebugInNewWindow: false,
+    showRawCapabilityJson: false,
+    showDefaultHeaders: false,
 	clientDefaultMode: "hosted",
 	clientBackupStrategy: "keep_last",
 	clientBackupLimit: 3,
@@ -194,9 +210,13 @@ function normalizeDashboardSettings(
 		next.openDebugInNewWindow = patch.openDebugInNewWindow;
 	}
 
-	if (typeof patch.showRawCapabilityJson === "boolean") {
-		next.showRawCapabilityJson = patch.showRawCapabilityJson;
-	}
+    if (typeof patch.showRawCapabilityJson === "boolean") {
+        next.showRawCapabilityJson = patch.showRawCapabilityJson;
+    }
+
+    if (typeof patch.showDefaultHeaders === "boolean") {
+        next.showDefaultHeaders = patch.showDefaultHeaders;
+    }
 
 	if (typeof patch.showApiDocsMenu === "boolean") {
 		next.showApiDocsMenu = patch.showApiDocsMenu;
@@ -206,12 +226,14 @@ function normalizeDashboardSettings(
 		next.enableMarketBlacklist = patch.enableMarketBlacklist;
 	}
 
-	if (
-		patch.defaultMarket === "official" ||
-		patch.defaultMarket === "mcpmarket"
-	) {
-		next.defaultMarket = patch.defaultMarket;
-	}
+    // Accept any known portal id (built-in or merged) in addition to "official"
+    if (patch.defaultMarket) {
+        if (patch.defaultMarket === "official") {
+            next.defaultMarket = "official";
+        } else if (MARKET_PORTAL_MAP[patch.defaultMarket as string]) {
+            next.defaultMarket = patch.defaultMarket as any;
+        }
+    }
 
 	if (
 		patch.clientDefaultMode === "hosted" ||

@@ -41,6 +41,7 @@ import {
 } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { ButtonGroup } from "../../components/ui/button-group";
 import {
 	Card,
 	CardContent,
@@ -57,6 +58,7 @@ import {
 import { configSuitsApi, inspectorApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
+import { maskHeaderValue, sanitizeRecord } from "../../lib/security";
 
 const VIEW_MODES = {
 	browse: "browse" as const,
@@ -451,6 +453,16 @@ export function ServerDetailPage() {
 	const defaultTab = viewMode === VIEW_MODES.debug ? "tools" : "overview";
 	const serverEnabled = Boolean(server?.enabled ?? server?.globally_enabled);
 	const runtimeStatus = server?.status ?? (serverEnabled ? "idle" : "disabled");
+	const showDefaultHeaders = useAppStore(
+		(state) => state.dashboardSettings.showDefaultHeaders,
+	);
+	const redactedHeaders = useMemo(() => {
+		const src = sanitizeRecord(server?.headers);
+		if (!src) return undefined;
+		const out: Record<string, string> = {};
+		for (const [k, v] of Object.entries(src)) out[k] = maskHeaderValue(k, v);
+		return out;
+	}, [server?.headers]);
 
 	return (
 		<div className="space-y-4">
@@ -639,6 +651,32 @@ export function ServerDetailPage() {
 																	</span>
 																</>
 															) : null}
+
+															{/* Default HTTP Headers (redacted) */}
+															{showDefaultHeaders &&
+															redactedHeaders &&
+															Object.keys(redactedHeaders).length ? (
+																<>
+																	<span className="text-xs uppercase text-slate-500">
+																		Default Headers
+																	</span>
+																	<div className="grid grid-cols-1 gap-1">
+																		{Object.entries(redactedHeaders).map(
+																			([k, v]) => (
+																				<div key={k} className="text-sm">
+																					<span className="font-mono text-slate-600 dark:text-slate-300">
+																						{k}
+																					</span>
+																					<span className="mx-2 text-slate-400">
+																						:
+																					</span>
+																					<span className="font-mono">{v}</span>
+																				</div>
+																			),
+																		)}
+																	</div>
+																</>
+															) : null}
 															{serverCategory ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
@@ -678,7 +716,7 @@ export function ServerDetailPage() {
 														</div>
 													</div>
 													{viewMode === VIEW_MODES.browse ? (
-														<div className="flex flex-wrap items-start justify-end gap-2 self-start">
+														<ButtonGroup className="ml-auto flex-shrink-0 flex-nowrap self-start">
 															<Button
 																size="sm"
 																variant="outline"
@@ -731,7 +769,7 @@ export function ServerDetailPage() {
 																<Trash2 className="h-4 w-4" />
 																Delete
 															</Button>
-														</div>
+														</ButtonGroup>
 													) : null}
 												</div>
 											</div>

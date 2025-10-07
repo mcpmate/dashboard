@@ -33,7 +33,7 @@ export function StdioAdvanced({
 	if (viewMode !== "form" || !isStdio) return null;
 
 	return (
-		<div className="space-y-6">
+		<div className="space-y-4">
 			<FieldList
 				label="Arguments"
 				fields={argFields}

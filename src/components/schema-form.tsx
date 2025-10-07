@@ -1,3 +1,4 @@
+import React from "react";
 import { Info } from "lucide-react";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -16,6 +17,48 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "./ui/tooltip";
+
+// Array item row component with 2-click delete confirmation
+const ArrayItemRow: React.FC<{
+	name: string;
+	idx: number;
+	value: any;
+	itemsSchema: any;
+	onChange: (value: any) => void;
+	onRemove: () => void;
+}> = ({ name, idx, value, itemsSchema, onChange, onRemove }) => {
+	const [confirming, setConfirming] = React.useState(false);
+	const label = `${name}[${idx}]`;
+
+	return (
+		<div className="group grid grid-cols-[minmax(0,1fr)_minmax(0,5fr)] items-center gap-2">
+			<div className="text-xs text-slate-500">{label}</div>
+			<div className="relative">
+				<Input
+					value={value ?? ""}
+					onChange={(e) => onChange(e.target.value)}
+					className="w-full"
+				/>
+				<button
+					type="button"
+					aria-label="Remove"
+					className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full border text-xs flex items-center justify-center opacity-0 group-focus-within:opacity-100 hover:bg-accent transition"
+					onClick={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						if (!confirming) {
+							setConfirming(true);
+							return;
+						}
+						onRemove();
+					}}
+				>
+					{confirming ? "×" : "−"}
+				</button>
+			</div>
+		</div>
+	);
+};
 
 export type JSONSchema = any; // Lightweight compatibility
 
@@ -171,44 +214,41 @@ function Field({ name, schema, required, value, onChange }: FieldProps) {
 	if (type === "array") {
 		const itemsSchema = schema?.items || { type: "string" };
 		const arr: any[] = Array.isArray(value) ? value : [];
+
 		return renderField(
 			<div className="space-y-2">
 				{arr.map((v, idx) => (
-					<div
+					<ArrayItemRow
 						key={`${name}-${idx}`}
-						className="grid grid-cols-[1fr_auto] items-end gap-2"
-					>
-						<Field
-							name={`${name}[${idx}]`}
-							schema={itemsSchema}
-							value={v}
-							onChange={(nv) => {
-								const next = [...arr];
-								next[idx] = nv;
-								onChange(next);
-							}}
-						/>
-						<button
-							type="button"
-							className="text-xs rounded border px-2 py-1 hover:bg-accent"
-							onClick={() => {
-								const next = arr.filter((_, i) => i !== idx);
-								onChange(next);
-							}}
-						>
-							Remove
-						</button>
-					</div>
+						name={name}
+						idx={idx}
+						value={v}
+						itemsSchema={itemsSchema}
+						onChange={(newValue) => {
+							const next = [...arr];
+							next[idx] = newValue;
+							onChange(next);
+						}}
+						onRemove={() => {
+							const next = arr.filter((_, i) => i !== idx);
+							onChange(next);
+						}}
+					/>
 				))}
-				<button
-					type="button"
-					className="text-xs rounded border px-2 py-1 hover:bg-accent"
-					onClick={() => {
-						onChange([...(arr || []), defaultFromSchema(itemsSchema)]);
-					}}
-				>
-					Add item
-				</button>
+				{/* Ghost field as add button - shows the next label and dashed input */}
+				<div className="grid grid-cols-[minmax(0,1fr)_minmax(0,5fr)] items-center gap-2">
+					<div className="text-xs text-slate-400">{`${name}[${arr.length}]`}</div>
+					<button
+						type="button"
+						className="text-left w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-md bg-transparent text-slate-500 hover:bg-accent/30"
+						onClick={() => {
+							const next = [...(arr || []), defaultFromSchema(itemsSchema)];
+							onChange(next);
+						}}
+					>
+						Add new item...
+					</button>
+				</div>
 			</div>,
 		);
 	}

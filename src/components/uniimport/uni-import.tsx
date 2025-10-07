@@ -46,6 +46,7 @@ import {
 	type ServerInstallManualFormHandle,
 	type ServerInstallManualFormProps,
 } from "./types";
+import { FormViewModeToggle } from "./view-mode-toggle";
 
 export const ServerInstallManualForm = forwardRef<
 	ServerInstallManualFormHandle,
@@ -786,36 +787,16 @@ export const ServerInstallManualForm = forwardRef<
 
 								<TabsContent
 									value="core"
-									className={`space-y-6 ${
+									className={`space-y-4 ${
 										viewMode === "json" ? "flex flex-col h-full" : ""
 									}`}
 									onClick={handleFormInteraction}
 								>
-									<div className="flex items-center justify-end">
-										<div className="flex rounded-lg border border-slate-200 p-1 text-xs dark:border-slate-700">
-											<button
-												type="button"
-												onClick={() => handleModeChange("form")}
-												className={`rounded-l-md rounded-r-none px-3 py-1 font-medium transition-colors ${
-													viewMode === "form"
-														? "bg-primary text-primary-foreground"
-														: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-												}`}
-											>
-												Form
-											</button>
-											<button
-												type="button"
-												onClick={() => handleModeChange("json")}
-												className={`rounded-r-md rounded-l-none px-3 py-1 font-medium transition-colors ${
-													viewMode === "json"
-														? "bg-primary text-primary-foreground"
-														: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-												}`}
-											>
-												JSON
-											</button>
-										</div>
+									<div className="flex items-center justify-end pt-2">
+										<FormViewModeToggle
+											mode={viewMode}
+											onChange={handleModeChange}
+										/>
 									</div>
 
 									{viewMode === "form" ? (
@@ -980,7 +961,7 @@ export const ServerInstallManualForm = forwardRef<
 
 								<TabsContent
 									value="meta"
-									className="space-y-6"
+									className="space-y-4 pt-4"
 									onClick={handleFormInteraction}
 								>
 									<MetaFields

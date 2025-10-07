@@ -23,9 +23,9 @@ export function useFormSubmission({
 	onSubmit,
 	onClose,
 	reset,
-	viewMode,
+	viewMode: _viewMode,
 	jsonText,
-	jsonEditingEnabled,
+	jsonEditingEnabled: _jsonEditingEnabled,
 	setJsonError,
 	setViewMode,
 }: UseFormSubmissionProps) {

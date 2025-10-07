@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { NotificationCenter } from "../notification-center";
 
-const FEEDBACK_EMAIL = "MCPMate Team <info@mcpmate.io>";
+const FEEDBACK_EMAIL = "info@mcpmate.io";
 const FEEDBACK_SUBJECT = encodeURIComponent("MCPMate preview feedback");
 const FEEDBACK_BODY = encodeURIComponent(
 	"Hi MCPMate team,\n\nDescribe your feedback here:\n\n— Sent from MCPMate preview\n",

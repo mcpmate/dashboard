@@ -96,7 +96,9 @@ export function Layout() {
 					</div>
 					<footer className="mt-6 text-[11px] text-slate-500 border-t pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 						<div>
-							MCPMate Board <span className="font-mono">v0.1.0</span> •{" "}
+							MCPMate Preview <span className="font-mono">v0.1.0</span>
+						</div>
+						<div className="flex items-center gap-3">
 							<a
 								className="hover:underline"
 								href="https://mcpmate.io"
@@ -104,16 +106,6 @@ export function Layout() {
 								rel="noreferrer"
 							>
 								© 2025 MCPMate
-							</a>
-						</div>
-						<div className="flex items-center gap-3">
-							<a
-								className="hover:underline"
-								href="https://www.modelcontextprotocol.io"
-								target="_blank"
-								rel="noreferrer"
-							>
-								Model Context Protocol
 							</a>
 						</div>
 					</footer>

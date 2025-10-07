@@ -18,11 +18,8 @@ import { ErrorDisplay } from "../../components/error-display";
 import { ListGridContainer } from "../../components/list-grid-container";
 import { EmptyState, PageLayout } from "../../components/page-layout";
 import { ServerEditDrawer } from "../../components/server-edit-drawer";
-import { ServerInstallDrawer } from "../../components/server-install-drawer";
-import {
-	ServerInstallManualForm,
-	type ServerInstallManualFormHandle,
-} from "../../components/server-uni-import";
+import { ServerInstallWizard } from "../../components/uniimport/server-install-wizard";
+import type { ServerInstallManualFormHandle } from "../../components/uniimport/types";
 import { StatsCards } from "../../components/stats-cards";
 import { StatusBadge } from "../../components/status-badge";
 import { Button } from "../../components/ui/button";
@@ -33,7 +30,7 @@ import {
 	CardTitle,
 } from "../../components/ui/card";
 // Dropdown removed in favor of a single combined add flow
-import { PageToolbar } from "../../components/ui/page-toolbar";
+import { PageToolbar, type PageToolbarConfig, type PageToolbarCallbacks, type PageToolbarState } from "../../components/ui/page-toolbar";
 import { Switch } from "../../components/ui/switch";
 import { useServerInstallPipeline } from "../../hooks/use-server-install-pipeline";
 import { configSuitsApi, serversApi } from "../../lib/api";
@@ -767,9 +764,10 @@ export function ServerListPage() {
 					</div>
 				));
 
-	// 工具栏配置
-	const toolbarConfig = {
-		data: serverListResponse?.servers || [],
+// 工具栏配置
+type ToolbarServer = ServerSummary & { [key: string]: unknown };
+const toolbarConfig: PageToolbarConfig<ToolbarServer> = {
+		data: (serverListResponse?.servers || []) as ToolbarServer[],
 		search: {
 			placeholder: "Search servers...",
 			fields: [
@@ -801,21 +799,21 @@ export function ServerListPage() {
 	};
 
 	// 工具栏状态
-	const toolbarState = {
+const toolbarState: PageToolbarState = {
 		search,
 		viewMode: defaultView,
 		sort: "name", // 添加必需的 sort 属性
 		expanded,
 	};
 
-	// 工具栏回调
-	const toolbarCallbacks = {
+// 工具栏回调
+const toolbarCallbacks: PageToolbarCallbacks<ToolbarServer> = {
 		onSearchChange: setSearch,
 		onViewModeChange: (mode: "grid" | "list") => {
 			// 直接更新全局设置
 			setDashboardSetting("defaultView", mode);
 		},
-		onSortedDataChange: setSortedServers,
+		onSortedDataChange: (data) => setSortedServers(data as ServerSummary[]),
 		onExpandedChange: setExpanded,
 	};
 
@@ -902,7 +900,7 @@ export function ServerListPage() {
 		<PageLayout
 			title="Servers"
 			headerActions={
-				<PageToolbar
+				<PageToolbar<ToolbarServer>
 					config={toolbarConfig}
 					state={toolbarState}
 					callbacks={toolbarCallbacks}
@@ -963,25 +961,12 @@ export function ServerListPage() {
 			</ListGridContainer>
 
 			{/* Server install pipeline */}
-			<ServerInstallManualForm
+			<ServerInstallWizard
 				ref={manualRef}
 				isOpen={manualOpen}
 				onClose={() => setManualOpen(false)}
-				onSubmit={(draft) => installPipeline.begin([draft], "manual")}
-				onSubmitMultiple={(drafts) => installPipeline.begin(drafts, "ingest")}
-			/>
-			<ServerInstallDrawer
+				mode="new"
 				pipeline={installPipeline}
-				onBack={(drafts) => {
-					// Close preview and reopen manual form with the previous draft
-					installPipeline.close();
-					setManualOpen(true);
-					if (drafts && drafts.length === 1) {
-						requestAnimationFrame(() => {
-							manualRef.current?.loadDraft?.(drafts[0]);
-						});
-					}
-				}}
 			/>
 
 			{/* Edit server drawer */}

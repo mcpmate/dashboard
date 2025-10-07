@@ -5,7 +5,7 @@ import { ClientDetailPage } from "./pages/clients/client-detail-page";
 import { ClientsPage } from "./pages/clients/clients-page";
 import { ProfilePage } from "./pages/profile/profile-page";
 import { ProfilePresetPage } from "./pages/profile/profile-preset-page";
-import { ProfileSuitDetailPage } from "./pages/profile/profile-suit-detail-page";
+import { ProfileSuitDetailPage } from "./pages/profile/profile-detail-page";
 import { DashboardPage } from "./pages/dashboard/dashboard-page";
 import { MarketPage } from "./pages/market/market-page";
 import { NotFoundPage } from "./pages/not-found-page";

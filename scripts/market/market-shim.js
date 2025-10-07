@@ -1,20 +1,368 @@
 (() => {
 	try {
-		const prefix = "__MCPMATE_PREFIX__";
-		const remoteOrigin = "__MCPMATE_REMOTE__";
+		// Enhanced error handling for Next.js apps
+		const setupNextjsErrorHandling = () => {
+			if (portalId !== "mcpso") return;
+
+			// Capture and handle Next.js hydration errors
+			window.addEventListener("error", (event) => {
+				if (
+					event.error?.message?.includes("Hydration") ||
+					event.error?.message?.includes("Text content does not match")
+				) {
+					console.warn(
+						"[mcpmate] Suppressed Next.js hydration error:",
+						event.error.message,
+					);
+					event.preventDefault();
+					event.stopPropagation();
+					return false;
+				}
+			});
+
+			// Handle React hydration warnings
+			const originalConsoleError = console.error;
+			console.error = (...args) => {
+				const message = args.join(" ");
+				if (
+					message.includes("Warning: Text content did not match") ||
+					message.includes("Warning: Prop")
+				) {
+					console.warn("[mcpmate] Suppressed React warning:", message);
+					return;
+				}
+				originalConsoleError.apply(console, args);
+			};
+		};
+
+		// Safe global fallbacks to avoid third-party loader aborts
+		if (typeof window !== "undefined") {
+			try {
+				if (typeof window.__name !== "function") {
+					window.__name = (x) => x;
+				}
+				if (!Array.isArray(window.dataLayer)) {
+					window.dataLayer = [];
+				}
+				if (typeof window.gtag !== "function") {
+					window.gtag = function gtag(...args) {
+						try {
+							window.dataLayer.push(args);
+						} catch {}
+					};
+				}
+			} catch {}
+		}
+		const rawConfig =
+			typeof window !== "undefined" ? window.__MCPMATE_PORTAL__ || {} : {};
+		if (typeof window !== "undefined") {
+			try {
+				delete window.__MCPMATE_PORTAL__;
+			} catch (_error) {
+				/* noop */
+			}
+		}
+		const prefixBase =
+			typeof rawConfig.prefix === "string" && rawConfig.prefix.trim()
+				? rawConfig.prefix.trim()
+				: "/market-proxy";
+		const prefix = prefixBase.replace(/\/$/, "");
+		const prefixWithSlash = `${prefix}/`;
+		const remoteOrigin =
+			typeof rawConfig.remoteOrigin === "string" &&
+			rawConfig.remoteOrigin.trim()
+				? rawConfig.remoteOrigin.trim()
+				: window.location.origin;
+		const portalId =
+			typeof rawConfig.portalId === "string" && rawConfig.portalId.trim()
+				? rawConfig.portalId.trim()
+				: "unknown";
+		const adapterId =
+			typeof rawConfig.adapter === "string" && rawConfig.adapter.trim()
+				? rawConfig.adapter.trim()
+				: "default";
+		const adapters = {
+			default: {},
+			mcpmarket: {},
+			mcpso: {
+				detectConfigSnippet: (text, defaultDetector) => {
+					// MCP.so specific configuration detection
+					const result = defaultDetector(text);
+					if (result) return result;
+
+					// Special handling for MCP.so's format
+					if (text.includes('"mcpServers"') || text.includes('"servers"')) {
+						try {
+							const jsonMatch = text.match(/\{[\s\S]*\}/);
+							if (jsonMatch) {
+								const parsed = JSON.parse(jsonMatch[0]);
+								if (parsed.mcpServers || parsed.servers) {
+									return { format: "json", text: jsonMatch[0] };
+								}
+							}
+						} catch {}
+					}
+					return null;
+				},
+			},
+		};
+		const adapter = adapters[adapterId] || adapters.default;
+		const notifyReady = (() => {
+			let sent = false;
+			return () => {
+				if (sent) return;
+				sent = true;
+				try {
+					if (window?.parent && window.parent !== window) {
+						window.parent.postMessage(
+							{
+								type: "mcpmate-market-ready",
+								payload: { portalId, adapter: adapterId },
+							},
+							"*",
+						);
+					}
+				} catch {
+					/* noop */
+				}
+			};
+		})();
+
 		const mapUrl = (input) => {
 			try {
-				if (!input) return input;
-				if (typeof input !== "string") return input;
-				if (input.startsWith("http://") || input.startsWith("https://"))
-					return input;
+				if (!input || typeof input !== "string") return input;
+				// Already mapped to our proxy
 				if (input.startsWith(`${prefix}/`)) return input;
-				if (input.startsWith("/")) return prefix + input;
+				const currentOrigin = window.location.origin;
+				let remoteOriginOrigin = null;
+				try {
+					remoteOriginOrigin = new URL(remoteOrigin).origin;
+				} catch {}
+				// Absolute or protocol-relative URLs
+				try {
+					const abs = new URL(input, currentOrigin);
+					const sameOrigin = abs.origin === currentOrigin;
+					const isRemoteOrigin =
+						remoteOriginOrigin && abs.origin === remoteOriginOrigin;
+					if ((sameOrigin || isRemoteOrigin) && abs.pathname.startsWith("/")) {
+						if (
+							abs.pathname.startsWith("/_next/") ||
+							abs.pathname.startsWith("/static/") ||
+							abs.pathname.startsWith("/assets/") ||
+							abs.pathname.startsWith("/images/") ||
+							// Add special handling for mcp.so's locale routes
+							(portalId === "mcpso" &&
+								abs.pathname.match(/^\/(en|zh|ja)(\/|$)/))
+						) {
+							return `${prefix}${abs.pathname}${abs.search}${abs.hash}`;
+						}
+					}
+				} catch {}
+				// Root-relative URLs
+				if (input.startsWith("/")) {
+					// Special handling for mcp.so locale routes
+					if (portalId === "mcpso" && input.match(/^\/(en|zh|ja)(\/|$)/)) {
+						return `${prefix}${input}`;
+					}
+					return prefix + input;
+				}
+				// Other absolute cross-origin URLs: keep as-is
 				return input;
 			} catch {
 				return input;
 			}
 		};
+		const assetPrefix = `${prefixWithSlash}_next/`;
+		const updatePublicPath = () => {
+			try {
+				const nextRequire =
+					window.__next_require__ ||
+					window.__webpack_require__ ||
+					window.__NEXT_DATA__?.scriptLoader?.webpackRequire ||
+					self.__webpack_require__;
+				if (nextRequire) {
+					try {
+						const current = nextRequire.p;
+						if (
+							typeof current !== "string" ||
+							!String(current).startsWith(prefixWithSlash)
+						) {
+							nextRequire.p = assetPrefix;
+						}
+					} catch {
+						// set regardless
+						nextRequire.p = assetPrefix;
+					}
+				}
+				// Also set webpack public path fallback
+				try {
+					window.__webpack_public_path__ = assetPrefix;
+				} catch {}
+			} catch {
+				/* noop */
+			}
+		};
+		const patchRuntimeEntry = (entry) => {
+			if (!Array.isArray(entry) || entry.length < 3) return;
+			const runtime = entry[2];
+			if (typeof runtime !== "function" || runtime.__mcpmatePatched) return;
+			entry[2] = function patchedRuntime(...args) {
+				updatePublicPath();
+				const result = runtime.apply(this, args);
+				updatePublicPath();
+				return result;
+			};
+			entry[2].__mcpmatePatched = true;
+		};
+		const ensureChunkArrayPatched = () => {
+			try {
+				const chunkArray = window.webpackChunk_N_E;
+				if (!chunkArray) return;
+				if (!chunkArray.__mcpmatePatched) {
+					const originalPush = chunkArray.push;
+					if (typeof originalPush === "function") {
+						chunkArray.push = function patchedPush(...args) {
+							for (let i = 0; i < args.length; i += 1) {
+								patchRuntimeEntry(args[i]);
+							}
+							updatePublicPath();
+							const res = originalPush.apply(this, args);
+							updatePublicPath();
+							return res;
+						};
+						chunkArray.push.__mcpmatePatched = true;
+					}
+					chunkArray.__mcpmatePatched = true;
+				}
+				chunkArray.forEach(patchRuntimeEntry);
+			} catch {
+				/* noop */
+			}
+		};
+		const ensureNextPublicPath = () => {
+			updatePublicPath();
+			ensureChunkArrayPatched();
+		};
+		const patchUrlSetter = (Ctor, property) => {
+			try {
+				if (!Ctor || !Ctor.prototype) return;
+				const descriptor = Object.getOwnPropertyDescriptor(
+					Ctor.prototype,
+					property,
+				);
+				if (!descriptor || typeof descriptor.set !== "function") return;
+				const originalSet = descriptor.set;
+				const originalGet = descriptor.get;
+				Object.defineProperty(Ctor.prototype, property, {
+					configurable: descriptor.configurable !== false,
+					enumerable: descriptor.enumerable ?? false,
+					get: originalGet
+						? function get() {
+								return originalGet.call(this);
+							}
+						: undefined,
+					set(value) {
+						let mapped = value;
+						try {
+							mapped = mapUrl(value);
+						} catch {
+							mapped = value;
+						}
+						return originalSet.call(this, mapped);
+					},
+				});
+			} catch {
+				/* noop */
+			}
+		};
+		const patchSetAttribute = () => {
+			try {
+				const rawSetAttribute = Element.prototype.setAttribute;
+				if (!rawSetAttribute || rawSetAttribute.__mcpmatePatched) return;
+				const shouldMap = new Set(["src", "href", "action", "data"]);
+				const shouldMapStartsWith = ["data-src", "data-href", "data-url"];
+				const patched = function (name, value) {
+					let nextValue = value;
+					try {
+						if (typeof name === "string") {
+							const lower = name.toLowerCase();
+							if (
+								shouldMap.has(lower) ||
+								shouldMapStartsWith.some((item) => lower.startsWith(item))
+							) {
+								nextValue = mapUrl(value);
+							}
+						}
+					} catch {
+						nextValue = value;
+					}
+					return rawSetAttribute.call(this, name, nextValue);
+				};
+				patched.__mcpmatePatched = true;
+				Element.prototype.setAttribute = patched;
+			} catch {
+				/* noop */
+			}
+		};
+
+		const rewriteNodeResource = (node) => {
+			try {
+				if (!node || !node.tagName) return;
+				const tag = String(node.tagName || "").toLowerCase();
+				if (tag === "script") {
+					if (node.src) {
+						const mapped = mapUrl(node.src);
+						if (mapped && mapped !== node.src) node.src = mapped;
+					}
+				} else if (tag === "link") {
+					if (node.href) {
+						const mapped = mapUrl(node.href);
+						if (mapped && mapped !== node.href) node.href = mapped;
+					}
+				} else if (tag === "img") {
+					if (node.src) {
+						const mapped = mapUrl(node.src);
+						if (mapped && mapped !== node.src) node.src = mapped;
+					}
+				}
+			} catch {
+				/* noop */
+			}
+		};
+
+		const patchInsertionHooks = () => {
+			try {
+				const rawAppend = Element.prototype.appendChild;
+				if (!rawAppend.__mcpmatePatched) {
+					Element.prototype.appendChild = function (child) {
+						rewriteNodeResource(child);
+						return rawAppend.call(this, child);
+					};
+					Element.prototype.appendChild.__mcpmatePatched = true;
+				}
+				const rawInsert = Element.prototype.insertBefore;
+				if (!rawInsert.__mcpmatePatched) {
+					Element.prototype.insertBefore = function (child, ref) {
+						rewriteNodeResource(child);
+						return rawInsert.call(this, child, ref);
+					};
+					Element.prototype.insertBefore.__mcpmatePatched = true;
+				}
+			} catch {
+				/* noop */
+			}
+		};
+		if (!window.__mcpmatePatchedUrlSetters) {
+			window.__mcpmatePatchedUrlSetters = true;
+			patchUrlSetter(window.HTMLScriptElement, "src");
+			patchUrlSetter(window.HTMLLinkElement, "href");
+			patchUrlSetter(window.HTMLImageElement, "src");
+			patchUrlSetter(window.HTMLAnchorElement, "href");
+			patchSetAttribute();
+			patchInsertionHooks();
+		}
+		ensureNextPublicPath();
+		setupNextjsErrorHandling();
 		const rewriteLogoElement = (node) => {
 			try {
 				if (!node) return;
@@ -52,12 +400,12 @@
 							try {
 								node.style.backgroundImage = `url(${targetIcon})`;
 								node.setAttribute("data-mcpmate-icon-loaded", "1");
-							} catch (err) {
+							} catch {
 								/* noop */
 							}
 						};
 						img.src = targetIcon;
-					} catch (err) {
+					} catch {
 						/* noop */
 					}
 				}
@@ -93,110 +441,13 @@
 		const ensureStyles = () => {
 			const id = "mcpmate-market-outline-style";
 			if (document.getElementById(id)) return;
-			const style = document.createElement("style");
-			style.id = id;
-			style.textContent = `
-.mcpmate-code-outline {
-  position: relative;
-}
 
-.mcpmate-code-outline code {
-  background: transparent;
-}
-
-.mcpmate-config-button {
-  position: absolute;
-  right: 0.5rem;
-  bottom: 0.5rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  padding: 0.2rem 0.6rem;
-  min-height: 1.75rem;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  background: rgba(241, 245, 249, 0.82);
-  backdrop-filter: blur(6px);
-  cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-}
-
-.mcpmate-config-button:focus-visible {
-  outline: 2px solid rgba(15, 23, 42, 0.45);
-  outline-offset: 2px;
-}
-
-.mcpmate-config-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: url("https://mcpmate.io/logo.svg") center / cover no-repeat;
-  flex-shrink: 0;
-  filter: invert(0);
-}
-
-.mcpmate-config-label {
-  display: inline-flex;
-  color: inherit;
-  max-width: 0;
-  opacity: 0;
-  transform: translateX(-6px);
-  overflow: hidden;
-  transition: max-width 0.24s ease, opacity 0.18s ease, transform 0.18s ease, margin-left 0.18s ease;
-  margin-left: 0;
-}
-
-.mcpmate-code-outline:hover {
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(148, 163, 184, 0.45);
-  background: var(--mcpmate-card-bg, rgba(248, 250, 252, 0.96)) !important;
-}
-
-.mcpmate-code-outline:hover .mcpmate-config-icon {
-  opacity: 0.9;
-}
-
-.mcpmate-code-outline:hover .mcpmate-config-label,
-.mcpmate-config-button:focus .mcpmate-config-label {
-  max-width: 200px;
-  opacity: 1;
-  transform: translateX(0);
-  margin-left: 0.35rem;
-}
-
-.mcpmate-config-button:hover {
-  transform: translateY(-1px);
-  border-color: rgba(148, 163, 184, 0.45);
-  background: rgba(241, 245, 249, 0.92);
-}
-
-@media (prefers-color-scheme: dark) {
-  .mcpmate-code-outline:hover {
-    background: rgba(30, 41, 59, 0.72) !important;
-    box-shadow: 0 12px 34px rgba(15, 23, 42, 0.38), 0 0 0 1px rgba(148, 163, 184, 0.32);
-  }
-
-  .mcpmate-config-button {
-    color: #f8fafc;
-    border-color: rgba(148, 163, 184, 0.4);
-    background: rgba(30, 41, 59, 0.56);
-  }
-
-  .mcpmate-code-outline:hover .mcpmate-config-button,
-  .mcpmate-config-button:focus {
-    background: rgba(30, 41, 59, 0.75);
-    border-color: rgba(148, 163, 184, 0.55);
-  }
-
-  .mcpmate-config-label {
-    color: #f8fafc;
-  }
-
-  .mcpmate-config-icon {
-    filter: invert(1);
-  }
-}
-`;
-			document.head.appendChild(style);
+			// Load external CSS file
+			const link = document.createElement("link");
+			link.id = id;
+			link.rel = "stylesheet";
+			link.href = `${prefix}/scripts/market/market-style.css`;
+			document.head.appendChild(link);
 		};
 		const cleanupKey = "__mcpmateMarketCleanup";
 		const stateKey = "__mcpmateMarketCleanupState";
@@ -269,17 +520,13 @@
 		};
 		const _open = window.XMLHttpRequest?.prototype.open;
 		if (_open) {
-			window.XMLHttpRequest.prototype.open = function (method, url) {
+			window.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
 				const mapped = mapUrl(url);
-				return _open.apply(this, [
-					method,
-					mapped,
-					...Array.prototype.slice.call(arguments, 2),
-				]);
+				return _open.apply(this, [method, mapped, ...rest]);
 			};
 		}
 		try {
-			window.open = (url, target, features) => {
+			window.open = (url) => {
 				try {
 					if (url) window.location.href = mapUrl(url);
 				} catch {
@@ -295,8 +542,31 @@
 					if (!a) return;
 					const href = a.getAttribute("href");
 					if (!href) return;
-					if (a.getAttribute("target") === "_blank") {
+
+					// Check if this is an internal link (same origin or relative path)
+					const isInternalLink = (() => {
+						try {
+							// Relative paths are internal
+							if (
+								href.startsWith("/") ||
+								href.startsWith("./") ||
+								href.startsWith("../")
+							) {
+								return true;
+							}
+							// Check if absolute URL is same origin
+							const linkUrl = new URL(href, window.location.href);
+							return linkUrl.origin === window.location.origin;
+						} catch {
+							return false;
+						}
+					})();
+
+					// For internal links or _blank links, prevent default and navigate manually
+					// This bypasses Next.js client-side routing which doesn't understand our proxy paths
+					if (isInternalLink || a.getAttribute("target") === "_blank") {
 						e.preventDefault();
+						e.stopPropagation();
 						window.location.href = mapUrl(href);
 					}
 				},
@@ -309,9 +579,11 @@
 			Boolean(value) && typeof value === "object" && !Array.isArray(value);
 		const looksLikeServerEntry = (entry) => {
 			if (!isPlainObject(entry)) return false;
-			const hasCommand = typeof entry.command === "string" || typeof entry.launch === "string";
+			const hasCommand =
+				typeof entry.command === "string" || typeof entry.launch === "string";
 			const hasArgs = Array.isArray(entry.args) && entry.args.length > 0;
-			const hasEnv = isPlainObject(entry.env) && Object.keys(entry.env).length > 0;
+			const hasEnv =
+				isPlainObject(entry.env) && Object.keys(entry.env).length > 0;
 			const hasTransport =
 				typeof entry.kind === "string" ||
 				typeof entry.type === "string" ||
@@ -343,7 +615,7 @@
 			const trimmed = rawText.trim();
 			if (!trimmed) return false;
 			const candidate = (() => {
-				if (/^[\[{]/.test(trimmed)) return trimmed;
+				if (/^[[{]/.test(trimmed)) return trimmed;
 				const firstBrace = trimmed.indexOf("{");
 				const lastBrace = trimmed.lastIndexOf("}");
 				if (firstBrace >= 0 && lastBrace > firstBrace) {
@@ -362,14 +634,17 @@
 			const text = rawText.trim();
 			if (!text) return false;
 			const hasSection =
-				/\[\s*(?:mcp(?:\.[^\]]+)?|mcp_servers[^\]]*|servers)\s*\]/i.test(text) ||
-				/\[\[\s*servers\s*\]\]/i.test(text);
-			const keyHits = text.match(/^(\s*)(command|args|env|type|kind|transport|url|binary)\s*=\s*/gim);
+				/\[\s*(?:mcp(?:\.[^\]]+)?|mcp_servers[^\]]*|servers)\s*\]/i.test(
+					text,
+				) || /\[\[\s*servers\s*\]\]/i.test(text);
+			const keyHits = text.match(
+				/^(\s*)(command|args|env|type|kind|transport|url|binary)\s*=\s*/gim,
+			);
 			if (hasSection && keyHits && keyHits.length >= 1) return text;
 			if (keyHits && keyHits.length >= 2) return text;
 			return false;
 		};
-		const detectConfigSnippet = (text) => {
+		const defaultDetectConfigSnippet = (text) => {
 			const content = text.trim();
 			if (!content) return null;
 			const jsonCandidate = tryParseJsonConfig(content);
@@ -382,13 +657,34 @@
 			}
 			return null;
 		};
+		const detectConfigSnippet = (text) => {
+			if (typeof adapter.detectConfigSnippet === "function") {
+				try {
+					const result = adapter.detectConfigSnippet(
+						text,
+						defaultDetectConfigSnippet,
+					);
+					if (result) return result;
+				} catch (_error) {
+					/* noop */
+				}
+			}
+			return defaultDetectConfigSnippet(text);
+		};
 		const toRemoteUrl = () => {
 			try {
 				const current = new URL(window.location.href);
-				if (current.pathname.startsWith(prefix)) {
-					const remote = new URL(remoteOrigin);
-					const rest = current.pathname.slice(prefix.length);
-					remote.pathname = rest || '/';
+				const withSlash = prefixWithSlash;
+				const withoutSlash = prefix;
+				let remainder = null;
+				if (current.pathname === withoutSlash) {
+					remainder = "/";
+				} else if (current.pathname.startsWith(withSlash)) {
+					const raw = current.pathname.slice(withSlash.length);
+					remainder = raw ? (raw.startsWith("/") ? raw : `/${raw}`) : "/";
+				}
+				if (remainder !== null) {
+					const remote = new URL(remainder, remoteOrigin);
 					remote.search = current.search;
 					remote.hash = current.hash;
 					return remote.toString();
@@ -423,6 +719,8 @@
 									: "",
 							format: button.dataset.mcpmateFormat ?? "unknown",
 							source: toRemoteUrl(),
+							portalId,
+							adapter: adapterId,
 						},
 					};
 					try {
@@ -436,7 +734,11 @@
 				pre.appendChild(button);
 			}
 			button.dataset.mcpmateFormat = detection.format;
-			button.querySelectorAll(".mcpmate-config-label").forEach((node) => node.remove());
+			button.dataset.mcpmatePortal = portalId;
+			button.dataset.mcpmateAdapter = adapterId;
+			button.querySelectorAll(".mcpmate-config-label").forEach((node) => {
+				node.remove();
+			});
 			const textNode = document.createElement("span");
 			textNode.className = "mcpmate-config-label";
 			textNode.textContent = "MCPMate";
@@ -473,22 +775,26 @@
 				/* noop */
 			}
 		};
+		const initialReady = () => {
+			mark(document);
+			scanLogos(document);
+			rewriteAnchors(document);
+			notifyReady();
+		};
+
 		if (document.readyState === "loading") {
 			document.addEventListener(
 				"DOMContentLoaded",
 				() => {
-					mark(document);
-					scanLogos(document);
-					rewriteAnchors(document);
+					initialReady();
 				},
 				{ once: true },
 			);
 		} else {
-			mark(document);
-			scanLogos(document);
-			rewriteAnchors(document);
+			initialReady();
 		}
 		state.intervalId = window.setInterval(() => {
+			ensureNextPublicPath();
 			mark(document);
 			scanLogos(document);
 			rewriteAnchors(document);
@@ -507,6 +813,7 @@
 						});
 					}
 				}
+				notifyReady();
 			});
 			state.observer = mo;
 			mo.observe(target, { childList: true, subtree: true });

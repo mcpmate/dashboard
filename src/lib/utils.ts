@@ -109,10 +109,41 @@ export function getStatusVariant(
 }
 
 /**
+ * Formats a backup timestamp to a user-friendly local time format
+ */
+export function formatBackupTime(timestamp: string | null | undefined): string {
+	if (!timestamp) return "-";
+
+	try {
+		const date = new Date(timestamp);
+		const now = new Date();
+		const diffMs = now.getTime() - date.getTime();
+		const diffHours = diffMs / (1000 * 60 * 60);
+
+		// If less than 24 hours, show relative time
+		if (diffHours < 24) {
+			return formatDistance(date, now, { addSuffix: true });
+		}
+
+		// Otherwise show local date and time
+		return date.toLocaleString(undefined, {
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		});
+	} catch (error) {
+		return "Invalid date";
+	}
+}
+
+/**
  * Truncate a string if it's too long
  */
 export function truncate(str: string | undefined | null, length: number) {
-	if (!str || typeof str !== 'string') return "N/A";
+	if (!str || typeof str !== "string") return "N/A";
 	if (str.length <= length) return str;
 	return `${str.slice(0, length)}...`;
 }

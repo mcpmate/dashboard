@@ -1,5 +1,5 @@
 import { Moon, RotateCcw, Sun } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
 import {
 	Card,
@@ -33,8 +33,12 @@ import {
 	type DashboardLanguage,
 	type DashboardSettings,
 	type MarketBlacklistEntry,
+	type DefaultMarket,
 	useAppStore,
 } from "../../lib/store";
+import type { OpenSourceDocument } from "../../types/open-source";
+import { AboutLicensesSection } from "./about-licenses-section";
+import { mergePortalOverrides } from "../market/portal-registry";
 
 // Options for Segment components
 const THEME_OPTIONS: SegmentOption[] = [
@@ -74,9 +78,62 @@ export function SettingsPage() {
 	const removeFromMarketBlacklist = useAppStore(
 		(state) => state.removeFromMarketBlacklist,
 	);
+	const [licenseDocument, setLicenseDocument] = useState<OpenSourceDocument | null>(null);
+	const [licenseLoaded, setLicenseLoaded] = useState(false);
 
 	const tabTriggerClass =
 		"justify-start px-3 py-2 text-left text-sm font-medium text-slate-600 data-[state=active]:text-emerald-700 dark:text-slate-300";
+
+	// Build available portals list for Default Market selector
+	const availablePortals = useMemo(
+		() =>
+			Object.values(
+				mergePortalOverrides(dashboardSettings.marketPortals),
+			).sort((a, b) => a.label.localeCompare(b.label)),
+		[dashboardSettings.marketPortals],
+	);
+
+	useEffect(() => {
+		let cancelled = false;
+		const noticesUrl = `${import.meta.env.BASE_URL}open-source-notices.json`;
+
+		const loadLicenses = async () => {
+			try {
+				const response = await fetch(noticesUrl, {
+					cache: "no-store",
+				});
+
+				if (!response.ok) {
+					return;
+				}
+
+				const data = (await response.json()) as OpenSourceDocument;
+				if (
+					!cancelled &&
+					data &&
+					Array.isArray(data.sections)
+				) {
+					setLicenseDocument(data);
+				}
+			} catch (error) {
+				if (import.meta.env.DEV) {
+					console.warn("[SettingsPage] Unable to load open-source notices:", error);
+				}
+			} finally {
+				if (!cancelled) {
+					setLicenseLoaded(true);
+				}
+			}
+		};
+
+		void loadLicenses();
+
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	const showLicenseTab = licenseLoaded && licenseDocument !== null;
 
 	return (
 		<div className="space-y-4">
@@ -106,6 +163,11 @@ export function SettingsPage() {
 					<TabsTrigger value="develop" className={tabTriggerClass}>
 						Developer
 					</TabsTrigger>
+					{showLicenseTab && (
+						<TabsTrigger value="about" className={tabTriggerClass}>
+							About &amp; Licenses
+						</TabsTrigger>
+					)}
 				</TabsList>
 
 				<div className="flex-1">
@@ -467,6 +529,23 @@ export function SettingsPage() {
 										}
 									/>
 								</div>
+
+								{/* Show Default Headers (redacted) */}
+								<div className="flex items-center justify-between gap-4">
+									<div>
+										<h3 className="text-base font-medium">Show Default HTTP Headers</h3>
+										<p className="text-sm text-slate-500">
+											Display the server's default HTTP headers (values are redacted) in
+											Server Details. Use only for debugging.
+										</p>
+									</div>
+									<Switch
+										checked={dashboardSettings.showDefaultHeaders}
+										onCheckedChange={(checked) =>
+											setDashboardSetting("showDefaultHeaders", checked)
+										}
+									/>
+								</div>
 							</CardContent>
 						</Card>
 					</TabsContent>
@@ -477,8 +556,14 @@ export function SettingsPage() {
 							onRestore={removeFromMarketBlacklist}
 							setDashboardSetting={setDashboardSetting}
 							dashboardSettings={dashboardSettings}
+							availablePortals={availablePortals}
 						/>
 					</TabsContent>
+					{showLicenseTab && licenseDocument && (
+						<TabsContent value="about" className="mt-0 h-full">
+							<AboutLicensesSection document={licenseDocument} />
+						</TabsContent>
+					)}
 				</div>
 			</Tabs>
 		</div>
@@ -493,6 +578,7 @@ interface MarketBlacklistCardProps {
 		value: DashboardSettings[K],
 	) => void;
 	dashboardSettings: DashboardSettings;
+	availablePortals: Array<{ id: string; label: string }>;
 }
 
 function MarketBlacklistCard({
@@ -500,6 +586,7 @@ function MarketBlacklistCard({
 	onRestore,
 	setDashboardSetting,
 	dashboardSettings,
+	availablePortals,
 }: MarketBlacklistCardProps) {
 	const searchId = useId();
 	const sortId = useId();
@@ -553,10 +640,7 @@ function MarketBlacklistCard({
 					<Select
 						value={dashboardSettings.defaultMarket}
 						onValueChange={(value) =>
-							setDashboardSetting(
-								"defaultMarket",
-								value as "official" | "mcpmarket",
-							)
+							setDashboardSetting("defaultMarket", value as DefaultMarket)
 						}
 					>
 						<SelectTrigger className="w-48">
@@ -564,7 +648,11 @@ function MarketBlacklistCard({
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="official">Official MCP Registry</SelectItem>
-							<SelectItem value="mcpmarket">MCP Market</SelectItem>
+							{availablePortals.map((portal) => (
+								<SelectItem key={portal.id} value={portal.id}>
+									{portal.label}
+								</SelectItem>
+							))}
 						</SelectContent>
 					</Select>
 				</div>

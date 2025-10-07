@@ -1,8 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, Bug, Check, Edit3, Play, RefreshCw, Square, Trash2 } from "lucide-react";
+import {
+	BadgeCheck,
+	Bug,
+	Check,
+	Edit3,
+	Play,
+	RefreshCw,
+	Square,
+	Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { CachedAvatar } from "../../components/cached-avatar";
 import CapabilityList from "../../components/capability-list";
+import {
+	CapsuleStripeList,
+	CapsuleStripeListItem,
+} from "../../components/capsule-stripe-list";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import {
 	AlertDialog,
@@ -14,10 +28,10 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "../../components/ui/alert-dialog";
-import { CachedAvatar } from "../../components/cached-avatar";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { ButtonGroup } from "../../components/ui/button-group";
 import {
 	Card,
 	CardContent,
@@ -305,23 +319,23 @@ export function ProfileSuitDetailPage() {
 		},
 	});
 
-const deactivateSuitMutation = useMutation({
-	mutationFn: () => configSuitsApi.deactivateSuit(suitId!),
-	onSuccess: () => {
-		queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
-		queryClient.invalidateQueries({ queryKey: ["configSuits"] });
-		notifySuccess(
-			"Profile deactivated",
-			"Profile has been successfully deactivated",
-		);
-	},
-	onError: (error) => {
-		notifyError(
-			"Deactivation failed",
-			`Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	},
-});
+	const deactivateSuitMutation = useMutation({
+		mutationFn: () => configSuitsApi.deactivateSuit(suitId!),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
+			notifySuccess(
+				"Profile deactivated",
+				"Profile has been successfully deactivated",
+			);
+		},
+		onError: (error) => {
+			notifyError(
+				"Deactivation failed",
+				`Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
+	});
 
 	const toggleDefaultMutation = useMutation({
 		mutationFn: (nextDefault: boolean) =>
@@ -460,16 +474,16 @@ const deactivateSuitMutation = useMutation({
 			refetchPrompts();
 			notifySuccess("Prompt updated", "Prompt status has been updated");
 		},
-	onError: (error) => {
-		notifyError(
-			"Prompt update failed",
-			`Failed to update prompt: ${error instanceof Error ? error.message : String(error)}`,
-		);
-	},
-});
+		onError: (error) => {
+			notifyError(
+				"Prompt update failed",
+				`Failed to update prompt: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
+	});
 
-const suitRole = suit?.role ?? "user";
-const isDefaultAnchor = suitRole === "default_anchor";
+	const suitRole = suit?.role ?? "user";
+	const isDefaultAnchor = suitRole === "default_anchor";
 	const defaultButtonDisabled =
 		!suit || isDefaultAnchor || toggleDefaultMutation.isPending;
 	const defaultButtonLabel = !suit
@@ -485,9 +499,9 @@ const isDefaultAnchor = suitRole === "default_anchor";
 				toggleDefaultMutation.isPending ? "animate-spin" : ""
 			}`}
 		/>
-) : (
+	) : (
 		<Square className="h-4 w-4" />
-);
+	);
 
 	const handleSuitToggle = () => {
 		if (isDefaultAnchor) {
@@ -615,17 +629,17 @@ const isDefaultAnchor = suitRole === "default_anchor";
 									<Badge variant={suit.is_active ? "default" : "secondary"}>
 										{suit.suit_type}
 									</Badge>
-													{suit.is_active && (
-														<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-															<Check className="mr-1 h-3 w-3" />
-															Active
-														</span>
-													)}
-													{suitRole === "default_anchor" ? (
-														<Badge variant="outline">Default Anchor</Badge>
-													) : suit.is_default ? (
-														<Badge variant="outline">In Default</Badge>
-													) : null}
+									{suit.is_active && (
+										<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+											<Check className="mr-1 h-3 w-3" />
+											Active
+										</span>
+									)}
+									{suitRole === "default_anchor" ? (
+										<Badge variant="outline">Default Anchor</Badge>
+									) : suit.is_default ? (
+										<Badge variant="outline">In Default</Badge>
+									) : null}
 								</div>
 								{suit.description && (
 									<p className="text-sm text-muted-foreground mt-1">
@@ -726,7 +740,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 													</span>
 												</div>
 											</div>
-											<div className="flex flex-wrap items-start justify-end gap-2 self-start">
+											<ButtonGroup className="ml-auto flex-shrink-0 flex-nowrap self-start">
 												<Button
 													variant="outline"
 													size="sm"
@@ -759,26 +773,26 @@ const isDefaultAnchor = suitRole === "default_anchor";
 													{defaultButtonIcon}
 													{defaultButtonLabel}
 												</Button>
-											{suitRole === "user" && (
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={handleSuitToggle}
-												disabled={
-													isDefaultAnchor ||
-													activateSuitMutation.isPending ||
-													deactivateSuitMutation.isPending
-												}
-												className="gap-2"
-											>
-												{suit?.is_active ? (
-													<Square className="h-4 w-4" />
-												) : (
-													<Play className="h-4 w-4" />
+												{suitRole === "user" && (
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={handleSuitToggle}
+														disabled={
+															isDefaultAnchor ||
+															activateSuitMutation.isPending ||
+															deactivateSuitMutation.isPending
+														}
+														className="gap-2"
+													>
+														{suit?.is_active ? (
+															<Square className="h-4 w-4" />
+														) : (
+															<Play className="h-4 w-4" />
+														)}
+														{suit?.is_active ? "Disable" : "Enable"}
+													</Button>
 												)}
-												{suit?.is_active ? "Disable" : "Enable"}
-											</Button>
-											)}
 												<Button
 													variant="destructive"
 													size="sm"
@@ -789,7 +803,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 													<Trash2 className="h-4 w-4" />
 													Delete
 												</Button>
-											</div>
+											</ButtonGroup>
 										</div>
 									</div>
 								</CardContent>
@@ -897,7 +911,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 													<SelectItem value="disabled">Disabled</SelectItem>
 												</SelectContent>
 											</Select>
-											<div className="hidden md:flex items-center gap-1 ml-2">
+											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
 													size="sm"
@@ -937,7 +951,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 												>
 													Disable
 												</Button>
-											</div>
+											</ButtonGroup>
 										</div>
 									)}
 								</div>
@@ -956,7 +970,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 										))}
 									</div>
 								) : visibleServers.length > 0 ? (
-									<div className="space-y-4">
+									<CapsuleStripeList>
 										{visibleServers.map((server) => {
 											const global = (globalServers as any[]).find(
 												(gs: any) => gs.name === server.name,
@@ -968,13 +982,16 @@ const isDefaultAnchor = suitRole === "default_anchor";
 												.slice(0, 1)
 												.toUpperCase();
 											const iconAlt = global?.name || server.name || server.id;
-											const globalDescription = global?.meta?.description?.trim();
+											const globalDescription =
+												global?.meta?.description?.trim();
+											const selected = selectedServerIds.includes(server.id);
 											return (
-												<div
+												<CapsuleStripeListItem
 													key={server.id}
-													className={`flex items-center justify-between rounded-lg border p-4 ${selectedServerIds.includes(server.id) ? "bg-accent/50 ring-1 ring-primary/40" : ""}`}
-													role="button"
-													tabIndex={0}
+													interactive
+													className={`group relative transition-colors ${
+														selected ? "bg-primary/10 ring-1 ring-primary/40" : ""
+													}`}
 													onClick={() =>
 														setSelectedServerIds((prev) =>
 															prev.includes(server.id)
@@ -993,74 +1010,87 @@ const isDefaultAnchor = suitRole === "default_anchor";
 														}
 													}}
 												>
-												<div className="flex flex-1 items-center gap-3">
-													<CachedAvatar
-														src={globalIcon}
-														alt={iconAlt ? `${iconAlt} icon` : undefined}
-														fallback={avatarFallback}
-														size="sm"
-														shape="rounded"
-													/>
-													<div>
-														<h3 className="font-medium">{server.name}</h3>
-														<p className="text-sm text-slate-500">
-															ID: {server.id}
-														</p>
-														{globalDescription ? (
-															<p className="text-xs text-slate-500 line-clamp-2">
-																{globalDescription}
-															</p>
-														) : null}
-													</div>
-												</div>
-													<div className="flex items-center gap-2">
-														<div className="flex items-center gap-1 text-xs text-slate-600">
-															{server.enabled ? (
-																<Badge>Enabled</Badge>
-															) : (
-																<Badge variant="outline">Disabled</Badge>
-															)}
-															{globallyEnabled !== undefined &&
-																(globallyEnabled ? (
-																	<Badge>Global Enabled</Badge>
-																) : (
-																	<Badge variant="outline">
-																		Global Disabled
-																	</Badge>
-																))}
-														</div>
-														<Switch
-															checked={server.enabled}
-															onClick={(e) => e.stopPropagation()}
-															onCheckedChange={(enabled) =>
-																serverToggleMutation.mutate({
-																	serverId: server.id,
-																	enable: enabled,
-																})
-															}
-															disabled={serverToggleMutation.isPending}
-														/>
-														{enableServerDebug && (
-															<Button
-																size="sm"
-																variant="outline"
-																className="gap-1"
-																onClick={(ev) => {
-																	ev.stopPropagation();
-																	openDebug(
-																		server.id,
-																		server.enabled ? "proxy" : "native",
-																	);
-																}}
+													<div className="flex w-full items-center justify-between gap-4">
+														<div className="flex flex-1 items-center gap-3">
+															<div
+																className={`flex h-6 w-6 items-center justify-center rounded-full border text-[0px] transition-all duration-200 ${
+																	selected
+																		? "border-primary bg-primary text-white shadow-sm"
+																		: "border-slate-300 text-transparent group-hover:border-primary/50 group-hover:text-primary/60 dark:border-slate-700 dark:group-hover:border-primary/50"
+																}`}
 															>
-																<Bug className="h-4 w-4" />
-															</Button>
-														)}
-													</div>
-												</div>
+																<Check className="h-3 w-3" />
+															</div>
+															<CachedAvatar
+																src={globalIcon}
+																alt={iconAlt ? `${iconAlt} icon` : undefined}
+																fallback={avatarFallback}
+																size="sm"
+																shape="rounded"
+															/>
+																<div className="min-w-0">
+																	<h3 className="font-medium text-slate-900 dark:text-slate-100">
+																		{server.name}
+																	</h3>
+																	<p className="text-sm text-slate-500">
+																		ID: {server.id}
+																	</p>
+																	{globalDescription ? (
+																		<p className="text-xs text-slate-500 line-clamp-2">
+																			{globalDescription}
+																		</p>
+																	) : null}
+																</div>
+															</div>
+															<div className="flex items-center gap-2">
+																<div className="flex items-center gap-1 text-xs text-slate-600">
+																	{server.enabled ? (
+																		<Badge>Enabled</Badge>
+																	) : (
+																		<Badge variant="outline">Disabled</Badge>
+																	)}
+																	{globallyEnabled !== undefined &&
+																		(globallyEnabled ? (
+																			<Badge>Global Enabled</Badge>
+																		) : (
+																			<Badge variant="outline">
+																				Global Disabled
+																			</Badge>
+																		))}
+																</div>
+																<Switch
+																	checked={server.enabled}
+																	onClick={(e) => e.stopPropagation()}
+																	onCheckedChange={(enabled) =>
+																		serverToggleMutation.mutate({
+																			serverId: server.id,
+																			enable: enabled,
+																		})
+																	}
+																	disabled={serverToggleMutation.isPending}
+																/>
+																{enableServerDebug && (
+																	<Button
+																		size="sm"
+																		variant="outline"
+																		className="gap-1"
+																		onClick={(ev) => {
+																			ev.stopPropagation();
+																			openDebug(
+																				server.id,
+																				server.enabled ? "proxy" : "native",
+																			);
+																		}}
+																	>
+																		<Bug className="h-4 w-4" />
+																	</Button>
+																)}
+															</div>
+														</div>
+													</CapsuleStripeListItem>
 											);
 										})}
-									</div>
+									</CapsuleStripeList>
 								) : (
 									<p className="text-center text-slate-500 py-8">
 										No servers found in this profile
@@ -1119,7 +1149,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 													))}
 												</SelectContent>
 											</Select>
-											<div className="hidden md:flex items-center gap-1 ml-2">
+											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
 													size="sm"
@@ -1157,7 +1187,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 												>
 													Disable
 												</Button>
-											</div>
+											</ButtonGroup>
 										</div>
 									)}
 								</div>
@@ -1261,7 +1291,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 													))}
 												</SelectContent>
 											</Select>
-											<div className="hidden md:flex items-center gap-1 ml-2">
+											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
 													size="sm"
@@ -1305,7 +1335,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 												>
 													Disable
 												</Button>
-											</div>
+											</ButtonGroup>
 										</div>
 									)}
 								</div>
@@ -1412,7 +1442,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 													))}
 												</SelectContent>
 											</Select>
-											<div className="hidden md:flex items-center gap-1 ml-2">
+											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
 													size="sm"
@@ -1452,7 +1482,7 @@ const isDefaultAnchor = suitRole === "default_anchor";
 												>
 													Disable
 												</Button>
-											</div>
+											</ButtonGroup>
 										</div>
 									)}
 								</div>

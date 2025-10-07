@@ -31,6 +31,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "./ui/select";
+import { Segment } from "./ui/segment";
 import { Switch } from "./ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
@@ -70,9 +71,9 @@ const syncSuitServers = async (
 };
 
 const KNOWN_PROFILE_TYPES: Array<{ value: string; label: string }> = [
+	{ value: "shared", label: "Shared" },
 	{ value: "host_app", label: "Host Application" },
 	{ value: "scenario", label: "Scenario" },
-	{ value: "shared", label: "Shared" },
 ];
 
 const formatProfileTypeLabel = (value: string) =>
@@ -691,23 +692,17 @@ export function SuitFormDrawer({
 					>
 						Profile Type
 					</Label>
-					<Select
-						value={formData.suit_type}
-						onValueChange={(value) =>
-							setFormData((prev) => ({ ...prev, suit_type: value }))
-						}
-					>
-						<SelectTrigger id={suitTypeId} className="flex-1">
-							<SelectValue placeholder="Select profile type" />
-						</SelectTrigger>
-						<SelectContent>
-							{profileTypeOptions.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<div className="flex-1">
+						<Segment
+							value={formData.suit_type}
+							onValueChange={(value) =>
+								setFormData((prev) => ({ ...prev, suit_type: value }))
+							}
+							options={profileTypeOptions}
+							showDots
+							className="w-full"
+						/>
+					</div>
 				</div>
 
 				<div className="flex items-start gap-4">
@@ -848,23 +843,17 @@ export function SuitFormDrawer({
 				>
 					Profile Type
 				</Label>
-				<Select
-					value={formData.suit_type}
-					onValueChange={(value) =>
-						setFormData((prev) => ({ ...prev, suit_type: value }))
-					}
-				>
-					<SelectTrigger id={suitTypeId} className="flex-1">
-						<SelectValue placeholder="Select profile type" />
-					</SelectTrigger>
-					<SelectContent>
-						{profileTypeOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
-								{option.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				<div className="flex-1">
+					<Segment
+						value={formData.suit_type}
+						onValueChange={(value) =>
+							setFormData((prev) => ({ ...prev, suit_type: value }))
+						}
+						options={profileTypeOptions}
+						showDots
+						className="w-full"
+					/>
+				</div>
 			</div>
 
 			<div className="flex items-start gap-4">

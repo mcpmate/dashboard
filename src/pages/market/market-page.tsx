@@ -1,11 +1,8 @@
 import { ArrowUp } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorDisplay } from "../../components/error-display";
-import { ServerInstallDrawer } from "../../components/server-install-drawer";
-import {
-	ServerInstallManualForm,
-	type ServerInstallManualFormHandle,
-} from "../../components/server-uni-import";
+import { ServerInstallWizard } from "../../components/uniimport/server-install-wizard";
+import type { ServerInstallManualFormHandle } from "../../components/uniimport/types";
 import { Button } from "../../components/ui/button";
 import { useServerInstallPipeline } from "../../hooks/use-server-install-pipeline";
 import { notifyError, notifyInfo } from "../../lib/notify";
@@ -52,7 +49,26 @@ interface RemoteOption {
 
 export function MarketPage() {
 	// Use custom hooks for data and tab management
-	const { tabs, activeTab, setActiveTab, addTab, closeTab } = useMarketTabs();
+	const {
+		tabs,
+		activeTab,
+		setActiveTab,
+		availablePortals,
+		addPortalTab,
+		addOfficialTab,
+		closeTab,
+		portalMap,
+	} = useMarketTabs();
+
+	const currentTab = useMemo(
+		() => tabs.find((tab) => tab.id === activeTab),
+		[tabs, activeTab],
+	);
+	const currentPortal = useMemo(() => {
+		if (!currentTab?.portalId) return undefined;
+		return portalMap[currentTab.portalId];
+	}, [currentTab, portalMap]);
+	const isOfficialTab = currentTab?.type === "official";
 
 	// Search and sort state (only for official tab)
 	const [search, setSearch] = useState("");
@@ -93,17 +109,36 @@ export function MarketPage() {
 	const [selectedRemote, setSelectedRemote] = useState<RemoteOption | null>(
 		null,
 	);
-	const [initialDraft, setInitialDraft] = useState<ServerInstallDraft | null>(
-		null,
-	);
 	const formRef = useRef<ServerInstallManualFormHandle>(null);
 	const pendingImportRef = useRef<{
 		text: string;
 		fileName: string;
 		sourceUrl: string;
 		parsedDraft?: ServerInstallDraft | null;
+		portalId?: string;
+		adapterId?: string;
 	} | null>(null);
 	const [pendingImportTick, setPendingImportTick] = useState(0);
+	const [portalRefreshMap, setPortalRefreshMap] = useState<
+		Record<string, number>
+	>({});
+
+	const portalRefreshKey = currentPortal
+		? (portalRefreshMap[currentPortal.id] ?? 0)
+		: 0;
+
+	const handleRefreshClick = useCallback(() => {
+		if (isOfficialTab) {
+			onRefresh();
+			return;
+		}
+		if (currentPortal) {
+			setPortalRefreshMap((prev) => ({
+				...prev,
+				[currentPortal.id]: (prev[currentPortal.id] ?? 0) + 1,
+			}));
+		}
+	}, [isOfficialTab, onRefresh, currentPortal]);
 
 	// Event handlers
 	const handleHideServer = (entry: RegistryServerEntry) => {
@@ -122,12 +157,15 @@ export function MarketPage() {
 		setDrawerOpen(true);
 	};
 
-	const handleDrawerChange = useCallback((open: boolean) => {
-		setDrawerOpen(open);
-		if (!open) {
-			setDrawerServer(null);
-		}
-	}, []);
+	const handleDrawerChange = useCallback(
+		(open: boolean) => {
+			setDrawerOpen(open);
+			if (!open) {
+				setDrawerServer(null);
+			}
+		},
+		[notifyError, portalMap],
+	);
 
 	const scrollToTop = () => {
 		window.scrollTo({ top: 0, behavior: "smooth" });
@@ -148,7 +186,6 @@ export function MarketPage() {
 		if (!drawerServer) {
 			setRemoteOptions([]);
 			setSelectedRemote(null);
-			setInitialDraft(null);
 			return;
 		}
 
@@ -205,12 +242,8 @@ export function MarketPage() {
 		if (option) setSelectedRemote(option);
 	}, [selectedTransportId, remoteOptions]);
 
-	useEffect(() => {
-		if (!selectedRemote || !drawerServer) {
-			setInitialDraft(null);
-			return;
-		}
-
+	const initialDraft = useMemo<ServerInstallDraft | undefined>(() => {
+		if (!selectedRemote || !drawerServer) return undefined;
 		const fallbackName = slugifyForConfig(drawerServer.name);
 		const draft = buildDraftFromRemoteOption(selectedRemote, fallbackName);
 		const draftWithMeta: ServerInstallDraft = {
@@ -230,7 +263,7 @@ export function MarketPage() {
 			},
 		};
 
-		setInitialDraft(draftWithMeta);
+		return draftWithMeta;
 	}, [selectedRemote, drawerServer]);
 
 	// Receive configuration snippets from third-party market iframes
@@ -245,11 +278,49 @@ export function MarketPage() {
 				return;
 			}
 
+			const portalId =
+				typeof data.payload?.portalId === "string" &&
+				data.payload.portalId.trim()
+					? data.payload.portalId.trim()
+					: undefined;
+			const adapterFromMessage =
+				typeof data.payload?.adapter === "string" && data.payload.adapter.trim()
+					? data.payload.adapter.trim()
+					: undefined;
+			const portalMeta = portalId ? portalMap[portalId] : undefined;
+
+			const translateProxiedUrl = (value: string): string => {
+				if (!portalMeta) return value;
+				try {
+					const baseWithSlash = portalMeta.proxyPath.endsWith("/")
+						? portalMeta.proxyPath
+						: `${portalMeta.proxyPath}/`;
+					const baseWithoutSlash = baseWithSlash.slice(0, -1);
+					const localUrl = new URL(value, window.location.origin);
+					const localPath = localUrl.pathname;
+					let remainder: string | null = null;
+					if (localPath === baseWithoutSlash) {
+						remainder = "/";
+					} else if (localPath.startsWith(baseWithSlash)) {
+						const raw = localPath.slice(baseWithSlash.length);
+						remainder = raw ? (raw.startsWith("/") ? raw : `/${raw}`) : "/";
+					}
+					if (remainder === null) {
+						return value;
+					}
+					const remote = new URL(remainder, portalMeta.remoteOrigin);
+					remote.search = localUrl.search;
+					remote.hash = localUrl.hash;
+					return remote.toString();
+				} catch (_error) {
+					return value;
+				}
+			};
+
 			setDrawerServer(null);
 			setRemoteOptions([]);
 			setSelectedRemote(null);
 			setSelectedTransportId("");
-			setInitialDraft(null);
 			setDrawerOpen(true);
 
 			const format =
@@ -281,17 +352,16 @@ export function MarketPage() {
 				typeof data.payload?.source === "string"
 					? data.payload.source
 					: window.location.href;
-			const sourceUrl = rawSource.startsWith("/market-proxy/")
-				? `https://mcpmarket.cn${rawSource.replace(/^\/market-proxy/, "")}`
-				: rawSource;
+			const sourceUrl = translateProxiedUrl(rawSource);
 
 			pendingImportRef.current = {
 				text: rawText,
 				fileName,
 				sourceUrl,
 				parsedDraft,
+				portalId,
+				adapterId: adapterFromMessage,
 			};
-			setPendingImportTick((tick) => tick + 1);
 		};
 
 		window.addEventListener("message", handleMarketImportMessage);
@@ -352,48 +422,7 @@ export function MarketPage() {
 		})();
 	}, [drawerOpen, pendingImportTick]);
 
-	// Preview handler for ServerInstallManualForm
-	const handlePreview = useCallback(async () => {
-		if (!formRef.current) return;
-
-		const currentDraft = formRef.current.getCurrentDraft();
-		if (!currentDraft) {
-			notifyError("Preview failed", "No server configuration found");
-			return;
-		}
-
-		const trimmedName = currentDraft.name?.trim();
-		const fallbackName = slugifyForConfig(
-			drawerServer?.name ?? currentDraft.name ?? "market-server",
-		);
-		const draftName =
-			trimmedName && trimmedName.length > 0 ? trimmedName : fallbackName;
-		const sanitizedDraft: ServerInstallDraft = {
-			...currentDraft,
-			name: draftName,
-		};
-		if (draftName !== currentDraft.name) {
-			formRef.current.loadDraft?.(sanitizedDraft);
-		}
-
-		try {
-			await installPipeline.begin([sanitizedDraft], "market");
-		} catch (error) {
-			notifyError(
-				"Preview failed",
-				String(
-					error instanceof Error ? error.message : (error ?? "Unknown error"),
-				),
-			);
-		}
-	}, [drawerServer, installPipeline]);
-
-	// Import handler (not used in market mode, but kept for compatibility)
-	const handleImport = useCallback(async () => {
-		// This should not be called in market mode
-		// The import happens through the ServerInstallDrawer
-		console.warn("handleImport called in market mode - this should not happen");
-	}, []);
+// (preview/import handlers are now managed inside ServerInstallWizard via shared pipeline)
 
 	// Scroll to top effect
 	useEffect(() => {
@@ -404,10 +433,6 @@ export function MarketPage() {
 		window.addEventListener("scroll", handler, { passive: true });
 		return () => window.removeEventListener("scroll", handler);
 	}, []);
-
-	// Get current tab info
-	const currentTab = tabs.find((tab) => tab.id === activeTab);
-	const isOfficialTab = currentTab?.type === "official";
 
 	return (
 		<>
@@ -430,7 +455,7 @@ export function MarketPage() {
 								onSearchChange={setSearch}
 								sort={sort}
 								onSortChange={setSort}
-								onRefresh={onRefresh}
+								onRefresh={handleRefreshClick}
 								isLoading={isPageLoading}
 							/>
 						) : (
@@ -438,7 +463,7 @@ export function MarketPage() {
 								<Button
 									variant="outline"
 									size="sm"
-									onClick={onRefresh}
+									onClick={handleRefreshClick}
 									className="gap-2"
 								>
 									Refresh
@@ -453,7 +478,9 @@ export function MarketPage() {
 						activeTab={activeTab}
 						onTabChange={setActiveTab}
 						onCloseTab={closeTab}
-						onAddTab={addTab}
+						onAddOfficial={addOfficialTab}
+						availablePortals={availablePortals}
+						onAddPortal={addPortalTab}
 					/>
 				</div>
 
@@ -463,7 +490,7 @@ export function MarketPage() {
 						<ErrorDisplay
 							title="Failed to load registry"
 							error={fetchError ?? null}
-							onRetry={onRefresh}
+							onRetry={handleRefreshClick}
 						/>
 
 						<ServerGrid
@@ -481,9 +508,16 @@ export function MarketPage() {
 					</>
 				) : (
 					/* Third-party portal content */
-					<div className="mt-6">
-						{currentTab?.url ? (
-							<MarketIframe url={currentTab.url} title={currentTab.label} />
+					<div className="mt-6 flex flex-col">
+						{currentPortal ? (
+							<MarketIframe
+								key={`${currentPortal.id}-${portalRefreshKey}`}
+								url={currentTab?.url ?? currentPortal.proxyPath}
+								title={currentPortal.label}
+								portalId={currentPortal.id}
+								proxyPath={currentPortal.proxyPath}
+								refreshKey={portalRefreshKey}
+							/>
 						) : (
 							<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
 								<div className="space-y-2">
@@ -559,32 +593,14 @@ export function MarketPage() {
 				</div>
 			)}
 
-			<ServerInstallManualForm
+			<ServerInstallWizard
 				ref={formRef}
 				isOpen={drawerOpen}
 				onClose={() => handleDrawerChange(false)}
-				onSubmit={() => {}} // Not used in market mode
-				mode="market"
+				mode="import"
 				initialDraft={initialDraft}
-				onPreview={handlePreview}
-				onImport={handleImport}
 				allowProgrammaticIngest
-			/>
-
-			{/* Install pipeline drawer for preview and import */}
-			<ServerInstallDrawer
 				pipeline={installPipeline}
-				onBack={(drafts) => {
-					// Close preview drawer and return to configuration form
-					installPipeline.close();
-					setDrawerOpen(true);
-					if (drafts && drafts.length === 1) {
-						const [draft] = drafts;
-						requestAnimationFrame(() => {
-							formRef.current?.loadDraft(draft);
-						});
-					}
-				}}
 			/>
 		</>
 	);

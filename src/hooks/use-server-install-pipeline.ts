@@ -9,6 +9,7 @@ import { formatNameList, summarizeSkipped } from "../lib/server-import-utils";
 import type { ServerMetaInfo } from "../lib/types";
 
 export type InstallSource = "manual" | "ingest" | "market";
+export type WizardStep = "form" | "preview" | "result";
 
 export interface ServerInstallDraft {
 	name: string;
@@ -43,6 +44,8 @@ export function useServerInstallPipeline(
 	const [previewState, setPreviewState] = useState<PreviewState | null>(null);
 	const [previewError, setPreviewError] = useState<string | null>(null);
 	const [isImporting, setImporting] = useState(false);
+	const [currentStep, setCurrentStep] = useState<WizardStep>("form");
+	const [importResult, setImportResult] = useState<any>(null);
 
 	const reset = useCallback(() => {
 		setDrawerOpen(false);
@@ -52,6 +55,8 @@ export function useServerInstallPipeline(
 		setPreviewError(null);
 		setPreviewLoading(false);
 		setImporting(false);
+		setCurrentStep("form");
+		setImportResult(null);
 	}, []);
 
 	const buildPreviewPayload = useCallback((items: ServerInstallDraft[]) => {
@@ -166,6 +171,7 @@ export function useServerInstallPipeline(
 			setPreviewState(null);
 			setPreviewError(null);
 			setDrawerOpen(true);
+			setCurrentStep("preview");
 			setPreviewLoading(true);
 
 			try {
@@ -196,8 +202,11 @@ export function useServerInstallPipeline(
 		if (!drafts.length) return;
 		try {
 			setImporting(true);
+			setCurrentStep("result");
 			const payload = buildImportPayload(drafts);
 			const result = await serversApi.importServers(payload);
+			setImportResult(result);
+
 			const didSucceed =
 				typeof result?.success === "boolean"
 					? result.success
@@ -232,7 +241,6 @@ export function useServerInstallPipeline(
 					notifySuccess("Servers installed", "Import completed (no changes)");
 				}
 				opts.onImported?.();
-				reset();
 				return;
 			}
 			notifyError("Import failed", String(result.error ?? "Unknown error"));
@@ -243,7 +251,7 @@ export function useServerInstallPipeline(
 		} finally {
 			setImporting(false);
 		}
-	}, [drafts, buildImportPayload, opts, reset]);
+	}, [drafts, buildImportPayload, opts]);
 
 	const state = useMemo(
 		() => ({
@@ -254,6 +262,8 @@ export function useServerInstallPipeline(
 			isPreviewLoading,
 			isImporting,
 			open: isDrawerOpen,
+			currentStep,
+			importResult,
 		}),
 		[
 			drafts,
@@ -263,14 +273,21 @@ export function useServerInstallPipeline(
 			isPreviewLoading,
 			isImporting,
 			isDrawerOpen,
+			currentStep,
+			importResult,
 		],
 	);
 
-	return {
-		state,
-		begin,
-		confirmImport,
-		close: reset,
-		setPreviewState,
-	};
+	return useMemo(
+		() => ({
+			state,
+			begin,
+			confirmImport,
+			close: reset,
+			reset,
+			setPreviewState,
+			setCurrentStep,
+		}),
+		[state, begin, confirmImport, reset, setPreviewState, setCurrentStep],
+	);
 }

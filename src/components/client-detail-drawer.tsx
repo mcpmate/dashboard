@@ -28,6 +28,11 @@ import {
 import { Switch } from "./ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { notifyError, notifySuccess, notifyInfo } from "../lib/notify";
+import { formatBackupTime } from "../lib/utils";
+import {
+	CapsuleStripeList,
+	CapsuleStripeListItem,
+} from "./capsule-stripe-list";
 import { RefreshCw, RotateCcw, Trash2, Upload } from "lucide-react";
 
 interface ClientDetailDrawerProps {
@@ -283,45 +288,54 @@ export function ClientDetailDrawer({
 									))}
 								</div>
 							) : backups.length ? (
-								<div className="space-y-2">
+								<CapsuleStripeList>
 									{backups
 										.filter((b) => b.identifier === identifier)
 										.map((b) => (
-											<div
+											<CapsuleStripeListItem
 												key={b.path}
-												className="flex items-center justify-between rounded border p-3 text-sm"
+												interactive
+												className="group"
 											>
-												<div className="space-y-0.5">
+												<div className="flex items-center justify-between flex-1">
 													<div className="font-mono">{b.backup}</div>
-													<div className="text-slate-500">
-														{b.created_at || "-"} • {(b.size / 1024).toFixed(1)}{" "}
-														KB
+													<div className="flex items-center justify-end gap-4">
+														<div className="flex items-center gap-4 transition-transform duration-200 group-hover:translate-x-0 translate-x-4 -mr-3">
+															<div className="text-slate-500">
+																{formatBackupTime(b.created_at)}
+															</div>
+															<div className="text-slate-500">
+																{(b.size / 1024).toFixed(1)} KB
+															</div>
+														</div>
+														<div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+															<Button
+																size="sm"
+																variant="outline"
+																onClick={() =>
+																	restoreMutation.mutate({ backup: b.backup })
+																}
+															>
+																<RotateCcw className="mr-2 h-4 w-4" />
+																Restore
+															</Button>
+															<Button
+																size="icon"
+																variant="outline"
+																onClick={() =>
+																	deleteBackupMutation.mutate({
+																		backup: b.backup,
+																	})
+																}
+															>
+																<Trash2 className="h-4 w-4" />
+															</Button>
+														</div>
 													</div>
 												</div>
-												<div className="flex items-center gap-2">
-													<Button
-														size="sm"
-														onClick={() =>
-															restoreMutation.mutate({ backup: b.backup })
-														}
-													>
-														<RotateCcw className="mr-2 h-4 w-4" />
-														Restore
-													</Button>
-													<Button
-														size="sm"
-														variant="outline"
-														onClick={() =>
-															deleteBackupMutation.mutate({ backup: b.backup })
-														}
-													>
-														<Trash2 className="mr-2 h-4 w-4" />
-														Delete
-													</Button>
-												</div>
-											</div>
+											</CapsuleStripeListItem>
 										))}
-								</div>
+								</CapsuleStripeList>
 							) : (
 								<div className="text-slate-500 text-sm">No backups.</div>
 							)}

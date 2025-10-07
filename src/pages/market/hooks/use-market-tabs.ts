@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	DEFAULT_MARKET_PORTALS,
 	type MarketPortalMeta,
 	useAppStore,
 } from "../../../lib/store";
+import { mergePortalOverrides } from "../portal-registry";
 import type { TabItem, UseMarketTabsReturn } from "../types";
 
 export function useMarketTabs(): UseMarketTabsReturn {
@@ -15,140 +15,149 @@ export function useMarketTabs(): UseMarketTabsReturn {
 		(state) => state.dashboardSettings.marketPortals,
 	);
 
-	const mcpMarketMeta = useMemo<MarketPortalMeta>(() => {
-		const stored = marketPortals?.mcpmarket;
-		if (stored) return stored;
-		return DEFAULT_MARKET_PORTALS.mcpmarket;
-	}, [marketPortals]);
+	const mergedPortals = useMemo(
+		() => mergePortalOverrides(marketPortals),
+		[marketPortals],
+	);
 
-	const mcpMarketIcon = mcpMarketMeta.proxyFavicon ?? mcpMarketMeta.favicon;
-	const mcpMarketProxyPath = mcpMarketMeta.proxyPath || "/market-proxy/";
+	const availablePortals = useMemo(
+		() =>
+			Object.values(mergedPortals).sort((a, b) =>
+				a.label.localeCompare(b.label),
+			),
+		[mergedPortals],
+	);
 
-	// Tab management state - initialize based on default market setting
-	const [tabs, setTabs] = useState<TabItem[]>(() => {
-		const officialTab = {
+	const createPortalTab = useCallback(
+		(meta: MarketPortalMeta, closable: boolean): TabItem => ({
+			id: meta.id,
+			portalId: meta.id,
+			label: meta.label,
+			type: "third-party",
+			url: meta.proxyPath,
+			icon: meta.proxyFavicon ?? meta.favicon,
+			closable,
+		}),
+		[],
+	);
+
+	const officialTab = useMemo<TabItem>(
+		() => ({
 			id: "official",
 			label: "Official MCP Registry",
-			type: "official" as const,
+			type: "official",
 			closable: defaultMarket !== "official",
-		};
-		const mcpMarketTab = {
-			id: mcpMarketMeta.id,
-			label: mcpMarketMeta.label,
-			type: "third-party" as const,
-			url: mcpMarketProxyPath,
-			icon: mcpMarketIcon,
-			closable: defaultMarket !== "mcpmarket",
-		};
+		}),
+		[defaultMarket],
+	);
 
-		if (defaultMarket === "official") {
+	const defaultPortalMeta = useMemo(() => {
+		if (defaultMarket === "official") return null;
+		return mergedPortals[defaultMarket] ?? availablePortals[0] ?? null;
+	}, [availablePortals, defaultMarket, mergedPortals]);
+
+	const [tabs, setTabs] = useState<TabItem[]>(() => {
+		if (defaultMarket === "official" || !defaultPortalMeta) {
 			return [officialTab];
-		} else {
-			return [mcpMarketTab];
 		}
+		return [createPortalTab(defaultPortalMeta, false)];
 	});
 
-	const [activeTab, setActiveTab] = useState<string>(defaultMarket);
+	const [activeTab, setActiveTab] = useState<string>(
+		defaultMarket === "official"
+			? "official"
+			: defaultPortalMeta?.id ?? "official",
+	);
 
+	const prevDefaultMarketRef = useRef(defaultMarket);
+
+	// Sync tab metadata when portal definitions change
 	useEffect(() => {
-		const closable = defaultMarket !== "mcpmarket";
 		setTabs((prev) =>
 			prev.map((tab) => {
-				const isMcpTab =
-					tab.type === "third-party" &&
-					(tab.id === DEFAULT_MARKET_PORTALS.mcpmarket.id ||
-						tab.id === mcpMarketMeta.id);
-				if (!isMcpTab) return tab;
-				const nextIcon = mcpMarketIcon ?? tab.icon;
-				const nextUrl = mcpMarketProxyPath;
-				if (
-					tab.id === mcpMarketMeta.id &&
-					tab.label === mcpMarketMeta.label &&
-					tab.url === nextUrl &&
-					tab.icon === nextIcon &&
-					tab.closable === closable
-				) {
-					return tab;
+				if (tab.type === "official") {
+					return {
+						...tab,
+						closable: defaultMarket !== "official",
+					};
 				}
-				return {
-					...tab,
-					id: mcpMarketMeta.id,
-					label: mcpMarketMeta.label,
-					url: nextUrl,
-					icon: nextIcon,
-					closable,
-				};
+				if (tab.portalId) {
+					const meta = mergedPortals[tab.portalId];
+					if (!meta) return tab;
+					return {
+						...tab,
+						label: meta.label,
+						url: meta.proxyPath,
+						icon: meta.proxyFavicon ?? meta.favicon ?? tab.icon,
+						closable: defaultMarket !== meta.id,
+					};
+				}
+				return tab;
 			}),
 		);
-	}, [
-		defaultMarket,
-		mcpMarketIcon,
-		mcpMarketMeta.id,
-		mcpMarketMeta.label,
-		mcpMarketProxyPath,
-	]);
+	}, [defaultMarket, mergedPortals]);
 
 	useEffect(() => {
-		if (
-			activeTab === DEFAULT_MARKET_PORTALS.mcpmarket.id &&
-			mcpMarketMeta.id !== DEFAULT_MARKET_PORTALS.mcpmarket.id
-		) {
-			setActiveTab(mcpMarketMeta.id);
-		}
-	}, [activeTab, mcpMarketMeta.id]);
-
-	const addTab = useCallback(
-		(
-			label: string,
-			options?: {
-				url?: string;
-				icon?: string;
-				id?: string;
-			},
-		) => {
-			// Handle adding official registry when default is mcpmarket
-			if (label === "Official MCP Registry") {
-				const officialTab: TabItem = {
-					id: "official",
-					label: "Official MCP Registry",
-					type: "official",
-					closable: defaultMarket !== "official", // Only closable if not default
-				};
-				setTabs((prev) => [...prev, officialTab]);
-				setActiveTab("official");
-				return;
+		if (defaultMarket === "official") {
+			if (!tabs.some((tab) => tab.type === "official")) {
+				setTabs((prev) => [officialTab, ...prev]);
 			}
+			return;
+		}
+		const desired = mergedPortals[defaultMarket];
+		if (!desired) return;
+		setTabs((prev) => {
+			const exists = prev.some(
+				(tab) => tab.portalId === desired.id && tab.type === "third-party",
+			);
+			if (exists) return prev;
+			return [createPortalTab(desired, false), ...prev];
+		});
+	}, [createPortalTab, defaultMarket, mergedPortals, officialTab, tabs]);
 
-			// Handle adding third-party markets
-			const targetId = options?.id ?? `tab-${Date.now()}`;
+	useEffect(() => {
+		const prev = prevDefaultMarketRef.current;
+		if (defaultMarket === prev) {
+			return;
+		}
+		if (defaultMarket === "official") {
+			setActiveTab("official");
+		} else {
+			setActiveTab(defaultMarket);
+		}
+		prevDefaultMarketRef.current = defaultMarket;
+	}, [defaultMarket]);
+
+	const addOfficialTab = useCallback(() => {
+		setTabs((prev) => {
+			if (prev.some((tab) => tab.id === "official")) return prev;
+			return [...prev, { ...officialTab, closable: defaultMarket !== "official" }];
+		});
+		setActiveTab("official");
+	}, [defaultMarket, officialTab]);
+
+	const addPortalTab = useCallback(
+		(portalId: string) => {
+			const meta = mergedPortals[portalId];
+			if (!meta) return;
 			setTabs((prev) => {
-				if (options?.id && prev.some((tab) => tab.id === options.id)) {
+				if (prev.some((tab) => tab.portalId === portalId)) {
 					return prev;
 				}
-				const newTab: TabItem = {
-					id: targetId,
-					label,
-					type: "third-party",
-					url: options?.url,
-					icon: options?.icon,
-					closable: true, // Third-party markets are always closable
-				};
-				return [...prev, newTab];
+				return [...prev, createPortalTab(meta, defaultMarket !== portalId)];
 			});
-			setActiveTab(targetId);
+			setActiveTab(portalId);
 		},
-		[defaultMarket],
+		[createPortalTab, defaultMarket, mergedPortals],
 	);
 
 	const closeTab = useCallback(
 		(tabId: string) => {
-			// Cannot close the default market tab
 			if (tabId === defaultMarket) return;
 			setTabs((prev) => {
 				const newTabs = prev.filter((tab) => tab.id !== tabId);
-				// If closing active tab, switch to default market tab
 				if (activeTab === tabId) {
-					setActiveTab(defaultMarket);
+					setActiveTab(defaultMarket === "official" ? "official" : defaultMarket);
 				}
 				return newTabs;
 			});
@@ -160,7 +169,10 @@ export function useMarketTabs(): UseMarketTabsReturn {
 		tabs,
 		activeTab,
 		setActiveTab,
-		addTab,
+		availablePortals,
+		addPortalTab,
+		addOfficialTab,
 		closeTab,
+		portalMap: mergedPortals,
 	};
 }

@@ -120,14 +120,30 @@ export function RuntimePage() {
 			</div>
 
 			{runtimeStatusQ.isLoading || runtimeCacheQ.isLoading ? (
-				<div className="space-y-2">
+				<div className="grid gap-4 md:grid-cols-2">
 					{[0, 1].map((i) => (
 						<div
 							key={i}
-							className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950"
+							className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950"
 						>
-							<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-							<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+							{/* Status badge only */}
+							<div className="flex justify-end mb-4">
+								<div className="h-6 w-16 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
+							</div>
+
+							{/* Main content blocks - simplified */}
+							<div className="space-y-3">
+								{/* Main info block */}
+								<div className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+
+								{/* Cache info block */}
+								<div className="h-12 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+							</div>
+
+							{/* Single button */}
+							<div className="mt-4 flex justify-start">
+								<div className="h-8 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+							</div>
 						</div>
 					))}
 				</div>
@@ -233,9 +249,10 @@ export function RuntimePage() {
 				</CardHeader>
 				<CardContent>
 					{capabilitiesStatsQ.isLoading ? (
-						<div className="space-y-2">
-							<div className="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-							<div className="h-5 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+						<div className="space-y-4">
+							{/* Simplified content blocks */}
+							<div className="h-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+							<div className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
 						</div>
 					) : capStats ? (
 						<div className="space-y-4 text-sm">

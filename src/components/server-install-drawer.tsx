@@ -315,7 +315,7 @@ export function ServerInstallDrawer({
 											<div className="flex items-center gap-2 min-w-0">
 												<div
 													role="button"
-													className="p-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+													className="p-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
 													onClick={() => toggleExpanded(draft.name)}
 													aria-label={isOpen ? "Collapse" : "Expand"}
 												>

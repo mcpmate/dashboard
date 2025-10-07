@@ -9,6 +9,7 @@
 ## Project Structure & Module Organization (this repo)
 - Frontend app built with Vite + React 18 + TypeScript + Tailwind + shadcn/ui.
 - Development proxy is configured in `vite.config.ts` to forward `/api` and `/ws` to `http://localhost:8080`.
+- Market dev proxy: Vite registers middleware under `/market-proxy/*` for remote portals (mcpmarket.cn / mcp.so). On Tauri desktop builds this is re-implemented via a custom URI scheme `mcpmate://localhost/market-proxy/*` so the Market pages work without Vite.
 - Key folders and files:
   - `src/App.tsx` – routes and top-level layout wiring.
   - `src/components/` – reusable UI (status badge, forms, layout, shadcn/ui wrappers).
@@ -44,7 +45,7 @@ Backend expectations
 
 ## API & Protocol Alignment
 - Treat `docs/openapi.json` as canonical; do not hardcode shapes ad-hoc in components. Extend `src/lib/types.ts` and `src/lib/api.ts` instead.
-- WebSocket endpoint is `/ws` (proxied via Vite); prefer event-driven refresh when available, otherwise use TanStack Query invalidation.
+- WebSocket endpoint is `/ws` (proxied via Vite in dev; in desktop builds the UI talks directly to `ws://127.0.0.1:8080/ws`). Prefer event-driven refresh when available, otherwise use TanStack Query invalidation.
 - Profiles: UI text uses “Profile” (formerly ConfigSuits). Existing filenames may retain legacy naming for compatibility; keep API calls aligned to `/api/mcp/profile/*`.
 
 ## UI/UX Guidelines

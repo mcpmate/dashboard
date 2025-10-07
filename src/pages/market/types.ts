@@ -1,3 +1,4 @@
+import type { MarketPortalMeta } from "../../lib/store";
 import type { RegistryServerEntry } from "../../lib/types";
 
 export interface MarketCardProps {
@@ -17,6 +18,7 @@ export interface TabItem {
 	url?: string;
 	icon?: string;
 	closable: boolean;
+	portalId?: string;
 }
 
 // Market mode types and interfaces
@@ -75,21 +77,19 @@ export interface MarketTabsProps {
 	activeTab: string;
 	onTabChange: (tabId: string) => void;
 	onCloseTab: (tabId: string) => void;
-	onAddTab: (
-		label: string,
-		options?: {
-			url?: string;
-			icon?: string;
-			id?: string;
-		},
-	) => void;
+	onAddOfficial: () => void;
+	availablePortals: MarketPortalMeta[];
+	onAddPortal: (portalId: string) => void;
 }
 
 // Market iframe props
 export interface MarketIframeProps {
 	url: string;
 	title: string;
+	portalId: string;
+	proxyPath: string;
 	className?: string;
+	refreshKey?: number;
 }
 
 // Market data hook return type
@@ -116,15 +116,11 @@ export interface UseMarketTabsReturn {
 	tabs: TabItem[];
 	activeTab: string;
 	setActiveTab: (tabId: string) => void;
-	addTab: (
-		label: string,
-		options?: {
-			url?: string;
-			icon?: string;
-			id?: string;
-		},
-	) => void;
+	availablePortals: MarketPortalMeta[];
+	addPortalTab: (portalId: string) => void;
+	addOfficialTab: () => void;
 	closeTab: (tabId: string) => void;
+	portalMap: Record<string, MarketPortalMeta>;
 }
 
 // Market iframe hook return type

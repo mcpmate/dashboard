@@ -12,15 +12,22 @@
 	bottom: 0.5rem;
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	gap: 0;
 	padding: 0.2rem 0.6rem;
+	height: 1.75rem;
 	min-height: 1.75rem;
+	max-height: 1.75rem;
+	width: auto;
+	min-width: 1.75rem;
 	border-radius: 999px;
 	border: 1px solid rgba(148, 163, 184, 0.32);
 	background: #000000;
 	color: #ffffff;
 	backdrop-filter: blur(6px);
 	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
 	transition:
 		transform 0.18s ease,
 		border-color 0.18s ease,

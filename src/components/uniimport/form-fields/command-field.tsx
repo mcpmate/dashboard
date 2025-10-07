@@ -9,8 +9,8 @@ interface CommandFieldProps {
 	errors: any;
 	commandId: string;
 	urlId: string;
-	commandInputRef: React.RefObject<HTMLInputElement>;
-	urlInputRef: React.RefObject<HTMLInputElement>;
+	commandInputRef: React.MutableRefObject<HTMLInputElement | null>;
+	urlInputRef: React.MutableRefObject<HTMLInputElement | null>;
 	viewMode: "form" | "json";
 }
 

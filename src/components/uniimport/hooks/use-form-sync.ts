@@ -56,25 +56,14 @@ export function useFormSync({
 	reset,
 	buildFormValuesFromState,
 }: UseFormSyncProps) {
+	// Batch update common fields to reduce re-renders
 	useEffect(() => {
 		if (isRestoringRef.current) return;
 		formStateRef.current.name = watchedName || "";
-	}, [watchedName, formStateRef, isRestoringRef]);
-
-	useEffect(() => {
-		if (isRestoringRef.current) return;
 		formStateRef.current.meta.description = watchedMetaDescription || "";
-	}, [watchedMetaDescription, formStateRef, isRestoringRef]);
-
-	useEffect(() => {
-		if (isRestoringRef.current) return;
 		formStateRef.current.meta.version = watchedMetaVersion || "";
-	}, [watchedMetaVersion, formStateRef, isRestoringRef]);
-
-	useEffect(() => {
-		if (isRestoringRef.current) return;
 		formStateRef.current.meta.websiteUrl = watchedMetaWebsite || "";
-	}, [watchedMetaWebsite, formStateRef, isRestoringRef]);
+	}, [watchedName, watchedMetaDescription, watchedMetaVersion, watchedMetaWebsite, formStateRef, isRestoringRef]);
 
 	useEffect(() => {
 		if (isRestoringRef.current) return;
@@ -97,49 +86,25 @@ export function useFormSync({
 		formStateRef.current.kind = kind;
 	}, [kind, formStateRef, isRestoringRef]);
 
+	// Batch update stdio fields
 	useEffect(() => {
-		if (isRestoringRef.current) return;
-		if (kind !== "stdio") return;
+		if (isRestoringRef.current || kind !== "stdio") return;
 		formStateRef.current.stdio.command = watchedCommand || "";
-	}, [kind, watchedCommand, formStateRef, isRestoringRef]);
-
-	useEffect(() => {
-		if (isRestoringRef.current) return;
-		if (kind !== "stdio") return;
 		formStateRef.current.stdio.args = cloneArgs(watchedArgs || []);
-	}, [kind, watchedArgs, formStateRef, isRestoringRef]);
-
-	useEffect(() => {
-		if (isRestoringRef.current) return;
-		if (kind !== "stdio") return;
 		formStateRef.current.stdio.env = cloneKeyValuePairs(watchedEnv || []);
-	}, [kind, watchedEnv, formStateRef, isRestoringRef]);
+	}, [kind, watchedCommand, watchedArgs, watchedEnv, formStateRef, isRestoringRef]);
 
+	// Batch update HTTP-based transport fields (sse & streamable_http)
 	useEffect(() => {
 		if (isRestoringRef.current) return;
 		if (kind === "sse") {
 			formStateRef.current.sse.url = watchedUrl || "";
-			return;
-		}
-		if (kind === "streamable_http") {
+			formStateRef.current.sse.headers = cloneKeyValuePairs(watchedHeaders || []);
+		} else if (kind === "streamable_http") {
 			formStateRef.current.streamable_http.url = watchedUrl || "";
+			formStateRef.current.streamable_http.headers = cloneKeyValuePairs(watchedHeaders || []);
 		}
-	}, [kind, watchedUrl, formStateRef, isRestoringRef]);
-
-	useEffect(() => {
-		if (isRestoringRef.current) return;
-		if (kind === "sse") {
-			formStateRef.current.sse.headers = cloneKeyValuePairs(
-				watchedHeaders || [],
-			);
-			return;
-		}
-		if (kind === "streamable_http") {
-			formStateRef.current.streamable_http.headers = cloneKeyValuePairs(
-				watchedHeaders || [],
-			);
-		}
-	}, [kind, watchedHeaders, formStateRef, isRestoringRef]);
+	}, [kind, watchedUrl, watchedHeaders, formStateRef, isRestoringRef]);
 
 	const saveTypeSnapshot = useCallback(
 		(currentKind: ManualServerFormValues["kind"]) => {
