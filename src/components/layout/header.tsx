@@ -1,7 +1,14 @@
-import { ArrowLeft, Moon, Sun } from "lucide-react";
+import { ArrowLeft, MessageSquare, Moon, Sun } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { NotificationCenter } from "../notification-center";
+
+const FEEDBACK_EMAIL = "MCPMate Team <info@mcpmate.io>";
+const FEEDBACK_SUBJECT = encodeURIComponent("MCPMate preview feedback");
+const FEEDBACK_BODY = encodeURIComponent(
+	"Hi MCPMate team,\n\nDescribe your feedback here:\n\n— Sent from MCPMate preview\n",
+);
+const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=${FEEDBACK_SUBJECT}&body=${FEEDBACK_BODY}`;
 
 const ROUTE_TITLES: Record<string, string> = {
 	"/": "Dashboard",
@@ -69,6 +76,13 @@ export function Header() {
 
 				{/* Right side: Theme toggle + Notification center */}
 				<div className="flex items-center space-x-4">
+					<a
+						href={FEEDBACK_MAILTO}
+						className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+						aria-label="Send feedback via email"
+					>
+						<MessageSquare size={20} />
+					</a>
 					{/* Theme toggle button */}
 					<button
 						type="button"
