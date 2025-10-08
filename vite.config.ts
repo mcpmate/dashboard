@@ -1,12 +1,30 @@
+import { readFileSync } from "node:fs";
+import type {
+	ClientRequest,
+	IncomingHttpHeaders,
+	IncomingMessage,
+	ServerResponse,
+} from "node:http";
+import path from "node:path";
+import { Readable } from "node:stream";
+import { URL } from "node:url";
 import react from "@vitejs/plugin-react";
-import { readFileSync } from "fs";
-import type { IncomingHttpHeaders } from "http";
-import path from "path";
-import { URL } from "url";
+import type { Plugin, ViteDevServer } from "vite";
 import { defineConfig } from "vite";
 import { BUILTIN_MARKET_PORTALS } from "./src/pages/market/portal-registry";
 
 // Minimal dev-time proxy for mcpmarket.cn under /market-proxy
+type MiddlewareHandler = (
+	req: IncomingMessage,
+	res: ServerResponse,
+	next: (err?: Error) => void,
+) => void;
+
+type HttpProxyServer = {
+	on(event: "proxyReq", listener: (proxyReq: ClientRequest) => void): void;
+	on(event: "proxyReqWs", listener: (proxyReq: ClientRequest) => void): void;
+	on(event: string, listener: (...args: unknown[]) => void): void;
+};
 
 const HOP_BY_HOP_HEADER_SET = new Set([
 	"connection",
@@ -20,6 +38,30 @@ const HOP_BY_HOP_HEADER_SET = new Set([
 	"host",
 ]);
 
+const extractSetCookieValues = (headers: Headers): string[] => {
+	const candidate = (
+		headers as unknown as {
+			getSetCookie?: () => string[] | undefined;
+		}
+	).getSetCookie;
+	if (typeof candidate === "function") {
+		try {
+			const values = candidate.call(headers);
+			if (Array.isArray(values) && values.length > 0) {
+				return values;
+			}
+		} catch {
+			// Fallback to get method
+		}
+	}
+	try {
+		const single = headers.get("set-cookie");
+		return single ? [single] : [];
+	} catch {
+		return [];
+	}
+};
+
 function buildForwardHeaders(raw: IncomingHttpHeaders): Record<string, string> {
 	const headers: Record<string, string> = {};
 	for (const [key, value] of Object.entries(raw)) {
@@ -32,16 +74,17 @@ function buildForwardHeaders(raw: IncomingHttpHeaders): Record<string, string> {
 		}
 		headers[key] = value;
 	}
-	if (!headers["accept"]) {
-		headers["accept"] = "*/*";
+	if (!headers.accept) {
+		headers.accept = "*/*";
 	}
-	if (!headers["user-agent"]) {
-		headers["user-agent"] = "mcpmate-board-dev-proxy";
+	const USER_AGENT_HEADER = "user-agent";
+	if (!headers[USER_AGENT_HEADER]) {
+		headers[USER_AGENT_HEADER] = "mcpmate-board-dev-proxy";
 	}
 	return headers;
 }
 
-function marketPortalProxyMiddleware(): any {
+function marketPortalProxyMiddleware(): MiddlewareHandler {
 	const portals = BUILTIN_MARKET_PORTALS.map((portal) => {
 		const normalizedProxyPath = portal.proxyPath.endsWith("/")
 			? portal.proxyPath
@@ -191,8 +234,12 @@ ${shimTag}
 		return styleTag + shimTag + html;
 	};
 
-	return async (req: any, res: any, next: any) => {
-		if (!req.url) return next();
+	const middleware: MiddlewareHandler = async (req, res, next) => {
+		if (!req.url) {
+			next();
+			return;
+		}
+		const requestUrl = req.url;
 
 		// Fallback: handle escaped absolute paths like /_next/*, /static/*, etc.
 		// When a page inside a portal accidentally requests absolute assets,
@@ -204,7 +251,7 @@ ${shimTag}
 			"/images/",
 		] as const;
 		const isEscapedAsset = ABSOLUTE_ASSET_PREFIXES.some((p) =>
-			req.url!.startsWith(p),
+			requestUrl.startsWith(p),
 		);
 		if (isEscapedAsset) {
 			const referer: string = (req.headers?.referer as string) || "";
@@ -214,37 +261,43 @@ ${shimTag}
 			);
 			if (viaPortal) {
 				try {
-					const targetUrl = new URL(req.url, viaPortal.remoteOrigin);
+					const targetUrl = new URL(requestUrl, viaPortal.remoteOrigin);
 					const upstream = await fetch(targetUrl.toString(), {
 						redirect: "follow",
 					});
-					const contentType = upstream.headers.get("content-type") || "";
+					const contentType = upstream.headers.get.call(upstream.headers, "content-type") || "";
 					res.statusCode = upstream.status;
 					if (contentType) res.setHeader("content-type", contentType);
 					res.setHeader("cache-control", "no-store");
 					const buf = Buffer.from(await upstream.arrayBuffer());
 					res.end(buf);
 					return;
-				} catch (_error) {
+				} catch {
 					// fall through to Vite default
 				}
 			}
 		}
 
-		if (!req.url.startsWith("/market-proxy")) return next();
+		if (!requestUrl.startsWith("/market-proxy")) {
+			next();
+			return;
+		}
 
 		const portal = portals.find((entry) => {
 			return (
-				req.url === entry.prefixNoSlash ||
-				req.url === entry.proxyPath ||
-				req.url.startsWith(entry.proxyPath)
+				requestUrl === entry.prefixNoSlash ||
+				requestUrl === entry.proxyPath ||
+				requestUrl.startsWith(entry.proxyPath)
 			);
 		});
 
-		if (!portal) return next();
+		if (!portal) {
+			next();
+			return;
+		}
 
 		try {
-			const incoming = new URL(req.url, "http://localhost");
+			const incoming = new URL(requestUrl, "http://localhost");
 			let relativePath = incoming.pathname;
 			if (relativePath.startsWith(portal.proxyPath)) {
 				relativePath = relativePath.slice(portal.proxyPath.length);
@@ -264,25 +317,22 @@ ${shimTag}
 				method,
 				headers,
 				redirect: "follow",
-				body: method === "GET" || method === "HEAD" ? undefined : (req as any),
+				...(
+					method === "GET" || method === "HEAD"
+						? {}
+						: {
+								body: Readable.toWeb(req) as unknown as BodyInit,
+								duplex: "half" as const,
+						  }
+				),
 			});
-			const contentType = upstream.headers.get("content-type") || "";
+			const contentType = upstream.headers.get.call(upstream.headers, "content-type") || "";
 			res.setHeader("cache-control", "no-store");
-			const setCookieHeader =
-				typeof (upstream.headers as any).getSetCookie === "function"
-					? (upstream.headers as any).getSetCookie()
-					: undefined;
-			if (
-				setCookieHeader &&
-				Array.isArray(setCookieHeader) &&
-				setCookieHeader.length
-			) {
+			const setCookieHeader = extractSetCookieValues(upstream.headers);
+			if (setCookieHeader.length === 1) {
+				res.setHeader("set-cookie", setCookieHeader[0]);
+			} else if (setCookieHeader.length > 1) {
 				res.setHeader("set-cookie", setCookieHeader);
-			} else {
-				const singleSetCookie = upstream.headers.get("set-cookie");
-				if (singleSetCookie) {
-					res.setHeader("set-cookie", singleSetCookie);
-				}
 			}
 			if (contentType.includes("text/html")) {
 				// For Next.js SSR/RSC apps, use streaming to preserve hydration
@@ -366,15 +416,17 @@ ${shimTag}
 			res.end(`Market proxy error: ${String(err)}`);
 		}
 	};
+
+	return middleware;
 }
 
-function marketProxyPlugin() {
+function marketProxyPlugin(): Plugin {
 	return {
 		name: "mcpmate-market-proxy",
-		configureServer(server: any) {
+		configureServer(server: ViteDevServer) {
 			server.middlewares.use(marketPortalProxyMiddleware());
 		},
-	} as any;
+	};
 }
 
 export default defineConfig({
@@ -393,12 +445,14 @@ export default defineConfig({
 				target: "http://127.0.0.1:8080",
 				changeOrigin: true,
 				secure: false,
-				configure: (proxy: any) => {
-					proxy.on("proxyReq", (proxyReq: any) => {
-						try {
-							proxyReq.removeHeader("origin");
-						} catch {
-							/* noop */
+				configure: (proxy: HttpProxyServer) => {
+					proxy.on("proxyReq", (proxyReq: ClientRequest) => {
+						if (proxyReq && typeof proxyReq.removeHeader === "function") {
+							try {
+								proxyReq.removeHeader("origin");
+							} catch {
+								/* noop */
+							}
 						}
 					});
 				},
@@ -408,12 +462,14 @@ export default defineConfig({
 				ws: true,
 				changeOrigin: true,
 				secure: false,
-				configure: (proxy: any) => {
-					proxy.on("proxyReqWs", (proxyReq: any) => {
-						try {
-							proxyReq.removeHeader("origin");
-						} catch {
-							/* noop */
+				configure: (proxy: HttpProxyServer) => {
+					proxy.on("proxyReqWs", (proxyReq: ClientRequest) => {
+						if (proxyReq && typeof proxyReq.removeHeader === "function") {
+							try {
+								proxyReq.removeHeader("origin");
+							} catch {
+								/* noop */
+							}
 						}
 					});
 				},

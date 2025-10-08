@@ -2,7 +2,8 @@ import { Copy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { inspectorApi } from "../lib/api";
 import { notifyError, notifySuccess } from "../lib/notify";
-import { defaultFromSchema, SchemaForm } from "./schema-form";
+import { SchemaForm } from "./schema-form";
+import { defaultFromSchema } from "./schema-form-utils";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
 import { Card, CardContent } from "./ui/card";
@@ -25,8 +26,10 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "./ui/tooltip";
+import type { JsonObject, JsonSchema, JsonValue } from "../types/json";
+import type { CapabilityArgument, CapabilityRecord } from "../types/capabilities";
 
-type InspectorKind = "tool" | "resource" | "prompt";
+type InspectorKind = "tool" | "resource" | "prompt" | "template";
 
 export interface InspectorDrawerProps {
 	open: boolean;
@@ -34,7 +37,7 @@ export interface InspectorDrawerProps {
 	serverId?: string;
 	serverName?: string;
 	kind: InspectorKind;
-	item: any; // raw capability item (tool/resource/prompt)
+	item: CapabilityRecord | null;
 	mode: "proxy" | "native";
 	onLog?: (entry: InspectorLogEntry) => void;
 }
@@ -64,13 +67,100 @@ function newLogId() {
 	return `log_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
 }
 
-function pickToolNameForMode(source: any, mode: "proxy" | "native"): string {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const toCapabilityRecord = (value: unknown): CapabilityRecord | null =>
+	(isRecord(value) ? (value as CapabilityRecord) : null);
+
+const toString = (value: unknown): string | undefined =>
+	typeof value === "string" ? value : undefined;
+
+const isJsonObjectValue = (value: unknown): value is JsonObject =>
+	Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const toJsonObject = (value: JsonValue | undefined): JsonObject =>
+	(isJsonObjectValue(value) ? value : {});
+
+const toSchema = (value: unknown): JsonSchema | null => {
+	const record = toCapabilityRecord(value);
+	if (!record) return null;
+	const nested = toCapabilityRecord(record.schema);
+	if (nested) return nested as JsonSchema;
+	return record as JsonSchema;
+};
+
+const normalizeArguments = (value: unknown): CapabilityArgument[] => {
+	if (!Array.isArray(value)) return [];
+	return value.map((entry, index) => {
+		const record = toCapabilityRecord(entry);
+		if (!record) {
+			return { name: `arg_${index}` };
+		}
+		return {
+			name: toString(record.name) ?? `arg_${index}`,
+			type: toString(record.type) ?? "string",
+			description: toString(record.description),
+			required:
+				typeof record.required === "boolean" ? record.required : undefined,
+		};
+	});
+};
+
+const buildSchemaFromArguments = (args: CapabilityArgument[]): JsonSchema => {
+	const properties: Record<string, JsonSchema> = {};
+	const required: string[] = [];
+	args.forEach((arg, index) => {
+		const name = arg.name ?? `arg_${index}`;
+		properties[name] = {
+			type: arg.type ?? "string",
+			description: arg.description,
+		};
+		if (arg.required) {
+			required.push(name);
+		}
+	});
+	return {
+		type: "object",
+		properties,
+		required: required.length ? required : undefined,
+	};
+};
+
+const buildSchemaFromFields = (fields: Field[]): JsonSchema => {
+	const properties: Record<string, JsonSchema> = {};
+	const required: string[] = [];
+	fields.forEach((field) => {
+		properties[field.name] = {
+			type: field.type || "string",
+			description: field.description,
+			enum: field.enum,
+		};
+		if (field.required) {
+			required.push(field.name);
+		}
+	});
+	return {
+		type: "object",
+		properties,
+		required: required.length ? required : undefined,
+	};
+};
+
+type InspectorResponse<T = unknown> = {
+	success?: boolean;
+	data?: T | null;
+	error?: unknown;
+};
+
+function pickToolNameForMode(
+	source: CapabilityRecord | null,
+	mode: "proxy" | "native",
+): string {
 	if (!source) return "";
-	const uniqueName =
-		typeof source.unique_name === "string" ? source.unique_name : undefined;
-	const toolName =
-		typeof source.tool_name === "string" ? source.tool_name : undefined;
-	const rawName = typeof source.name === "string" ? source.name : undefined;
+	const uniqueName = toString(source.unique_name);
+	const toolName = toString(source.tool_name);
+	const rawName = toString(source.name);
 	if (mode === "proxy") {
 		return uniqueName || toolName || rawName || "";
 	}
@@ -91,8 +181,8 @@ export function InspectorDrawer({
 	const [argsJson, setArgsJson] = useState<string>("{}");
 	const [useRaw, setUseRaw] = useState(false);
 	const [fields, setFields] = useState<Field[]>([]);
-	const [values, setValues] = useState<Record<string, any>>({});
-	const [schemaObj, setSchemaObj] = useState<any | null>(null);
+	const [values, setValues] = useState<JsonObject>({});
+	const [schemaObj, setSchemaObj] = useState<JsonSchema | null>(null);
 	const [uri, setUri] = useState<string>(
 		String(item?.resource_uri || item?.uri || ""),
 	);
@@ -106,10 +196,10 @@ export function InspectorDrawer({
 		),
 	);
 	const [submitting, setSubmitting] = useState(false);
-	const [result, setResult] = useState<any | null>(null);
+	const [result, setResult] = useState<unknown>(null);
 
 	// Build mock from JSON Schema types
-	function mockOfType(t?: string): any {
+	function mockOfType(t?: string): JsonValue {
 		switch ((t || "string").toLowerCase()) {
 			case "integer":
 				return 1;
@@ -126,27 +216,33 @@ export function InspectorDrawer({
 		}
 	}
 
-	function extractToolSchema(raw: any): any | null {
+	function extractToolSchema(raw: CapabilityRecord | null): JsonSchema | null {
 		// Support multiple shapes: input_schema.schema, inputSchema.schema, input_schema, inputSchema, schema
-		const s =
-			raw?.input_schema?.schema ||
-			raw?.inputSchema?.schema ||
-			raw?.input_schema ||
-			raw?.inputSchema ||
-			raw?.schema ||
-			null;
-		if (!s) return null;
+		if (!raw) return null;
+		const candidates = [
+			raw.input_schema,
+			raw.inputSchema,
+			raw.schema,
+		];
+		for (const candidate of candidates) {
+			const schema = toSchema(candidate);
+			if (schema) {
+				if (!schema.type && schema.properties) {
+					schema.type = "object";
+				}
+				return schema;
+			}
+		}
 		// Ensure object type when properties exist
-		if (!s.type && s.properties) s.type = "object";
-		return s;
+		return null;
 	}
 
-	function deriveFields(sourceItem: any): Field[] {
+	function deriveFields(sourceItem: CapabilityRecord | null): Field[] {
 		// Tools: item.input_schema?.properties; Prompts: item.arguments (array)
 		try {
 			if (kind === "tool") {
 				const schema = extractToolSchema(sourceItem);
-				const props = schema?.properties || {};
+				const props = schema?.properties ?? {};
 				let list: Field[] = [];
 				if (props && Object.keys(props).length > 0) {
 					const required: string[] = Array.isArray(schema?.required)
@@ -168,25 +264,22 @@ export function InspectorDrawer({
 					});
 				}
 				// Fallback to arguments array if schema had no properties
-				if (list.length === 0 && Array.isArray(sourceItem?.arguments)) {
-					list = sourceItem.arguments.map((a: any) => ({
-						name: String(a?.name || "arg"),
-						type: String(a?.type || "string"),
-						required: !!a?.required,
-						description: a?.description,
+				if (list.length === 0) {
+					list = normalizeArguments(sourceItem?.arguments).map((arg) => ({
+						name: arg.name ?? "arg",
+						type: arg.type ?? "string",
+						required: Boolean(arg.required),
+						description: arg.description,
 					}));
 				}
 				return list;
 			}
 			if (kind === "prompt") {
-				const args = Array.isArray(sourceItem?.arguments)
-					? sourceItem.arguments
-					: [];
-				return args.map((a: any) => ({
-					name: String(a?.name || "arg"),
-					type: String(a?.type || "string"),
-					required: !!a?.required,
-					description: a?.description,
+				return normalizeArguments(sourceItem?.arguments).map((arg) => ({
+					name: arg.name ?? "arg",
+					type: arg.type ?? "string",
+					required: Boolean(arg.required),
+					description: arg.description,
 				}));
 			}
 			return [];
@@ -195,8 +288,8 @@ export function InspectorDrawer({
 		}
 	}
 
-	function fillMock(fs: Field[]): Record<string, any> {
-		const acc: Record<string, any> = {};
+	function fillMock(fs: Field[]): JsonObject {
+		const acc: JsonObject = {};
 		fs.forEach((f) => {
 			if (f.enum && f.enum.length) acc[f.name] = f.enum[0];
 			else acc[f.name] = mockOfType(f.type);
@@ -208,35 +301,21 @@ export function InspectorDrawer({
 		if (!open) {
 			return;
 		}
-		const source = item ?? {};
-		let schema: any | null = null;
+		const source = item ?? null;
+		let schema: JsonSchema | null = null;
 		if (kind === "tool") {
 			schema = extractToolSchema(source);
 			if (!schema) {
-				const args = Array.isArray(source?.arguments) ? source.arguments : [];
-				if (args.length) {
-					const props: Record<string, any> = {};
-					const req: string[] = [];
-					args.forEach((a: any) => {
-						const t = String(a?.type || "string");
-						const nameKey = String(a?.name || "arg");
-						props[nameKey] = { type: t, description: a?.description };
-						if (a?.required) req.push(nameKey);
-					});
-					schema = { type: "object", properties: props, required: req };
+				const args = normalizeArguments(source?.arguments);
+				if (args.length > 0) {
+					schema = buildSchemaFromArguments(args);
 				}
 			}
 		} else if (kind === "prompt") {
-			const props: Record<string, any> = {};
-			const req: string[] = [];
-			const args = Array.isArray(source?.arguments) ? source.arguments : [];
-			args.forEach((a: any) => {
-				const t = String(a?.type || "string");
-				const nameKey = String(a?.name || "arg");
-				props[nameKey] = { type: t, description: a?.description };
-				if (a?.required) req.push(nameKey);
-			});
-			schema = { type: "object", properties: props, required: req };
+			const args = normalizeArguments(source?.arguments);
+			if (args.length > 0) {
+				schema = buildSchemaFromArguments(args);
+			}
 		}
 
 		if (
@@ -246,7 +325,7 @@ export function InspectorDrawer({
 			Object.keys(schema.properties).length > 0
 		) {
 			setSchemaObj(schema);
-			const mock = defaultFromSchema(schema);
+			const mock = toJsonObject(defaultFromSchema(schema));
 			setValues(mock);
 			setArgsJson(JSON.stringify(mock, null, 2));
 			setFields([]);
@@ -254,22 +333,9 @@ export function InspectorDrawer({
 			const fs = deriveFields(source);
 			setFields(fs);
 			if (fs.length > 0) {
-				const genProps: Record<string, any> = {};
-				const reqNames: string[] = [];
-				fs.forEach((f) => {
-					const prop: any = { type: f.type || "string" };
-					if (f.enum) prop.enum = f.enum;
-					if (f.description) prop.description = f.description;
-					genProps[f.name] = prop;
-					if (f.required) reqNames.push(f.name);
-				});
-				const genSchema = {
-					type: "object",
-					properties: genProps,
-					required: reqNames,
-				} as any;
-				setSchemaObj(genSchema);
-				const mock = defaultFromSchema(genSchema);
+				const generatedSchema = buildSchemaFromFields(fs);
+				setSchemaObj(generatedSchema);
+				const mock = toJsonObject(defaultFromSchema(generatedSchema));
 				setValues(mock);
 				setArgsJson(JSON.stringify(mock, null, 2));
 			} else {
@@ -286,21 +352,30 @@ export function InspectorDrawer({
 		} else if (kind === "prompt") {
 			const promptName =
 				(mode === "proxy"
-					? source?.unique_name || source?.prompt_name || source?.name
-					: source?.prompt_name || source?.name || source?.unique_name) || "";
-			setName(String(promptName));
+					? toString(source?.unique_name) ??
+						toString(source?.prompt_name) ??
+						toString(source?.name)
+					: toString(source?.prompt_name) ??
+						toString(source?.name) ??
+						toString(source?.unique_name)) ?? "";
+			setName(promptName);
 		} else if (kind === "resource") {
 			const resourceUri =
-				source?.resource_uri || source?.uri || source?.name || "";
-			setUri(String(resourceUri));
+				toString(source?.resource_uri) ??
+				toString(source?.uri) ??
+				toString(source?.name) ??
+				"";
+			setUri(resourceUri);
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open, item, kind, mode]);
 
-	function parseArgs(): Record<string, any> | undefined {
+	function parseArgs(): JsonObject | undefined {
 		try {
 			const obj = JSON.parse(argsJson || "{}");
-			if (obj && typeof obj === "object") return obj;
+			if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+				return obj as JsonObject;
+			}
 			return undefined;
 		} catch {
 			notifyError("Invalid arguments", "Arguments must be valid JSON");
@@ -320,7 +395,7 @@ export function InspectorDrawer({
 		try {
 			setSubmitting(true);
 			setResult(null);
-			let resp: any = null;
+			let resp: InspectorResponse<Record<string, unknown>> | null = null;
 			const baseLog = {
 				id: newLogId(),
 				timestamp: Date.now(),
@@ -346,20 +421,20 @@ export function InspectorDrawer({
 						timeout_ms: timeoutMs,
 					},
 				});
-				resp = await inspectorApi.toolCall({
+				resp = (await inspectorApi.toolCall({
 					tool: name,
 					server_id: serverId,
 					server_name: serverName,
 					mode,
 					arguments: args,
 					timeout_ms: timeoutMs,
-				});
+				})) as InspectorResponse<Record<string, unknown>>;
 				if (!resp?.success) {
 					throw new Error(
 						resp?.error ? String(resp.error) : "Tool call failed",
 					);
 				}
-				const data = resp.data ?? {};
+				const data = (resp.data ?? {}) as Record<string, unknown>;
 				setResult(data);
 				onLog?.({
 					...baseLog,
@@ -386,20 +461,20 @@ export function InspectorDrawer({
 						arguments: args,
 					},
 				});
-				resp = await inspectorApi.promptGet({
+				resp = (await inspectorApi.promptGet({
 					name,
 					server_id: serverId,
 					server_name: serverName,
 					mode,
 					arguments: args,
-				});
+				})) as InspectorResponse<Record<string, unknown>>;
 				if (!resp?.success) {
 					throw new Error(
 						resp?.error ? String(resp.error) : "Prompt get failed",
 					);
 				}
-				const data = resp.data ?? {};
-				setResult(data.result ?? data);
+				const data = (resp.data ?? {}) as Record<string, unknown>;
+				setResult((data.result as unknown) ?? data);
 				onLog?.({
 					...baseLog,
 					event: "success",
@@ -414,19 +489,19 @@ export function InspectorDrawer({
 					method: "resources/read",
 					payload: { uri, server_id: serverId, server_name: serverName },
 				});
-				resp = await inspectorApi.resourceRead({
+				resp = (await inspectorApi.resourceRead({
 					uri,
 					server_id: serverId,
 					server_name: serverName,
 					mode,
-				});
+				})) as InspectorResponse<Record<string, unknown>>;
 				if (!resp?.success) {
 					throw new Error(
 						resp?.error ? String(resp.error) : "Resource read failed",
 					);
 				}
-				const data = resp.data ?? {};
-				setResult(data.result ?? data);
+				const data = (resp.data ?? {}) as Record<string, unknown>;
+				setResult((data.result as unknown) ?? data);
 				onLog?.({
 					...baseLog,
 					event: "success",
@@ -458,11 +533,11 @@ export function InspectorDrawer({
 		}
 	}
 
-	function pretty(v: any) {
+	function pretty(value: unknown) {
 		try {
-			return JSON.stringify(v, null, 2);
+			return JSON.stringify(value, null, 2);
 		} catch {
-			return String(v);
+			return String(value);
 		}
 	}
 
@@ -560,19 +635,19 @@ export function InspectorDrawer({
 								<div className="flex items-center justify-between">
 									<Label>Parameters</Label>
 									<ButtonGroup>
-										<Button
-											size="sm"
-											variant="outline"
-											onClick={() => {
-												if (schemaObj) {
-													const mock = defaultFromSchema(schemaObj);
-													setValues(mock);
-													setArgsJson(JSON.stringify(mock, null, 2));
-												} else {
-													const mock = fillMock(fields);
-													setValues(mock);
-													setArgsJson(JSON.stringify(mock, null, 2));
-												}
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => {
+							if (schemaObj) {
+								const mock = toJsonObject(defaultFromSchema(schemaObj));
+								setValues(mock);
+								setArgsJson(JSON.stringify(mock, null, 2));
+							} else {
+								const mock = fillMock(fields);
+								setValues(mock);
+								setArgsJson(JSON.stringify(mock, null, 2));
+							}
 											}}
 										>
 											Fill Mock
@@ -604,18 +679,19 @@ export function InspectorDrawer({
 										onChange={(e) => setArgsJson(e.target.value)}
 									/>
 								) : schemaObj ? (
-									<Card>
-										<CardContent className="p-4">
-											<SchemaForm
-												schema={schemaObj}
-												value={values}
-												onChange={(v) => {
-													setValues(v);
-													setArgsJson(JSON.stringify(v, null, 2));
-												}}
-											/>
-										</CardContent>
-									</Card>
+						<Card>
+							<CardContent className="p-4">
+								<SchemaForm
+									schema={schemaObj}
+									value={values}
+									onChange={(v) => {
+										const next = toJsonObject(v);
+										setValues(next);
+										setArgsJson(JSON.stringify(next, null, 2));
+									}}
+								/>
+							</CardContent>
+						</Card>
 								) : (
 									<Textarea
 										rows={6}

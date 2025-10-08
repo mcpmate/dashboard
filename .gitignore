@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 public/open-source-notices.json
+dist/open-source-notices.json
+lint-output.json
+lint.json
 
 # Editor directories and files
 .vscode/*

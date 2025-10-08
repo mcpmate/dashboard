@@ -16,16 +16,14 @@ function cleanupBodyLocks() {
 		document.documentElement?.removeAttribute("aria-hidden");
 		setAppInert(false);
 
-		// Clear lingering pointer locks on previously closed overlays without removing them early
+		// Remove pointer-events from all overlays when no drawers are open
+		// to ensure they can respond to clicks properly
 		const overlays = document.querySelectorAll<HTMLElement>(
 			"[data-vaul-overlay], [data-vaul-drawer-wrapper], [data-radix-dialog-overlay], [data-radix-popper-content-wrapper]",
 		);
 		overlays.forEach((overlay) => {
-			if (overlay.getAttribute("data-state") === "open") {
-				overlay.style.removeProperty("pointer-events");
-			} else {
-				overlay.style.pointerEvents = "none";
-			}
+			// Always remove pointer-events style to let the overlay work naturally
+			overlay.style.removeProperty("pointer-events");
 		});
 	} catch {
 		/* noop */
@@ -73,6 +71,11 @@ function setAppInert(inert: boolean) {
 	}
 }
 
+// Create a context to share the close handler with DrawerOverlay
+const DrawerContext = React.createContext<{
+	onClose?: () => void;
+}>({});
+
 const Drawer = ({
 	shouldScaleBackground = false,
 	direction = "right",
@@ -103,6 +106,10 @@ const Drawer = ({
 		},
 		[onOpenChange],
 	);
+
+	const handleClose = React.useCallback(() => {
+		handleOpenChange(false);
+	}, [handleOpenChange]);
 
 	// Install global guard (once) to keep body interactive if styles linger
 	React.useEffect(() => {
@@ -159,13 +166,16 @@ const Drawer = ({
 	);
 
 	return (
-		<DrawerPrimitive.Root
-			shouldScaleBackground={shouldScaleBackground}
-			direction={direction}
-			onOpenChange={handleOpenChange}
-			dismissible={true}
-			{...props}
-		/>
+		<DrawerContext.Provider value={{ onClose: handleClose }}>
+			<DrawerPrimitive.Root
+				shouldScaleBackground={shouldScaleBackground}
+				direction={direction}
+				onOpenChange={handleOpenChange}
+				dismissible={false}
+				modal={true}
+				{...props}
+			/>
+		</DrawerContext.Provider>
 	);
 };
 Drawer.displayName = "Drawer";
@@ -179,37 +189,45 @@ const DrawerClose = DrawerPrimitive.Close;
 const DrawerOverlay = React.forwardRef<
 	React.ElementRef<typeof DrawerPrimitive.Overlay>,
 	React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-	<DrawerPrimitive.Overlay
-		ref={ref}
-		className={cn("fixed inset-0 z-50 bg-black/80", className)}
-		{...props}
-	/>
-));
+>(({ className, onClick, ...props }, ref) => {
+	const { onClose } = React.useContext(DrawerContext);
+
+	const handleClick = React.useCallback(
+		(e: React.MouseEvent<HTMLDivElement>) => {
+			// Call original onClick if provided
+			onClick?.(e);
+			// Close the drawer when clicking the overlay
+			if (e.target === e.currentTarget && onClose) {
+				onClose();
+			}
+		},
+		[onClick, onClose],
+	);
+
+	return (
+		<DrawerPrimitive.Overlay
+			ref={ref}
+			className={cn("fixed inset-0 z-50 bg-black/80", className)}
+			onClick={handleClick}
+			{...props}
+		/>
+	);
+});
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 const DrawerContent = React.forwardRef<
 	React.ElementRef<typeof DrawerPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
 >(({ className, children, ...props }, ref) => {
-	// Prevent drag gestures from closing the drawer
-	const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
-		// Only prevent drag gestures, not other interactions
-		if (e.pointerType === "touch" || e.pointerType === "mouse") {
-			e.stopPropagation();
-		}
-	}, []);
-
 	return (
 		<DrawerPortal>
 			<DrawerOverlay />
 			<DrawerPrimitive.Content
 				ref={ref}
 				className={cn(
-					"fixed top-0 right-0 bottom-0 z-50 h-screen w-full sm:w-[560px] md:w-[720px] flex flex-col border-l bg-background shadow-lg overflow-y-auto",
+					"fixed top-0 right-0 bottom-0 z-50 h-screen w-full sm:w-[560px] md:w-[720px] flex flex-col border-l border-slate-200 dark:border-slate-700 bg-background shadow-lg overflow-y-auto",
 					className,
 				)}
-				onPointerDownCapture={handlePointerDown}
 				{...props}
 			>
 				{children}

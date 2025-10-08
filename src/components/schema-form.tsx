@@ -17,16 +17,25 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "./ui/tooltip";
+import type { JsonObject, JsonSchema, JsonValue } from "../types/json";
+import { defaultFromSchema } from "./schema-form-utils";
 
-// Array item row component with 2-click delete confirmation
-const ArrayItemRow: React.FC<{
+type ArrayItemRowProps = {
 	name: string;
 	idx: number;
-	value: any;
-	itemsSchema: any;
-	onChange: (value: any) => void;
+	value: JsonValue | undefined;
+	onChange: (value: JsonValue | undefined) => void;
 	onRemove: () => void;
-}> = ({ name, idx, value, itemsSchema, onChange, onRemove }) => {
+};
+
+// Array item row component with 2-click delete confirmation
+const ArrayItemRow: React.FC<ArrayItemRowProps> = ({
+	name,
+	idx,
+	value,
+	onChange,
+	onRemove,
+}) => {
 	const [confirming, setConfirming] = React.useState(false);
 	const label = `${name}[${idx}]`;
 
@@ -60,49 +69,20 @@ const ArrayItemRow: React.FC<{
 	);
 };
 
-export type JSONSchema = any; // Lightweight compatibility
+const isJsonObject = (value: unknown): value is JsonObject =>
+	Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-export function defaultFromSchema(schema: JSONSchema): any {
-	try {
-		if (!schema) return {};
-		if (schema.default !== undefined) return schema.default;
-		const t = Array.isArray(schema.type) ? schema.type[0] : schema.type;
-		if (schema.enum && schema.enum.length) return schema.enum[0];
-		switch ((t || "object").toLowerCase()) {
-			case "string":
-				return schema.examples?.[0] ?? "example";
-			case "integer":
-				return 1;
-			case "number":
-				return 1;
-			case "boolean":
-				return true;
-			case "array": {
-				const item = defaultFromSchema(schema.items || { type: "string" });
-				return [item];
-			}
-			case "object": {
-				const o: Record<string, any> = {};
-				const props = schema.properties || {};
-				Object.keys(props).forEach((k) => {
-					o[k] = defaultFromSchema(props[k]);
-				});
-				return o;
-			}
-			default:
-				return "example";
-		}
-	} catch {
-		return {};
-	}
-}
+const toSingleSchema = (
+	schema: JsonSchema | JsonSchema[] | undefined,
+): JsonSchema =>
+	Array.isArray(schema) ? schema[0] : schema ?? {};
 
 type FieldProps = {
 	name: string;
-	schema: JSONSchema;
+	schema: JsonSchema;
 	required?: boolean;
-	value: any;
-	onChange: (v: any) => void;
+	value: JsonValue | undefined;
+	onChange: (v: JsonValue | undefined) => void;
 };
 
 function sanitizeId(input: string) {
@@ -111,7 +91,7 @@ function sanitizeId(input: string) {
 
 function Field({ name, schema, required, value, onChange }: FieldProps) {
 	const type = Array.isArray(schema?.type) ? schema.type[0] : schema?.type;
-	const enumVals: any[] | undefined = schema?.enum;
+	const enumVals = Array.isArray(schema?.enum) ? schema.enum : undefined;
 	const labelText = `${name}${required ? " *" : ""}`;
 	const desc = schema?.description as string | undefined;
 	const fieldId = `schema-${sanitizeId(name)}`;
@@ -212,8 +192,8 @@ function Field({ name, schema, required, value, onChange }: FieldProps) {
 	}
 
 	if (type === "array") {
-		const itemsSchema = schema?.items || { type: "string" };
-		const arr: any[] = Array.isArray(value) ? value : [];
+		const itemsSchema = toSingleSchema(schema?.items) ?? { type: "string" };
+		const arr = Array.isArray(value) ? (value as JsonValue[]) : [];
 
 		return renderField(
 			<div className="space-y-2">
@@ -223,7 +203,6 @@ function Field({ name, schema, required, value, onChange }: FieldProps) {
 						name={name}
 						idx={idx}
 						value={v}
-						itemsSchema={itemsSchema}
 						onChange={(newValue) => {
 							const next = [...arr];
 							next[idx] = newValue;
@@ -258,8 +237,7 @@ function Field({ name, schema, required, value, onChange }: FieldProps) {
 		const req: string[] = Array.isArray(schema?.required)
 			? schema.required
 			: [];
-		const obj: Record<string, any> =
-			value && typeof value === "object" ? value : {};
+		const obj = isJsonObject(value) ? value : {};
 		const keys = Object.keys(props);
 		return renderField(
 			<div className="grid grid-cols-1 gap-3">
@@ -301,15 +279,14 @@ export function SchemaForm({
 	value,
 	onChange,
 }: {
-	schema: JSONSchema;
-	value: any;
-	onChange: (v: any) => void;
+	schema: JsonSchema;
+	value: JsonValue | undefined;
+	onChange: (v: JsonValue | undefined) => void;
 }) {
 	const props = schema?.properties || {};
 	const req: string[] = Array.isArray(schema?.required) ? schema.required : [];
 	const keys = Object.keys(props);
-	const obj: Record<string, any> =
-		value && typeof value === "object" ? value : {};
+	const obj = isJsonObject(value) ? value : {};
 	return (
 		<div className="grid grid-cols-1 gap-3">
 			{keys.map((k) => (

@@ -10,8 +10,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
-import { notifyError, notifySuccess } from "../../lib/notify";
 import { capabilitiesApi, runtimeApi } from "../../lib/api";
+import { notifyError, notifySuccess } from "../../lib/notify";
 import type {
 	CapabilitiesStatsResponse,
 	ClearCacheResponse,
@@ -128,21 +128,21 @@ export function RuntimePage() {
 						>
 							{/* Status badge only */}
 							<div className="flex justify-end mb-4">
-								<div className="h-6 w-16 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
+								<div className="h-6 w-16 animate-pulse rounded-full bg-slate-100 dark:bg-slate-900" />
 							</div>
 
 							{/* Main content blocks - simplified */}
 							<div className="space-y-3">
 								{/* Main info block */}
-								<div className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+								<div className="h-16 animate-pulse rounded bg-slate-100 dark:bg-slate-900" />
 
 								{/* Cache info block */}
-								<div className="h-12 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+								<div className="h-12 animate-pulse rounded bg-slate-100 dark:bg-slate-900" />
 							</div>
 
 							{/* Single button */}
 							<div className="mt-4 flex justify-start">
-								<div className="h-8 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+								<div className="h-8 w-24 animate-pulse rounded bg-slate-100 dark:bg-slate-900" />
 							</div>
 						</div>
 					))}
@@ -251,8 +251,8 @@ export function RuntimePage() {
 					{capabilitiesStatsQ.isLoading ? (
 						<div className="space-y-4">
 							{/* Simplified content blocks */}
-							<div className="h-20 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-							<div className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+							<div className="h-20 animate-pulse rounded bg-slate-100 dark:bg-slate-900" />
+							<div className="h-16 animate-pulse rounded bg-slate-100 dark:bg-slate-900" />
 						</div>
 					) : capStats ? (
 						<div className="space-y-4 text-sm">

@@ -86,17 +86,6 @@ export function ServerInstallDrawer({
 		if (previewState && !isPreviewLoading) setPreviewAt(Date.now());
 	}, [previewState, isPreviewLoading]);
 
-	const timeAgo = useMemo(() => {
-		if (!previewAt) return null;
-		const delta = Math.max(0, Date.now() - previewAt);
-		const s = Math.round(delta / 1000);
-		if (s < 60) return `${s}s ago`;
-		const m = Math.round(s / 60);
-		if (m < 60) return `${m}m ago`;
-		const h = Math.round(m / 60);
-		return `${h}h ago`;
-	}, [previewAt]);
-
 	// Expand/collapse details per draft
 	const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 	const toggleExpanded = (name: string) =>

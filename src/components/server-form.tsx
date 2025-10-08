@@ -144,7 +144,9 @@ export function ServerForm({
               <Label htmlFor="kind">Server Type</Label>
               <Select
                 defaultValue={defaultValues.kind}
-                onValueChange={(value) => setValue('kind', value as any)}
+                onValueChange={(value) =>
+                  setValue('kind', value as ServerFormValues['kind'])
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select server type" />

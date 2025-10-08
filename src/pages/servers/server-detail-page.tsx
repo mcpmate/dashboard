@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	AlertTriangle,
 	Bug,
+	Copy,
 	Edit3,
 	Eye,
 	Loader2,
@@ -57,8 +58,52 @@ import {
 } from "../../components/ui/tabs";
 import { configSuitsApi, inspectorApi, serversApi } from "../../lib/api";
 import { notifyError, notifySuccess } from "../../lib/notify";
-import { useAppStore } from "../../lib/store";
 import { maskHeaderValue, sanitizeRecord } from "../../lib/security";
+import { useAppStore } from "../../lib/store";
+import type { ServerCapabilitySummary, ServerDetail } from "../../lib/types";
+import type { CapabilityRecord } from "../../types/capabilities";
+
+const readLegacyCapability = (
+	server: ServerDetail | undefined,
+): ServerCapabilitySummary | undefined => {
+	if (!server) return undefined;
+	return server.capabilities ?? undefined;
+};
+
+const readLegacyString = (
+	server: ServerDetail | undefined,
+	key: "protocolVersion" | "serverVersion",
+): string | undefined => {
+	if (!server || typeof server !== "object") return undefined;
+	const value = (server as unknown as Record<string, unknown>)[key];
+	return typeof value === "string" ? value : undefined;
+};
+
+interface InspectorListResponse {
+	success?: boolean;
+	data?: {
+		tools?: CapabilityRecord[];
+		resources?: CapabilityRecord[];
+		prompts?: CapabilityRecord[];
+		items?: CapabilityRecord[];
+		meta?: unknown;
+		state?: string;
+	} | null;
+	error?: unknown;
+}
+
+interface InspectorListParams {
+	server_id: string;
+	server_name?: string;
+	mode: InspectorChannel;
+	refresh: boolean;
+}
+
+interface CapabilityListResponse {
+	items: CapabilityRecord[];
+	meta?: unknown;
+	state?: string;
+}
 
 const VIEW_MODES = {
 	browse: "browse" as const,
@@ -69,8 +114,8 @@ type InspectorChannel = "proxy" | "native";
 type DebugKind = "tools" | "resources" | "prompts";
 
 type InspectorTarget = {
-	kind: "tool" | "resource" | "prompt";
-	item: any;
+	kind: "tool" | "resource" | "prompt" | "template";
+	item: CapabilityRecord | null;
 };
 
 function getInitialInspectorChannel(): InspectorChannel {
@@ -88,7 +133,7 @@ function getInitialInspectorChannel(): InspectorChannel {
 }
 
 interface DebugState {
-	items: any[];
+	items: CapabilityRecord[];
 	loading: boolean;
 	error: string | null;
 	fetched: boolean;
@@ -128,14 +173,19 @@ export function ServerDetailPage() {
 		useState<InspectorChannel>(initialChannel);
 	const [channel, setChannel] = useState<InspectorChannel>(initialChannel);
 	const ignoreLocationChange = useRef(false);
+	const isUserAction = useRef(false);
+	const debounceTimer = useRef<NodeJS.Timeout | null>(null);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 	const [inspector, setInspector] = useState<InspectorTarget | null>(null);
 	const [logs, setLogs] = useState<InspectorLogEntry[]>([]);
-	const [debugData, setDebugData] = useState<Record<DebugKind, DebugState>>({
+	const [debugData, setDebugData] = useState<
+		Record<DebugKind | "templates", DebugState>
+	>({
 		tools: createDebugState(),
 		resources: createDebugState(),
 		prompts: createDebugState(),
+		templates: createDebugState(),
 	});
 
 	const {
@@ -234,29 +284,46 @@ export function ServerDetailPage() {
 			ignoreLocationChange.current = false;
 			return;
 		}
+
+		// Skip if this is a user action to prevent loops
+		if (isUserAction.current) {
+			isUserAction.current = false;
+			return;
+		}
+
 		const params = new URLSearchParams(location.search);
 		const viewParam = params.get("view");
+
+		// Only update viewMode if URL parameter is different and valid
 		if (viewParam === VIEW_MODES.debug || viewParam === VIEW_MODES.browse) {
 			if (viewParam !== viewMode) {
 				setViewMode(viewParam);
 			}
-		} else if (viewMode !== VIEW_MODES.browse) {
+		} else if (viewParam === null && viewMode !== VIEW_MODES.browse) {
+			// Only set to browse if there's no view parameter and current mode is not browse
 			setViewMode(VIEW_MODES.browse);
 		}
 
 		const channelParam = params.get("channel");
 		if (channelParam === "proxy" || channelParam === "native") {
-			setRequestedChannel(channelParam);
-		} else {
+			if (channelParam !== requestedChannel) {
+				setRequestedChannel(channelParam);
+			}
+		} else if (requestedChannel !== "native") {
 			setRequestedChannel("native");
 		}
-	}, [location.search, setViewMode, viewMode]);
+	}, [location.search, setViewMode, viewMode, requestedChannel]);
 
 	useEffect(() => {
 		if (viewMode !== VIEW_MODES.debug) {
 			if (channel !== "native") {
 				setChannel("native");
 			}
+			return;
+		}
+
+		// Skip channel adjustment if this is a user action to prevent loops
+		if (isUserAction.current) {
 			return;
 		}
 
@@ -270,27 +337,59 @@ export function ServerDetailPage() {
 		if (channel !== desiredChannel) {
 			setChannel(desiredChannel);
 		}
-	}, [channel, proxyAvailable, requestedChannel, setChannel, viewMode]);
+	}, [channel, proxyAvailable, requestedChannel, viewMode]);
 
 	useEffect(() => {
-		const params = new URLSearchParams(location.search);
-		let changed = false;
-		if (params.get("view") !== viewMode) {
-			params.set("view", viewMode);
-			changed = true;
+		// Skip if we're currently ignoring location changes to prevent loops
+		if (ignoreLocationChange.current) {
+			return;
 		}
-		if (params.get("channel") !== requestedChannel) {
-			params.set("channel", requestedChannel);
-			changed = true;
+
+		// Clear any existing debounce timer
+		if (debounceTimer.current) {
+			clearTimeout(debounceTimer.current);
 		}
-		if (changed) {
-			ignoreLocationChange.current = true;
-			navigate(
-				{ pathname: location.pathname, search: params.toString() },
-				{ replace: true },
-			);
-		}
-	}, [viewMode, requestedChannel, location.pathname, navigate]);
+
+		// Debounce the URL update to prevent rapid changes
+		debounceTimer.current = setTimeout(() => {
+			const params = new URLSearchParams(location.search);
+			let changed = false;
+
+			// Only update URL if the current URL doesn't match the state
+			const currentView = params.get("view");
+			if (currentView !== viewMode) {
+				params.set("view", viewMode);
+				changed = true;
+			}
+
+			const currentChannel = params.get("channel");
+			if (currentChannel !== requestedChannel) {
+				params.set("channel", requestedChannel);
+				changed = true;
+			}
+
+			if (changed) {
+				ignoreLocationChange.current = true;
+				navigate(
+					{ pathname: location.pathname, search: params.toString() },
+					{ replace: true },
+				);
+			}
+		}, 50); // 50ms debounce
+
+		// Cleanup function
+		return () => {
+			if (debounceTimer.current) {
+				clearTimeout(debounceTimer.current);
+			}
+		};
+	}, [
+		viewMode,
+		requestedChannel,
+		location.pathname,
+		location.search,
+		navigate,
+	]);
 
 	useEffect(() => {
 		try {
@@ -315,7 +414,7 @@ export function ServerDetailPage() {
 	}, []);
 
 	const updateDebugState = useCallback(
-		(kind: DebugKind, patch: Partial<DebugState>) => {
+		(kind: DebugKind | "templates", patch: Partial<DebugState>) => {
 			setDebugData((prev) => ({
 				...prev,
 				[kind]: {
@@ -328,7 +427,7 @@ export function ServerDetailPage() {
 	);
 
 	const runList = useCallback(
-		async (kind: DebugKind) => {
+		async (kind: DebugKind | "templates") => {
 			if (!serverId) return;
 			if (channel === "proxy" && !proxyAvailable) {
 				updateDebugState(kind, {
@@ -342,8 +441,10 @@ export function ServerDetailPage() {
 					? "tools/list"
 					: kind === "resources"
 						? "resources/list"
-						: "prompts/list";
-			const requestPayload: Record<string, unknown> = {
+						: kind === "prompts"
+							? "prompts/list"
+							: "templates/list";
+			const requestPayload: InspectorListParams = {
 				server_id: serverId,
 				mode: channel,
 				refresh: true,
@@ -362,22 +463,36 @@ export function ServerDetailPage() {
 			});
 
 			try {
-				let resp: any;
+				let resp: InspectorListResponse | undefined;
 				if (kind === "tools") {
-					resp = await inspectorApi.toolsList(requestPayload as any);
+					resp = (await inspectorApi.toolsList(
+						requestPayload,
+					)) as InspectorListResponse;
 				} else if (kind === "resources") {
-					resp = await inspectorApi.resourcesList(requestPayload as any);
+					resp = (await inspectorApi.resourcesList(
+						requestPayload,
+					)) as InspectorListResponse;
+				} else if (kind === "prompts") {
+					resp = (await inspectorApi.promptsList(
+						requestPayload,
+					)) as InspectorListResponse;
 				} else {
-					resp = await inspectorApi.promptsList(requestPayload as any);
+					resp = (await inspectorApi.templatesList(
+						requestPayload,
+					)) as InspectorListResponse;
 				}
-				const data = resp?.data || {};
-				const list = Array.isArray(data.tools)
-					? data.tools
-					: Array.isArray(data.resources)
-						? data.resources
-						: Array.isArray(data.prompts)
-							? data.prompts
-							: [];
+				const data = resp?.data ?? {};
+				const list: CapabilityRecord[] = Array.isArray(data.items)
+					? data.items
+					: Array.isArray(data.tools)
+						? data.tools
+						: Array.isArray(data.resources)
+							? data.resources
+							: Array.isArray(data.prompts)
+								? data.prompts
+								: Array.isArray((data as any).templates)
+									? (data as any).templates
+									: [];
 				updateDebugState(kind, {
 					loading: false,
 					error: null,
@@ -420,15 +535,11 @@ export function ServerDetailPage() {
 	);
 
 	const handleInspect = useCallback(
-		(kind: InspectorTarget["kind"], item: any) => {
+		(kind: InspectorTarget["kind"], item: CapabilityRecord | null) => {
 			setInspector({ kind, item });
 		},
 		[],
 	);
-
-	if (!serverId) {
-		return <div className="p-4">No server ID provided</div>;
-	}
 
 	const serverDisplayName = server?.name || serverId;
 	const primaryIconSrc = server?.icons?.[0]?.src;
@@ -436,20 +547,21 @@ export function ServerDetailPage() {
 		? `${serverDisplayName} icon`
 		: undefined;
 	const serverDescription = server?.meta?.description?.trim();
-	const serverCategory = server?.meta?.category?.trim();
-	const serverScenario = server?.meta?.recommendedScenario?.trim();
+	const serverCategory = (server?.meta as Record<string, unknown>)?.category as
+		| string
+		| undefined;
+	const serverScenario = (server?.meta as Record<string, unknown>)
+		?.recommendedScenario as string | undefined;
 	const capabilitySummary = server
-		? (server.capability ?? (server as any).capabilities ?? undefined)
+		? (server.capability ?? readLegacyCapability(server))
 		: undefined;
 	const capabilityOverviewText = capabilitySummary
 		? `Tools ${capabilitySummary.tools_count} | Prompts ${capabilitySummary.prompts_count} | Resources ${capabilitySummary.resources_count} | Templates ${capabilitySummary.resource_templates_count}`
 		: undefined;
 	const protocolVersion =
-		server?.protocol_version ?? (server as any)?.protocolVersion ?? undefined;
+		server?.protocol_version ?? readLegacyString(server, "protocolVersion");
 	const serverVersion =
-		(server as any)?.server_version ??
-		(server as any)?.serverVersion ??
-		undefined;
+		server?.server_version ?? readLegacyString(server, "serverVersion");
 	const defaultTab = viewMode === VIEW_MODES.debug ? "tools" : "overview";
 	const serverEnabled = Boolean(server?.enabled ?? server?.globally_enabled);
 	const runtimeStatus = server?.status ?? (serverEnabled ? "idle" : "disabled");
@@ -463,6 +575,10 @@ export function ServerDetailPage() {
 		for (const [k, v] of Object.entries(src)) out[k] = maskHeaderValue(k, v);
 		return out;
 	}, [server?.headers]);
+
+	if (!serverId) {
+		return <div className="p-4">No server ID provided</div>;
+	}
 
 	return (
 		<div className="space-y-4">
@@ -485,7 +601,10 @@ export function ServerDetailPage() {
 							type="button"
 							size="sm"
 							variant={viewMode === VIEW_MODES.browse ? "default" : "ghost"}
-							onClick={() => setViewMode(VIEW_MODES.browse)}
+							onClick={() => {
+								isUserAction.current = true;
+								setViewMode(VIEW_MODES.browse);
+							}}
 							className="gap-1 rounded-l-md rounded-r-none"
 						>
 							<Eye className="h-4 w-4" /> Browse
@@ -494,7 +613,10 @@ export function ServerDetailPage() {
 							type="button"
 							size="sm"
 							variant={viewMode === VIEW_MODES.debug ? "default" : "ghost"}
-							onClick={() => setViewMode(VIEW_MODES.debug)}
+							onClick={() => {
+								isUserAction.current = true;
+								setViewMode(VIEW_MODES.debug);
+							}}
 							className="gap-1 rounded-r-md rounded-l-none"
 						>
 							<Bug className="h-4 w-4" /> Debug
@@ -554,6 +676,9 @@ export function ServerDetailPage() {
 								isChecking={isProxyChecking}
 								onSelect={setRequestedChannel}
 								onOpenProfiles={() => navigate("/profiles")}
+								onUserAction={() => {
+									isUserAction.current = true;
+								}}
 							/>
 						) : null}
 					</div>
@@ -581,7 +706,8 @@ export function ServerDetailPage() {
 																/>
 															) : null}
 															<AvatarFallback>
-																{serverDisplayName.slice(0, 1).toUpperCase()}
+																{serverDisplayName?.slice(0, 1).toUpperCase() ??
+																	"?"}
 															</AvatarFallback>
 														</Avatar>
 														<div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
@@ -830,22 +956,6 @@ export function ServerDetailPage() {
 						)}
 					</TabsContent>
 
-					<TabsContent value="resources">
-						{viewMode === VIEW_MODES.browse ? (
-							<ServerCapabilityList kind="resources" serverId={serverId} />
-						) : (
-							<InspectorDebugSection
-								kind="resources"
-								state={debugData.resources}
-								disabled={channel === "proxy" && !proxyAvailable}
-								onFetch={() => runList("resources")}
-								onInspect={(item) => handleInspect("resource", item)}
-								logs={logs}
-								onClearLogs={() => clearLogsByPrefix("resources/")}
-							/>
-						)}
-					</TabsContent>
-
 					<TabsContent value="prompts">
 						{viewMode === VIEW_MODES.browse ? (
 							<ServerCapabilityList kind="prompts" serverId={serverId} />
@@ -862,21 +972,35 @@ export function ServerDetailPage() {
 						)}
 					</TabsContent>
 
+					<TabsContent value="resources">
+						{viewMode === VIEW_MODES.browse ? (
+							<ServerCapabilityList kind="resources" serverId={serverId} />
+						) : (
+							<InspectorDebugSection
+								kind="resources"
+								state={debugData.resources}
+								disabled={channel === "proxy" && !proxyAvailable}
+								onFetch={() => runList("resources")}
+								onInspect={(item) => handleInspect("resource", item)}
+								logs={logs}
+								onClearLogs={() => clearLogsByPrefix("resources/")}
+							/>
+						)}
+					</TabsContent>
+
 					<TabsContent value="templates">
 						{viewMode === VIEW_MODES.browse ? (
 							<ServerCapabilityList kind="templates" serverId={serverId} />
 						) : (
-							<Card>
-								<CardHeader>
-									<CardTitle>Resource Templates</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<p className="text-sm text-slate-600 dark:text-slate-300">
-										MCP resource templates are not yet available through the
-										Inspector debug channel.
-									</p>
-								</CardContent>
-							</Card>
+							<InspectorDebugSection
+								kind="templates"
+								state={debugData.templates}
+								disabled={channel === "proxy" && !proxyAvailable}
+								onFetch={() => runList("templates")}
+								onInspect={(item) => handleInspect("template", item)}
+								logs={logs}
+								onClearLogs={() => clearLogsByPrefix("templates/")}
+							/>
 						)}
 					</TabsContent>
 				</Tabs>
@@ -889,7 +1013,7 @@ export function ServerDetailPage() {
 				serverId={serverId}
 				serverName={server?.name}
 				kind={inspector?.kind ?? "tool"}
-				item={inspector?.item}
+				item={inspector?.item ?? null}
 				mode={channel}
 				onLog={pushLog}
 			/>
@@ -938,16 +1062,16 @@ function ServerCapabilityTabsHeader({
 				Tools ({toolsCount})
 			</TabsTrigger>
 			<TabsTrigger
-				value="resources"
-				disabled={disableEmpty && resourcesCount === 0}
-			>
-				Resources ({resourcesCount})
-			</TabsTrigger>
-			<TabsTrigger
 				value="prompts"
 				disabled={disableEmpty && promptsCount === 0}
 			>
 				Prompts ({promptsCount})
+			</TabsTrigger>
+			<TabsTrigger
+				value="resources"
+				disabled={disableEmpty && resourcesCount === 0}
+			>
+				Resources ({resourcesCount})
 			</TabsTrigger>
 			<TabsTrigger
 				value="templates"
@@ -968,21 +1092,57 @@ function ServerCapabilityList({
 }) {
 	const [search, setSearch] = useState("");
 	const queryMap = {
-		tools: useQuery({
+		tools: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "tools", serverId],
-			queryFn: () => serversApi.listTools(serverId),
+			queryFn: async () => {
+				const response = await serversApi.listTools(serverId);
+				return {
+					items: Array.isArray(response.items)
+						? (response.items as CapabilityRecord[])
+						: [],
+					meta: response.meta,
+					state: response.state,
+				};
+			},
 		}),
-		resources: useQuery({
+		resources: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "resources", serverId],
-			queryFn: () => serversApi.listResources(serverId),
+			queryFn: async () => {
+				const response = await serversApi.listResources(serverId);
+				return {
+					items: Array.isArray(response.items)
+						? (response.items as CapabilityRecord[])
+						: [],
+					meta: response.meta,
+					state: response.state,
+				};
+			},
 		}),
-		prompts: useQuery({
+		prompts: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "prompts", serverId],
-			queryFn: () => serversApi.listPrompts(serverId),
+			queryFn: async () => {
+				const response = await serversApi.listPrompts(serverId);
+				return {
+					items: Array.isArray(response.items)
+						? (response.items as CapabilityRecord[])
+						: [],
+					meta: response.meta,
+					state: response.state,
+				};
+			},
 		}),
-		templates: useQuery({
+		templates: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "templates", serverId],
-			queryFn: () => serversApi.listResourceTemplates(serverId),
+			queryFn: async () => {
+				const response = await serversApi.listResourceTemplates(serverId);
+				return {
+					items: Array.isArray(response.items)
+						? (response.items as CapabilityRecord[])
+						: [],
+					meta: response.meta,
+					state: response.state,
+				};
+			},
 		}),
 	} as const;
 	const q = queryMap[kind];
@@ -998,7 +1158,7 @@ function ServerCapabilityList({
 			title={`${titleMap[kind]} (${q.data?.items?.length ?? 0})`}
 			kind={kind}
 			context="server"
-			items={(q.data?.items as any[]) || []}
+			items={q.data?.items ?? []}
 			loading={q.isLoading}
 			filterText={search}
 			onFilterTextChange={setSearch}
@@ -1008,11 +1168,11 @@ function ServerCapabilityList({
 }
 
 interface InspectorDebugSectionProps {
-	kind: DebugKind;
+	kind: DebugKind | "templates";
 	state: DebugState;
 	disabled?: boolean;
 	onFetch: () => void;
-	onInspect: (item: any) => void;
+	onInspect: (item: CapabilityRecord | null) => void;
 	logs: InspectorLogEntry[];
 	onClearLogs: () => void;
 }
@@ -1024,6 +1184,7 @@ interface InspectorChannelControlsProps {
 	isChecking?: boolean;
 	onSelect: (channel: InspectorChannel) => void;
 	onOpenProfiles: () => void;
+	onUserAction: () => void;
 }
 
 function InspectorChannelControls({
@@ -1033,6 +1194,7 @@ function InspectorChannelControls({
 	isChecking,
 	onSelect,
 	onOpenProfiles,
+	onUserAction,
 }: InspectorChannelControlsProps) {
 	const [hintVisible, setHintVisible] = useState(false);
 	const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1069,6 +1231,7 @@ function InspectorChannelControls({
 	}, [hintVisible]);
 
 	const handleProxy = () => {
+		onUserAction();
 		onSelect("proxy");
 		if (proxyAvailable && !isChecking) {
 			setHintVisible(false);
@@ -1078,6 +1241,7 @@ function InspectorChannelControls({
 	};
 
 	const handleNative = () => {
+		onUserAction();
 		onSelect("native");
 		setHintVisible(false);
 	};
@@ -1147,12 +1311,14 @@ function InspectorDebugSection({
 	onClearLogs,
 }: InspectorDebugSectionProps) {
 	const [filter, setFilter] = useState("");
+	const [logFilter, setLogFilter] = useState("");
 	const [tab, setTab] = useState<"results" | "logs">("results");
 
 	const title = useMemo(() => {
 		if (kind === "tools") return "Tools";
 		if (kind === "resources") return "Resources";
-		return "Prompts";
+		if (kind === "prompts") return "Prompts";
+		return "Resource Templates";
 	}, [kind]);
 
 	const sectionLogs = useMemo(() => {
@@ -1161,9 +1327,28 @@ function InspectorDebugSection({
 				? "tools/"
 				: kind === "resources"
 					? "resources/"
-					: "prompts/";
-		return logs.filter((entry) => entry.method.startsWith(prefix));
-	}, [logs, kind]);
+					: kind === "prompts"
+						? "prompts/"
+						: "templates/";
+		let filteredLogs = logs.filter((entry) => entry.method.startsWith(prefix));
+
+		// Apply log filter if provided
+		if (logFilter.trim()) {
+			const searchTerm = logFilter.toLowerCase();
+			filteredLogs = filteredLogs.filter((entry) => {
+				return (
+					entry.method.toLowerCase().includes(searchTerm) ||
+					entry.event.toLowerCase().includes(searchTerm) ||
+					entry.mode.toLowerCase().includes(searchTerm) ||
+					entry.message?.toLowerCase().includes(searchTerm) ||
+					(entry.payload &&
+						safeLog(entry.payload).toLowerCase().includes(searchTerm))
+				);
+			});
+		}
+
+		return filteredLogs;
+	}, [logs, kind, logFilter]);
 
 	return (
 		<Tabs
@@ -1176,9 +1361,7 @@ function InspectorDebugSection({
 					<TabsTrigger value="results">
 						Results ({state.items.length})
 					</TabsTrigger>
-					<TabsTrigger value="logs">
-						Inspector Logs ({sectionLogs.length})
-					</TabsTrigger>
+					<TabsTrigger value="logs">Logs ({sectionLogs.length})</TabsTrigger>
 				</TabsList>
 				{tab === "results" ? (
 					<div className="flex items-center gap-2 flex-wrap">
@@ -1203,7 +1386,13 @@ function InspectorDebugSection({
 						</Button>
 					</div>
 				) : (
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-2 flex-wrap">
+						<Input
+							placeholder="Search logs..."
+							value={logFilter}
+							onChange={(e) => setLogFilter(e.target.value)}
+							className="h-8 w-48"
+						/>
 						<Button
 							size="sm"
 							variant="outline"
@@ -1244,7 +1433,7 @@ function InspectorDebugSection({
 									? `No ${title.toLowerCase()} returned.`
 									: `Run ${title.toLowerCase()} list to fetch live data.`
 							}
-							renderAction={(m, item) => (
+							renderAction={(_, item) => (
 								<Button
 									type="button"
 									size="sm"
@@ -1269,40 +1458,62 @@ function InspectorDebugSection({
 							sectionLogs.map((entry) => (
 								<div
 									key={entry.id}
-									className="border rounded-md p-2 bg-slate-50 dark:bg-slate-900 text-xs space-y-1"
+									className="border rounded-md p-2 bg-slate-50 dark:bg-slate-900 text-xs"
 								>
-									<div className="flex items-center justify-between gap-2">
-										<span className="font-mono text-[11px] text-slate-500">
-											{new Date(entry.timestamp).toLocaleTimeString()}
-										</span>
-										<span className="font-mono text-[11px] text-slate-500">
-											{entry.method}
-										</span>
+									{/* 第一行：时间戳 + 请求类型（左），状态信息（右） */}
+									<div className="flex items-center justify-between gap-2 mb-2">
+										<div className="flex items-center gap-2">
+											<span className="font-mono text-[11px] text-slate-500">
+												{new Date(entry.timestamp).toLocaleTimeString()}
+											</span>
+											<span className="font-mono text-[11px] text-slate-500">
+												{entry.method}
+											</span>
+										</div>
+										<div className="flex items-center gap-2">
+											<Badge
+												variant="outline"
+												className="text-[10px] uppercase"
+											>
+												{entry.mode}
+											</Badge>
+											<Badge
+												variant={
+													entry.event === "error"
+														? "destructive"
+														: entry.event === "success"
+															? "success"
+															: "secondary"
+												}
+												className="text-[10px] uppercase"
+											>
+												{entry.event}
+											</Badge>
+										</div>
 									</div>
-									<div className="flex items-center gap-2">
-										<Badge
-											variant={
-												entry.event === "error"
-													? "destructive"
-													: entry.event === "success"
-														? "success"
-														: "secondary"
-											}
-											className="text-[10px] uppercase"
-										>
-											{entry.event}
-										</Badge>
-										<Badge variant="outline" className="text-[10px] uppercase">
-											{entry.mode}
-										</Badge>
-									</div>
+
+									{/* 错误消息 */}
 									{entry.message ? (
-										<p className="text-red-500">{entry.message}</p>
+										<p className="text-red-500 mb-2">{entry.message}</p>
 									) : null}
+
+									{/* 日志内容区域，带悬停复制按钮 */}
 									{entry.payload !== undefined ? (
-										<pre className="bg-white dark:bg-slate-950 border rounded p-2 max-h-48 overflow-auto">
-											{safeLog(entry.payload)}
-										</pre>
+										<div className="relative group">
+											<pre className="bg-white dark:bg-slate-950 border rounded p-2 max-h-48 overflow-auto pr-8">
+												{safeLog(entry.payload)}
+											</pre>
+											<Button
+												size="sm"
+												variant="outline"
+												className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+												onClick={() => {
+													navigator.clipboard.writeText(safeLog(entry.payload));
+												}}
+											>
+												<Copy className="h-3 w-3" />
+											</Button>
+										</div>
 									) : null}
 								</div>
 							))

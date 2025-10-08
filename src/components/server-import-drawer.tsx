@@ -14,11 +14,48 @@ import {
 } from "./ui/drawer";
 import { Textarea } from "./ui/textarea";
 
-type PreviewResult = {
+interface PreviewCapabilitySummary {
+	items?: unknown[];
+}
+
+interface PreviewItem {
+	name?: string;
+	ok?: boolean;
+	error?: unknown;
+	tools?: PreviewCapabilitySummary;
+	resources?: PreviewCapabilitySummary;
+	resource_templates?: PreviewCapabilitySummary;
+	prompts?: PreviewCapabilitySummary;
+	[key: string]: unknown;
+}
+
+interface PreviewResponseData {
+	items: PreviewItem[];
+}
+
+interface PreviewResult {
 	success: boolean;
-	data?: { items: any[] } | null;
+	data?: PreviewResponseData | null;
 	error?: unknown | null;
-};
+}
+
+interface PreviewServerDefinition {
+	name: string;
+	kind: string;
+	command?: unknown;
+	args?: unknown;
+	env?: unknown;
+	url?: unknown;
+}
+
+interface PreviewPayload {
+	servers: PreviewServerDefinition[];
+	include_details: boolean;
+}
+
+interface ImportPayload {
+	mcpServers: Record<string, PreviewServerDefinition>;
+}
 
 export function ServerImportDrawer({
 	open,
@@ -39,13 +76,17 @@ export function ServerImportDrawer({
 		}
 	}, [open]);
 
-	const previewM = useMutation({
-		mutationFn: async (payload: any) => serversApi.previewServers(payload),
-		onSuccess: (res) => setPreview(res as any),
+	const previewM = useMutation<PreviewResult, unknown, PreviewPayload>({
+		mutationFn: async (payload) => serversApi.previewServers(payload),
+		onSuccess: (res) => setPreview(res as PreviewResult),
 		onError: (e) => notifyError("Preview failed", String(e)),
 	});
 
-	function parsePayload(): { ok: boolean; payload?: any; error?: string } {
+	function parsePayload(): {
+		ok: boolean;
+		payload?: PreviewPayload;
+		error?: string;
+	} {
 		try {
 			const obj = JSON.parse(text);
 			if (obj.mcpServers && typeof obj.mcpServers === "object") {
@@ -65,7 +106,10 @@ export function ServerImportDrawer({
 			if (Array.isArray(obj.servers)) {
 				return {
 					ok: true,
-					payload: { servers: obj.servers, include_details: true },
+					payload: {
+						servers: obj.servers as PreviewServerDefinition[],
+						include_details: true,
+					},
 				};
 			}
 			return {
@@ -77,14 +121,18 @@ export function ServerImportDrawer({
 		}
 	}
 
-	function parseImport(): { ok: boolean; payload?: any; error?: string } {
+	function parseImport(): {
+		ok: boolean;
+		payload?: ImportPayload;
+		error?: string;
+	} {
 		try {
 			const obj = JSON.parse(text);
 			if (obj.mcpServers && typeof obj.mcpServers === "object") {
 				return { ok: true, payload: { mcpServers: obj.mcpServers } };
 			}
 			if (Array.isArray(obj.servers)) {
-				const mapping: Record<string, any> = {};
+				const mapping: Record<string, PreviewServerDefinition> = {};
 				for (const s of obj.servers) {
 					if (!s?.name)
 						return { ok: false, error: "servers[] items must include name" };
@@ -109,13 +157,13 @@ export function ServerImportDrawer({
 
 	async function doPreview() {
 		const p = parsePayload();
-		if (!p.ok) return notifyError("Invalid JSON", p.error);
+		if (!p.ok || !p.payload) return notifyError("Invalid JSON", p.error);
 		previewM.mutate(p.payload);
 	}
 
 	async function doImport() {
 		const p = parseImport();
-		if (!p.ok) return notifyError("Invalid JSON", p.error);
+		if (!p.ok || !p.payload) return notifyError("Invalid JSON", p.error);
 		try {
 			setImporting(true);
 			const res = await serversApi.importServers(p.payload);
@@ -202,27 +250,47 @@ export function ServerImportDrawer({
 						<div className="rounded border p-3">
 							{preview.success && preview.data?.items?.length ? (
 								<div className="space-y-2 text-sm">
-									{preview.data.items.map((it: any) => (
-										<div key={it.name} className="rounded border p-2">
+									{preview.data.items.map((it) => {
+									const name = typeof it.name === "string" ? it.name : "Unnamed";
+									const hasError = it.ok === false;
+									const errorMessage =
+										typeof it.error === "string"
+											? it.error
+											: it.error instanceof Error
+												? it.error.message
+												: undefined;
+									const toolsCount = Array.isArray(it.tools?.items)
+										? it.tools?.items?.length ?? 0
+										: 0;
+									const resourcesCount = Array.isArray(it.resources?.items)
+										? it.resources?.items?.length ?? 0
+										: 0;
+									const templatesCount = Array.isArray(it.resource_templates?.items)
+										? it.resource_templates?.items?.length ?? 0
+										: 0;
+									const promptsCount = Array.isArray(it.prompts?.items)
+										? it.prompts?.items?.length ?? 0
+										: 0;
+
+									return (
+										<div key={name} className="rounded border p-2">
 											<div className="font-medium">
-												{it.name}{" "}
-												{it.ok === false ? (
+												{name}{" "}
+												{hasError ? (
 													<span className="text-red-500">(error)</span>
 												) : null}
 											</div>
-											{it.error ? (
+											{errorMessage ? (
 												<div className="text-xs text-red-500">
-													{String(it.error)}
+													{errorMessage}
 												</div>
 											) : null}
 											<div className="text-xs text-slate-500 mt-1">
-												tools: {it.tools?.items?.length ?? 0} • resources:{" "}
-												{it.resources?.items?.length ?? 0} • templates:{" "}
-												{it.resource_templates?.items?.length ?? 0} • prompts:{" "}
-												{it.prompts?.items?.length ?? 0}
+												tools: {toolsCount} • resources: {resourcesCount} • templates: {templatesCount} • prompts: {promptsCount}
 											</div>
 										</div>
-									))}
+									);
+								})}
 								</div>
 							) : (
 								<div className="text-sm text-slate-500">No preview data.</div>

@@ -1,6 +1,6 @@
 declare module "toml" {
-  export function parse(source: string): any;
-  export function stringify(data: any): string;
+  export function parse(source: string): unknown;
+  export function stringify(data: unknown): string;
 
   const _default: {
     parse: typeof parse;
@@ -8,4 +8,3 @@ declare module "toml" {
   };
   export default _default;
 }
-

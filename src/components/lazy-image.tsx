@@ -1,6 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type React from "react";
 import { cn } from "../lib/utils";
+import {
+	CACHE_DURATION_MS,
+	imageCache,
+	loadingStates,
+} from "./lazy-image-cache";
 
 export interface LazyImageProps {
 	src?: string;
@@ -13,13 +18,6 @@ export interface LazyImageProps {
 	timeout?: number; // 加载超时时间（毫秒）
 	cacheKey?: string; // 缓存键，用于区分不同的图片
 }
-
-// 图片缓存 Map
-const imageCache = new Map<string, { data: string; timestamp: number }>();
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时缓存
-
-// 图片加载状态 Map
-const loadingStates = new Map<string, Promise<string | null>>();
 
 export function LazyImage({
 	src,
@@ -47,7 +45,7 @@ export function LazyImage({
 	// 检查缓存
 	const getCachedImage = useCallback((key: string): string | null => {
 		const cached = imageCache.get(key);
-		if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+		if (cached && Date.now() - cached.timestamp < CACHE_DURATION_MS) {
 			return cached.data;
 		}
 		// 清理过期缓存
@@ -271,19 +269,3 @@ export function LazyImage({
 		</div>
 	);
 }
-
-// 清理过期缓存的工具函数
-export const clearExpiredCache = () => {
-	const now = Date.now();
-	for (const [key, value] of imageCache.entries()) {
-		if (now - value.timestamp > CACHE_DURATION) {
-			imageCache.delete(key);
-		}
-	}
-};
-
-// 清理所有缓存的工具函数
-export const clearAllCache = () => {
-	imageCache.clear();
-	loadingStates.clear();
-};

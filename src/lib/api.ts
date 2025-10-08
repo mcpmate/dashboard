@@ -63,32 +63,25 @@ import type {
 // Prefer VITE_API_BASE_URL; otherwise infer from runtime context with sane fallbacks
 const resolveApiBaseUrl = (): string => {
 	const envBase =
-		typeof import.meta !== "undefined" &&
-		(import.meta as any)?.env?.VITE_API_BASE_URL;
+		typeof import.meta !== "undefined" ? import.meta.env?.VITE_API_BASE_URL : undefined;
 
 	if (typeof envBase === "string" && envBase.trim().length > 0) {
 		return envBase.trim();
 	}
 
 	if (typeof window !== "undefined" && typeof window.location !== "undefined") {
-		const protocol = window.location.protocol;
-		const normalizedProtocol = protocol ? protocol.toLowerCase() : "";
+		const protocol = window.location.protocol.toLowerCase();
 
 		// Tauri / desktop shells use a custom protocol (e.g. tauri://localhost)
-		if (
-			normalizedProtocol === "tauri:" ||
-			normalizedProtocol === "app:" ||
-			normalizedProtocol === "file:"
-		) {
+		if (protocol === "tauri:" || protocol === "app:" || protocol === "file:") {
 			return "http://127.0.0.1:8080";
 		}
 
-		if (window.location.origin) {
-			return window.location.origin;
-		}
+		// In web dev/prod environments stick to same-origin relative requests so Vite/Tauri proxies work.
+		return "";
 	}
 
-	// Final safety net so API calls never end up on the custom protocol origin
+	// Server-side fall back to local proxy port
 	return "http://127.0.0.1:8080";
 };
 
@@ -406,21 +399,24 @@ const enrichServerRecord = <T extends Record<string, any>>(server: T) => {
 };
 
 // Core API request function
-async function fetchApi<T>(
-	endpoint: string,
-	options?: RequestInit,
-): Promise<T> {
-	const url = `${API_BASE_URL}${endpoint}`;
-	console.log(`Fetching API: ${url}`, options);
-
+async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+	const isRelative = !API_BASE_URL;
+	const url = isRelative ? endpoint : `${API_BASE_URL}${endpoint}`;
+	const headers =
+		options?.headers instanceof Headers
+			? options.headers
+			: new Headers(options?.headers ?? {});
+	// Avoid forcing JSON header on GET requests to keep caching friendly.
+	if (!headers.has("content-type") && options?.body) {
+		headers.set("content-type", "application/json");
+	}
 	try {
-		const response = await fetch(url, {
-			headers: {
-				"Content-Type": "application/json",
-				...options?.headers,
-			},
+		const requestInit: RequestInit = {
+			credentials: "include",
 			...options,
-		});
+		};
+		requestInit.headers = headers;
+		const response = await fetch(url, requestInit);
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -434,11 +430,17 @@ async function fetchApi<T>(
 			throw createApiError(response, parsed);
 		}
 
-		const data = await response.json();
-		console.log(`API Response from ${endpoint}:`, data);
-		return data as T;
+		if (response.status === 204) {
+			return undefined as T;
+		}
+
+		const text = await response.text();
+		if (!text) {
+			return undefined as T;
+		}
+		return JSON.parse(text) as T;
 	} catch (error) {
-		console.error(`API Request Failed for ${endpoint}:`, error);
+		console.error(`API request failed for ${endpoint}:`, error);
 		throw error;
 	}
 }
@@ -1078,6 +1080,19 @@ export const inspectorApi = {
 			method: "POST",
 			body: JSON.stringify(req),
 		}),
+	templatesList: (q: {
+		server_id?: string;
+		server_name?: string;
+		mode?: "proxy" | "native";
+		refresh?: boolean;
+	}) => {
+		const qs = new URLSearchParams();
+		if (q.server_id) qs.set("server_id", q.server_id);
+		if (q.server_name) qs.set("server_name", q.server_name);
+		if (q.mode) qs.set("mode", q.mode);
+		if (q.refresh != null) qs.set("refresh", String(q.refresh));
+		return fetchApi(`/api/mcp/inspector/template/list?${qs}`);
+	},
 };
 
 // Tools Management API

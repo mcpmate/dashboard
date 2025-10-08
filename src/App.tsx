@@ -39,7 +39,7 @@ function App() {
 							path="profiles/presets/:presetId"
 							element={<ProfilePresetPage />}
 						/>
-						<Route path="profiles/:suitId" element={<ProfileSuitDetailPage />} />
+						<Route path="profiles/:profileId" element={<ProfileSuitDetailPage />} />
 						{/* Back-compat: redirect old routes */}
 						<Route
 							path="config"

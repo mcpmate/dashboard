@@ -58,7 +58,7 @@ export function NotificationCenter() {
 				align="end"
 				className="w-[360px] max-h-[60vh] overflow-auto p-0"
 			>
-				<div className="px-3 py-2 flex items-center justify-between sticky top-0 bg-popover z-10 border-b">
+				<div className="px-3 py-2 flex items-center justify-between sticky top-0 bg-popover z-10 border-b border-slate-200 dark:border-slate-700">
 					<DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
 					<div className="flex items-center gap-2">
 						<Button

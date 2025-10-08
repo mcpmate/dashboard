@@ -738,6 +738,7 @@ export interface ClientConfigData {
 	config_path: string;
 	config_type?: ClientConfigType | null;
 	content: unknown;
+	warnings?: string[];
 	has_mcp_config: boolean;
 	imported_servers?: ClientImportedServer[] | null;
 	last_modified?: string | null;

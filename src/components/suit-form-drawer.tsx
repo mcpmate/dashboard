@@ -24,6 +24,7 @@ import {
 } from "./ui/drawer";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Segment } from "./ui/segment";
 import {
 	Select,
 	SelectContent,
@@ -31,7 +32,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "./ui/select";
-import { Segment } from "./ui/segment";
 import { Switch } from "./ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
@@ -143,24 +143,6 @@ export function SuitFormDrawer({
 		{ id: "servers", label: "Servers", hint: "Assign" },
 	];
 
-	// 稳定的关闭处理函数，防止状态竞态
-	const handleClose = useCallback(
-		(shouldClose: boolean) => {
-			if (shouldClose === false && !isClosing) {
-				setIsClosing(true);
-				// 延迟关闭以确保所有状态都能正确重置
-				setTimeout(() => {
-					onOpenChange(false);
-					setIsClosing(false);
-				}, 50);
-			} else if (shouldClose === true && !open) {
-				// 打开状态
-				onOpenChange(true);
-			}
-		},
-		[onOpenChange, open, isClosing],
-	);
-
 	// 完全重置所有状态的函数
 	const resetAllStates = useCallback(() => {
 		setStep("details");
@@ -169,7 +151,6 @@ export function SuitFormDrawer({
 		setServerSelectionTouched(false);
 		setCloneSelectionApplied(false);
 		setSelectedServerIds([]);
-		setIsClosing(false);
 
 		if (mode === "edit" && suit) {
 			setFormData({
@@ -196,6 +177,33 @@ export function SuitFormDrawer({
 			});
 		}
 	}, [mode, suit]);
+
+	// Overlay close handler (immediate, no delay)
+	const handleOverlayClose = useCallback(() => {
+		if (!isClosing) {
+			setIsClosing(true);
+			resetAllStates();
+			onOpenChange(false);
+			setIsClosing(false);
+		}
+	}, [onOpenChange, resetAllStates, isClosing]);
+
+	// Cancel close handler (with delay for complete reset)
+	const handleCancelClose = useCallback(() => {
+		if (!isClosing) {
+			setIsClosing(true);
+			setTimeout(() => {
+				resetAllStates();
+				onOpenChange(false);
+				setIsClosing(false);
+			}, 150); // Small delay to allow animation
+		}
+	}, [onOpenChange, resetAllStates, isClosing]);
+
+	const closeDrawer = useCallback(
+		() => handleCancelClose(),
+		[handleCancelClose],
+	);
 
 	// Reset form data when dialog opens or mode/suit changes
 	useEffect(() => {
@@ -399,7 +407,7 @@ export function SuitFormDrawer({
 				});
 			}
 			notifySuccess("Created", "Profile created successfully");
-			handleClose(false);
+			closeDrawer();
 			onSuccess?.();
 		},
 		onError: (error: Error) => {
@@ -438,7 +446,7 @@ export function SuitFormDrawer({
 				});
 			}
 			notifySuccess("Updated", "Profile updated successfully");
-			handleClose(false);
+			closeDrawer();
 			onSuccess?.();
 		},
 		onError: (error: Error) => {
@@ -513,7 +521,7 @@ export function SuitFormDrawer({
 				(value) => value !== undefined,
 			);
 			if (!selectionChanged && !hasFieldUpdates) {
-				handleClose(false);
+				closeDrawer();
 				return;
 			}
 			updateMutation.mutate({
@@ -956,10 +964,10 @@ export function SuitFormDrawer({
 	return (
 		<Drawer
 			key={drawerKey}
-			open={open && !isClosing}
-			onOpenChange={handleClose}
+			open={open}
+			onOpenChange={(open) => !open && handleOverlayClose()}
 		>
-			<DrawerContent>
+			<DrawerContent className="h-full flex flex-col">
 				<DrawerHeader>
 					<DrawerTitle>
 						{mode === "create" ? "Create New Profile" : "Edit Profile"}
@@ -972,6 +980,7 @@ export function SuitFormDrawer({
 				</DrawerHeader>
 
 				<form onSubmit={handleSubmit} className="flex h-full flex-col">
+					{/* Content area - scrollable */}
 					<div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
 						<div className="flex flex-wrap items-center gap-4">
 							{steps.map((item, index) => {
@@ -1122,7 +1131,7 @@ export function SuitFormDrawer({
 						)}
 					</div>
 
-					<DrawerFooter>
+					<DrawerFooter className="border-t bg-background">
 						<div className="flex w-full flex-wrap items-center justify-between gap-2">
 							<div className="flex gap-2">
 								<Button
@@ -1130,7 +1139,7 @@ export function SuitFormDrawer({
 									variant="outline"
 									onClick={() => {
 										if (step === "details") {
-											handleClose(false);
+											closeDrawer();
 										} else {
 											setStep("details");
 										}
@@ -1143,7 +1152,7 @@ export function SuitFormDrawer({
 									<Button
 										type="button"
 										variant="ghost"
-										onClick={() => handleClose(false)}
+										onClick={closeDrawer}
 										disabled={isMutating}
 									>
 										Cancel

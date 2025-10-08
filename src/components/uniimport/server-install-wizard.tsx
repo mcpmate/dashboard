@@ -778,12 +778,12 @@ export const ServerInstallWizard = forwardRef<
 				? "px-4 pb-4 pt-0"
 				: "px-4 pb-4 pt-4";
 			return (
-				<div className="flex-1 min-h-0 flex flex-col">
+				<div className="flex flex-col">
 					<form
 						onSubmit={handleSubmit(() =>
 							handlePreview({ skipValidation: true, shouldFocus: false }),
 						)}
-						className="flex-1 min-h-0 flex flex-col"
+						className="flex flex-col"
 						onClick={handleFormInteraction}
 						onKeyDown={handleFormInteraction}
 					>
@@ -899,7 +899,7 @@ export const ServerInstallWizard = forwardRef<
 						) : null}
 
 						<div
-							className={`relative z-0 flex-1 min-h-0 overflow-y-auto ${contentPadding}`}
+							className={`relative z-0 ${contentPadding}`}
 							onFocusCapture={handleContentFocus}
 						>
 							<Tabs
@@ -1147,11 +1147,11 @@ export const ServerInstallWizard = forwardRef<
 			) => {
 				if (!items.length) return null;
 				return (
-					<div className="space-y-2">
-						<div className="text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+					<div className="space-y-3">
+						<div className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wide">
 							{kind}
 						</div>
-						<div className="space-y-1">
+						<div className="space-y-2.5">
 							{items.map((item, idx) => {
 								const name = String(
 									(item as any).name ??
@@ -1165,11 +1165,11 @@ export const ServerInstallWizard = forwardRef<
 								return (
 									<div
 										key={uniqueKey}
-										className="text-xs text-slate-600 dark:text-slate-300"
+										className="text-sm leading-relaxed"
 									>
-										<div className="font-medium">{name}</div>
+										<div className="font-semibold text-slate-800 dark:text-slate-100">{name}</div>
 										{description && (
-											<div className="text-slate-500 dark:text-slate-400 mt-1">
+											<div className="text-slate-600 dark:text-slate-400 mt-1 text-xs leading-relaxed">
 												{description}
 											</div>
 										)}
@@ -1193,133 +1193,120 @@ export const ServerInstallWizard = forwardRef<
 			};
 
 			return (
-				<div className="flex-1 min-h-0 flex flex-col">
-					{/* Preview content area with consistent padding */}
-					<div className="px-4 py-4">
-						<div className="flex-1 space-y-2 flex flex-col min-h-0">
-							{previewError ? (
-								<Alert variant="destructive" className="mb-4">
-									<AlertTriangle className="h-4 w-4" />
-									<AlertTitle>Preview failed</AlertTitle>
-									<AlertDescription>{previewError}</AlertDescription>
-								</Alert>
-							) : null}
+				<div className="px-4 py-4">
+					<div className="space-y-4">
+						{previewError ? (
+							<Alert variant="destructive">
+								<AlertTriangle className="h-4 w-4" />
+								<AlertTitle>Preview failed</AlertTitle>
+								<AlertDescription>{previewError}</AlertDescription>
+							</Alert>
+						) : null}
 
-							{isPreviewLoading ? (
-								<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-									<Loader2 className="h-4 w-4 animate-spin" /> Generating
-									capability preview…
-								</div>
-							) : null}
+						{isPreviewLoading ? (
+							<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+								<Loader2 className="h-4 w-4 animate-spin" /> Generating
+								capability preview…
+							</div>
+						) : null}
 
-							{previewState?.success === false && previewState?.error ? (
-								<Alert variant="default" className="mb-4">
-									<AlertTriangle className="h-4 w-4" />
-									<AlertTitle>Preview reported issues</AlertTitle>
-									<AlertDescription>
-										Some servers could not be contacted during preview. You can
-										still proceed—the proxy will retry after installation.
-									</AlertDescription>
-								</Alert>
-							) : null}
+						{previewState?.success === false && previewState?.error ? (
+							<Alert variant="default">
+								<AlertTriangle className="h-4 w-4" />
+								<AlertTitle>Preview reported issues</AlertTitle>
+								<AlertDescription>
+									Some servers could not be contacted during preview. You can
+									still proceed—the proxy will retry after installation.
+								</AlertDescription>
+							</Alert>
+						) : null}
 
-							<ScrollArea
-								className="flex-1"
-								style={{ scrollbarGutter: "stable" }}
-							>
-								<div className="space-y-3 pb-4">
-									{drafts.map((draft) => {
-										const item = previewItemsByName.get(draft.name) as any;
-										const ok = item?.ok !== false;
-										const tools = asRecordList(item?.tools?.items as any);
-										const resources = asRecordList(
-											item?.resources?.items as any,
-										);
-										const templates = asRecordList(
-											item?.resource_templates?.items as any,
-										);
-										const prompts = asRecordList(item?.prompts?.items as any);
-										const summaryParts = [] as string[];
-										if (tools.length)
-											summaryParts.push(
-												`${tools.length} ${tools.length === 1 ? "tool" : "tools"}`,
-											);
-										if (resources.length)
-											summaryParts.push(
-												`${resources.length} ${resources.length === 1 ? "resource" : "resources"}`,
-											);
-										if (templates.length)
-											summaryParts.push(
-												`${templates.length} ${templates.length === 1 ? "template" : "templates"}`,
-											);
-										if (prompts.length)
-											summaryParts.push(
-												`${prompts.length} ${prompts.length === 1 ? "prompt" : "prompts"}`,
-											);
-										const summaryText = summaryParts.join(" · ");
-										const isOpen = !!expanded[draft.name];
-										return (
-											<div
-												key={draft.name}
-												className="rounded border px-4 py-3"
-											>
-												<div className="flex items-center justify-between gap-2">
-													<div className="flex items-center gap-2 min-w-0">
-														<button
-															type="button"
-															className="p-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-															onClick={() => toggleExpanded(draft.name)}
-															onKeyDown={(e) => {
-																if (e.key === "Enter" || e.key === " ") {
-																	e.preventDefault();
-																	toggleExpanded(draft.name);
-																}
-															}}
-															aria-label={isOpen ? "Collapse" : "Expand"}
-														>
-															{isOpen ? (
-																<ChevronDown className="h-4 w-4" />
-															) : (
-																<ChevronRight className="h-4 w-4" />
-															)}
-														</button>
-														<div
-															className="font-medium text-sm truncate"
-															title={draft.name}
-														>
-															{draft.name}
-															{summaryText ? (
-																<span className="ml-2 text-xs text-slate-500">
-																	{summaryText}
-																</span>
-															) : null}
-														</div>
-													</div>
-													<Badge variant="secondary" className="text-xs">
-														{draft.kind}
-													</Badge>
+						<div className="space-y-3">
+							{drafts.map((draft) => {
+								const item = previewItemsByName.get(draft.name) as any;
+								const ok = item?.ok !== false;
+								const tools = asRecordList(item?.tools?.items as any);
+								const resources = asRecordList(item?.resources?.items as any);
+								const templates = asRecordList(
+									item?.resource_templates?.items as any,
+								);
+								const prompts = asRecordList(item?.prompts?.items as any);
+								const summaryParts = [] as string[];
+								if (tools.length)
+									summaryParts.push(
+										`${tools.length} ${tools.length === 1 ? "tool" : "tools"}`,
+									);
+								if (resources.length)
+									summaryParts.push(
+										`${resources.length} ${resources.length === 1 ? "resource" : "resources"}`,
+									);
+								if (templates.length)
+									summaryParts.push(
+										`${templates.length} ${templates.length === 1 ? "template" : "templates"}`,
+									);
+								if (prompts.length)
+									summaryParts.push(
+										`${prompts.length} ${prompts.length === 1 ? "prompt" : "prompts"}`,
+									);
+								const summaryText = summaryParts.join(" · ");
+								const isOpen = !!expanded[draft.name];
+								return (
+									<div key={draft.name} className="rounded border px-4 py-3">
+										<div className="flex items-center justify-between gap-2">
+											<div className="flex items-center gap-2 min-w-0">
+												<button
+													type="button"
+													className="p-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+													onClick={() => toggleExpanded(draft.name)}
+													onKeyDown={(e) => {
+														if (e.key === "Enter" || e.key === " ") {
+															e.preventDefault();
+															toggleExpanded(draft.name);
+														}
+													}}
+													aria-label={isOpen ? "Collapse" : "Expand"}
+												>
+													{isOpen ? (
+														<ChevronDown className="h-4 w-4" />
+													) : (
+														<ChevronRight className="h-4 w-4" />
+													)}
+												</button>
+												<div
+													className="font-medium text-sm truncate"
+													title={draft.name}
+												>
+													{draft.name}
+													{summaryText ? (
+														<span className="ml-2 text-xs text-slate-500">
+															{summaryText}
+														</span>
+													) : null}
 												</div>
-
-												{!ok && item?.error ? (
-													<div className="mt-2 text-xs text-red-500 break-words overflow-hidden">
-														{String(item.error)}
-													</div>
-												) : null}
-
-												{/* Details */}
-												{isOpen ? (
-													<div className="mt-3 space-y-4">
-														{renderCapabilitySection("tools", tools)}
-														{renderCapabilitySection("resources", resources)}
-														{renderCapabilitySection("templates", templates)}
-														{renderCapabilitySection("prompts", prompts)}
-													</div>
-												) : null}
 											</div>
-										);
-									})}
-								</div>
-							</ScrollArea>
+											<Badge variant="secondary" className="text-xs">
+												{draft.kind}
+											</Badge>
+										</div>
+
+										{!ok && item?.error ? (
+											<div className="mt-2 text-xs text-red-500 break-words overflow-hidden">
+												{String(item.error)}
+											</div>
+										) : null}
+
+										{/* Details */}
+										{isOpen ? (
+											<div className="mt-4 pt-3 border-t space-y-5">
+												{renderCapabilitySection("tools", tools)}
+												{renderCapabilitySection("resources", resources)}
+												{renderCapabilitySection("templates", templates)}
+												{renderCapabilitySection("prompts", prompts)}
+											</div>
+										) : null}
+									</div>
+								);
+							})}
 						</div>
 					</div>
 				</div>
@@ -1331,7 +1318,7 @@ export const ServerInstallWizard = forwardRef<
 			const { importResult, isImporting } = state;
 
 			return (
-				<div className="flex-1 min-h-0 flex flex-col">
+				<div className="flex flex-col">
 					<div className="p-4 border-b">
 						<div className="flex items-start justify-between gap-2">
 							<div>
@@ -1343,7 +1330,7 @@ export const ServerInstallWizard = forwardRef<
 						</div>
 					</div>
 
-					<div className="flex-1 p-4 space-y-4 flex flex-col min-h-0">
+					<div className="p-4 space-y-4">
 						{isImporting ? (
 							<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
 								<Loader2 className="h-4 w-4 animate-spin" /> Importing servers…
@@ -1541,11 +1528,13 @@ export const ServerInstallWizard = forwardRef<
 						</div>
 					</div>
 
-					{/* Step Content */}
-					<div className="flex-1 min-h-0">{renderStepContent()}</div>
+					{/* Step Content - with spacing and bottom padding to avoid footer overlap */}
+					<div className="flex-1 min-h-0 overflow-y-auto py-2 pb-20">
+						{renderStepContent()}
+					</div>
 
-					{/* Footer */}
-					<DrawerFooter className="relative z-10 border-t p-4 bg-background">
+					{/* Footer - fixed at bottom with subtle shadow for separation */}
+					<DrawerFooter className="absolute bottom-0 left-0 right-0 z-10 border-t p-4 bg-background">
 						<div className="flex w-full items-center justify-between gap-3">
 							<Button
 								type="button"

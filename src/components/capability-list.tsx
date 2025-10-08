@@ -1,20 +1,25 @@
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Check } from "lucide-react";
+import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
 import { useAppStore } from "../lib/store";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { Input } from "./ui/input";
-import { Switch } from "./ui/switch";
+import type {
+	CapabilityArgument,
+	CapabilityMapItem,
+	CapabilityRecord,
+} from "../types/capabilities";
+import type { JsonSchema } from "../types/json";
 import { CachedAvatar } from "./cached-avatar";
 import {
 	CapsuleStripeList,
 	CapsuleStripeListItem,
 } from "./capsule-stripe-list";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Input } from "./ui/input";
+import { Switch } from "./ui/switch";
 
 type CapabilityKind = "tools" | "resources" | "prompts" | "templates";
 type ContextType = "server" | "profile";
 
-export interface CapabilityListProps<T = any> {
+export interface CapabilityListProps<T = CapabilityRecord> {
 	title?: string;
 	kind: CapabilityKind;
 	context?: ContextType;
@@ -31,7 +36,7 @@ export interface CapabilityListProps<T = any> {
 	selectedIds?: string[];
 	onSelectToggle?: (id: string, item: T) => void;
 	asCard?: boolean;
-	renderAction?: (mapped: any, item: T) => ReactNode;
+	renderAction?: (mapped: CapabilityMapItem<T>, item: T) => ReactNode;
 }
 
 function asString(v: unknown): string | undefined {
@@ -50,99 +55,161 @@ function normalizeMultiline(text?: string): string | undefined {
 	}
 }
 
-function extractIconSrc(item: any): string | undefined {
-	if (!item) return undefined;
-	const candidate = item.icons ?? item.icon ?? item.meta?.icons;
-	const icons = Array.isArray(candidate)
-		? candidate
-		: candidate
-			? [candidate]
-			: [];
-	const match = icons.find(
-		(icon: any) =>
-			icon && typeof icon === "object" && typeof icon.src === "string",
-	);
-	return typeof match?.src === "string" ? match.src : undefined;
-}
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-function mapItem(kind: CapabilityKind, item: any) {
+const toCapabilityRecord = (value: unknown): CapabilityRecord | null =>
+	isRecord(value) ? (value as CapabilityRecord) : null;
+
+const toIconArray = (value: unknown): unknown[] => {
+	if (!value) return [];
+	if (Array.isArray(value)) return value;
+	return [value];
+};
+
+const extractIconSrc = (item: CapabilityRecord | null): string | undefined => {
+	if (!item) return undefined;
+	const meta = toCapabilityRecord(item.meta);
+	const candidate = item.icons ?? item.icon ?? meta?.icons;
+	const icons = toIconArray(candidate);
+	for (const icon of icons) {
+		if (isRecord(icon) && typeof icon.src === "string") {
+			return icon.src;
+		}
+	}
+	return undefined;
+};
+
+const toSchema = (value: unknown): JsonSchema | undefined => {
+	if (!value) return undefined;
+	const record = toCapabilityRecord(value);
+	if (!record) return undefined;
+	const nested = toCapabilityRecord(record.schema);
+	if (nested) return nested as JsonSchema;
+	return record as JsonSchema;
+};
+
+const toArguments = (value: unknown): CapabilityArgument[] | undefined => {
+	if (!Array.isArray(value)) return undefined;
+	return value.map((entry, index) => {
+		if (!isRecord(entry)) {
+			return { name: `arg_${index}` };
+		}
+		const name = asString(entry.name) ?? `arg_${index}`;
+		const type = asString(entry.type);
+		const description = asString(entry.description);
+		const required =
+			typeof entry.required === "boolean" ? entry.required : undefined;
+		return {
+			name,
+			type: type ?? undefined,
+			description: description ?? undefined,
+			required,
+		};
+	});
+};
+
+const resolveInputSchema = (
+	source: CapabilityRecord,
+): JsonSchema | undefined => {
+	const candidates = [source.input_schema, source.inputSchema, source.schema];
+	for (const candidate of candidates) {
+		const schema = toSchema(candidate);
+		if (schema) {
+			if (!schema.type && schema.properties) {
+				schema.type = "object";
+			}
+			return schema;
+		}
+	}
+	return undefined;
+};
+
+const resolveOutputSchema = (
+	source: CapabilityRecord,
+): JsonSchema | undefined => {
+	const candidates = [source.output_schema, source.outputSchema];
+	for (const candidate of candidates) {
+		const schema = toSchema(candidate);
+		if (schema) {
+			if (!schema.type && schema.properties) {
+				schema.type = "object";
+			}
+			return schema;
+		}
+	}
+	return undefined;
+};
+
+function mapItem<T>(kind: CapabilityKind, item: T): CapabilityMapItem<T> {
+	const record = toCapabilityRecord(item) ?? ({} as CapabilityRecord);
 	if (kind === "tools") {
-		const unique = asString(item.unique_name);
-		const name = asString(item.tool_name) || asString(item.name);
-		const title = unique || name || asString(item.id) || "Untitled Tool";
-		const description = normalizeMultiline(asString(item.description));
-		const schema =
-			item?.input_schema?.schema ||
-			item?.inputSchema?.schema ||
-			item?.input_schema ||
-			item?.inputSchema ||
-			item?.schema ||
-			undefined;
-		const outputSchema =
-			item?.output_schema?.schema ||
-			item?.outputSchema?.schema ||
-			item?.output_schema ||
-			item?.outputSchema ||
-			undefined;
-		const args = Array.isArray(item.arguments) ? item.arguments : undefined;
+		const unique = asString(record.unique_name);
+		const name = asString(record.tool_name) || asString(record.name);
+		const title = unique || name || asString(record.id) || "Untitled Tool";
+		const description = normalizeMultiline(asString(record.description));
+		const schema = resolveInputSchema(record);
+		const outputSchema = resolveOutputSchema(record);
+		const args = toArguments(record.arguments);
 		return {
 			title,
-			subtitle: unique && name && unique !== name ? `Name: ${name}` : undefined,
+			subtitle: undefined, // 去掉原始工具名称显示
 			description,
-			server: asString(item.server_name),
+			server: asString(record.server_name),
 			raw: item,
 			schema,
 			outputSchema,
 			args,
-			icon: extractIconSrc(item),
+			icon: extractIconSrc(record),
 		};
 	}
 
 	if (kind === "resources") {
 		const title =
-			asString(item.resource_uri) ||
-			asString(item.uri) ||
-			asString(item.name) ||
+			asString(record.resource_uri) ||
+			asString(record.uri) ||
+			asString(record.name) ||
 			"Resource";
-		const description = normalizeMultiline(asString(item.description));
+		const description = normalizeMultiline(asString(record.description));
 		return {
 			title,
-			subtitle: asString(item.name),
-			server: asString(item.server_name),
-			mime: asString(item.mime_type),
+			subtitle: asString(record.name),
+			server: asString(record.server_name),
+			mime: asString(record.mime_type),
 			description,
 			raw: item,
-			icon: extractIconSrc(item),
+			icon: extractIconSrc(record),
 		};
 	}
 
 	if (kind === "prompts") {
-		const title = asString(item.prompt_name) || asString(item.name) || "Prompt";
-		const description = normalizeMultiline(asString(item.description));
-		const args = Array.isArray(item.arguments) ? item.arguments : undefined;
+		const title =
+			asString(record.prompt_name) || asString(record.name) || "Prompt";
+		const description = normalizeMultiline(asString(record.description));
+		const args = toArguments(record.arguments);
 		return {
 			title,
-			server: asString(item.server_name),
+			server: asString(record.server_name),
 			description,
 			args,
 			raw: item,
-			icon: extractIconSrc(item),
+			icon: extractIconSrc(record),
 		};
 	}
 
 	const title =
-		asString(item.uri_template) || asString(item.name) || "Template";
-	const description = normalizeMultiline(asString(item.description));
+		asString(record.uri_template) || asString(record.name) || "Template";
+	const description = normalizeMultiline(asString(record.description));
 	return {
 		title,
-		subtitle: asString(item.server_name),
+		subtitle: asString(record.server_name),
 		description,
 		raw: item,
-		icon: extractIconSrc(item),
+		icon: extractIconSrc(record),
 	};
 }
 
-function matchText(obj: any, needle: string): boolean {
+function matchText<T>(obj: CapabilityMapItem<T>, needle: string): boolean {
 	if (!needle) return true;
 	const lower = needle.toLowerCase();
 	try {
@@ -157,7 +224,7 @@ function matchText(obj: any, needle: string): boolean {
 	}
 }
 
-export function CapabilityList<T = any>({
+export function CapabilityList<T = CapabilityRecord>({
 	title,
 	kind,
 	context = "server",
@@ -203,7 +270,7 @@ export function CapabilityList<T = any>({
 	);
 
 	const renderedItems = data.map((mapped, idx) => {
-		const item = (items as any[])[idx];
+		const item = mapped.raw;
 		const id = getId ? getId(item) : String(idx);
 		const isSelected = !!(selectable && selectedIds?.includes(id));
 		const isEnabled = getEnabled ? !!getEnabled(item) : undefined;
@@ -220,18 +287,16 @@ export function CapabilityList<T = any>({
 			}
 		};
 
-		const hasArgs = Array.isArray(mapped.args) && mapped.args.length > 0;
-		const hasSchema =
-			mapped.schema &&
-			typeof mapped.schema === "object" &&
-			mapped.schema?.properties &&
-			Object.keys(mapped.schema.properties).length > 0;
-		const hasOutSchema =
-			mapped.outputSchema &&
-			typeof mapped.outputSchema === "object" &&
-			mapped.outputSchema?.properties &&
-			Object.keys(mapped.outputSchema.properties).length > 0;
-		const hasRaw = !!mapped.raw && showRawJson;
+		const schemaEntries = mapped.schema?.properties
+			? Object.entries(mapped.schema.properties)
+			: [];
+		const outputSchemaEntries = mapped.outputSchema?.properties
+			? Object.entries(mapped.outputSchema.properties)
+			: [];
+		const hasArgs = Boolean(mapped.args?.length);
+		const hasSchema = schemaEntries.length > 0;
+		const hasOutSchema = outputSchemaEntries.length > 0;
+		const hasRaw = showRawJson && mapped.raw != null;
 		const hasDetails = hasArgs || hasSchema || hasOutSchema || hasRaw;
 
 		const indicatorClass = isSelected
@@ -275,16 +340,16 @@ export function CapabilityList<T = any>({
 									</tr>
 								</thead>
 								<tbody>
-									{mapped.args.map((arg: any, argIdx: number) => (
-										<tr key={argIdx}>
+									{mapped.args?.map((arg, argIdx) => (
+										<tr key={`${arg.name ?? `arg_${argIdx}`}-${argIdx}`}>
 											<td className="border-b py-1 pr-2 font-mono">
-												{asString(arg.name) || `arg_${argIdx}`}
+												{arg.name ?? `arg_${argIdx}`}
 											</td>
 											<td className="border-b py-1 pr-2">
-												{String(!!arg.required)}
+												{String(Boolean(arg.required))}
 											</td>
 											<td className="border-b py-1 pr-2">
-												{asString(arg.description) || ""}
+												{arg.description ?? ""}
 											</td>
 										</tr>
 									))}
@@ -305,19 +370,19 @@ export function CapabilityList<T = any>({
 									</tr>
 								</thead>
 								<tbody>
-									{Object.keys(mapped.schema.properties).map((key) => {
-										const prop = (mapped.schema.properties as any)[key];
+									{schemaEntries.map(([key, prop]) => {
+										const typedProp = prop as Record<string, unknown>;
+										const typeValue = Array.isArray(typedProp.type)
+											? typedProp.type.join("|")
+											: typedProp.type;
 										return (
 											<tr key={key}>
 												<td className="border-b py-1 pr-2 font-mono">{key}</td>
 												<td className="border-b py-1 pr-2">
-													{asString(prop?.type) ||
-														(Array.isArray(prop?.type)
-															? prop.type.join("|")
-															: "-")}
+													{String(typeValue ?? "-")}
 												</td>
 												<td className="border-b py-1 pr-2">
-													{asString(prop?.description) || ""}
+													{String(typedProp.description ?? "")}
 												</td>
 											</tr>
 										);
@@ -339,19 +404,19 @@ export function CapabilityList<T = any>({
 									</tr>
 								</thead>
 								<tbody>
-									{Object.keys(mapped.outputSchema.properties).map((key) => {
-										const prop = (mapped.outputSchema.properties as any)[key];
+									{outputSchemaEntries.map(([key, prop]) => {
+										const typedProp = prop as Record<string, unknown>;
+										const typeValue = Array.isArray(typedProp.type)
+											? typedProp.type.join("|")
+											: typedProp.type;
 										return (
 											<tr key={key}>
 												<td className="border-b py-1 pr-2 font-mono">{key}</td>
 												<td className="border-b py-1 pr-2">
-													{asString(prop?.type) ||
-														(Array.isArray(prop?.type)
-															? prop.type.join("|")
-															: "-")}
+													{String(typeValue ?? "-")}
 												</td>
 												<td className="border-b py-1 pr-2">
-													{asString(prop?.description) || ""}
+													{String(typedProp.description ?? "")}
 												</td>
 											</tr>
 										);
@@ -392,37 +457,41 @@ export function CapabilityList<T = any>({
 		);
 
 		const leftSection = (
-			<div className="flex flex-1 items-center gap-3">
+			<div className="flex flex-1 items-start gap-3">
 				{avatarNode}
 				{infoBlock}
 			</div>
 		);
 
-		const actionSection = (
-			<div className="ml-auto flex items-center gap-2">
+		// Build actions node - always show switch for profile context
+		const actions = (
+			<>
 				{context === "profile" && enableToggle && getEnabled && onToggle ? (
-					<div
-						className="flex items-center gap-2 text-xs"
+					<Switch
+						checked={!!isEnabled}
+						onCheckedChange={(next) => onToggle(id, next, item)}
 						onClick={(e) => e.stopPropagation()}
-					>
-						{isEnabled ? (
-							<Badge>Enabled</Badge>
-						) : (
-							<Badge variant="outline">Disabled</Badge>
-						)}
-						<Switch
-							checked={!!isEnabled}
-							onCheckedChange={(next) => onToggle(id, next, item)}
-							onClick={(e) => e.stopPropagation()}
-						/>
-					</div>
+					/>
 				) : null}
 				{renderAction ? (
-					<div onClick={(e) => e.stopPropagation()}>
+					<button
+						onClick={(e) => e.stopPropagation()}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								e.stopPropagation();
+							}
+						}}
+						type="button"
+					>
 						{renderAction(mapped, item)}
-					</div>
+					</button>
 				) : null}
-			</div>
+			</>
+		);
+
+		const actionSection = (
+			<div className="ml-auto flex items-center gap-2">{actions}</div>
 		);
 
 		if (context === "profile") {
@@ -486,7 +555,7 @@ export function CapabilityList<T = any>({
 	);
 
 	if (asCard === false) {
-		return list as any;
+		return list;
 	}
 
 	const showSearch =

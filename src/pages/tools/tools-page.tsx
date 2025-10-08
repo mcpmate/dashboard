@@ -16,6 +16,7 @@ import {
 	ChevronRight,
 } from "lucide-react";
 import { Switch } from "../../components/ui/switch";
+import type { ConfigSuitListResponse, Tool } from "../../lib/types";
 
 export function ToolsPage() {
 	const [searchTerm, setSearchTerm] = React.useState("");
@@ -30,7 +31,7 @@ export function ToolsPage() {
 		isLoading,
 		refetch,
 		isRefetching,
-	} = useQuery({
+	} = useQuery<{ tools: Tool[] }>({
 		queryKey: ["tools"],
 		queryFn: toolsApi.getAll,
 		refetchInterval: 30000,
@@ -51,15 +52,15 @@ export function ToolsPage() {
 	// 移除了 enableMutation 和 disableMutation，改为直接在 handleToggleTool 中处理
 
 	// 获取可用的配置套件
-	const { data: suitsData } = useQuery({
+	const { data: suitsData } = useQuery<ConfigSuitListResponse>({
 		queryKey: ["configSuits"],
 		queryFn: configSuitsApi.getAll,
 	});
 
 	// 获取第一个可用的配置套件 ID
+	const suits = suitsData?.suits ?? [];
 	const activeSuitId =
-		suitsData?.suits?.find((s: any) => s.is_active)?.id ||
-		suitsData?.suits?.[0]?.id;
+		suits.find((s) => s.is_active)?.id ?? suits[0]?.id;
 
 	const handleToggleTool = async (tool: {
 		server_name: string;
@@ -162,35 +163,35 @@ export function ToolsPage() {
 	};
 
 	// Filter tools based on search term
-	const filteredTools =
-		tools?.tools?.filter((tool) => {
-			const toolName = tool.tool_name || "";
-			const serverName = tool.server_name || "";
-			const toolId = tool.tool_id || "";
-			const description = tool.description || "";
-
-			const searchTermLower = searchTerm.toLowerCase();
-
+	const filteredTools = React.useMemo(() => {
+		const list = tools?.tools ?? [];
+		const term = searchTerm.trim().toLowerCase();
+		if (!term) {
+			return list;
+		}
+		return list.filter((tool) => {
+			const toolName = tool.tool_name?.toLowerCase() ?? "";
+			const serverName = tool.server_name?.toLowerCase() ?? "";
+			const toolId = tool.tool_id?.toLowerCase() ?? "";
+			const description = tool.description?.toLowerCase() ?? "";
 			return (
-				toolName.toLowerCase().includes(searchTermLower) ||
-				serverName.toLowerCase().includes(searchTermLower) ||
-				toolId.toLowerCase().includes(searchTermLower) ||
-				description.toLowerCase().includes(searchTermLower)
+				toolName.includes(term) ||
+				serverName.includes(term) ||
+				toolId.includes(term) ||
+				description.includes(term)
 			);
-		}) || [];
+		});
+	}, [tools?.tools, searchTerm]);
 
 	// Group tools by server for better organization
 	const toolsByServer = React.useMemo(() => {
-		return filteredTools.reduce<Record<string, typeof filteredTools>>(
-			(acc, tool) => {
-				if (!acc[tool.server_name]) {
-					acc[tool.server_name] = [];
-				}
-				acc[tool.server_name].push(tool);
-				return acc;
-			},
-			{},
-		);
+		return filteredTools.reduce<Record<string, Tool[]>>((acc, tool) => {
+			if (!acc[tool.server_name]) {
+				acc[tool.server_name] = [];
+			}
+			acc[tool.server_name].push(tool);
+			return acc;
+		}, {});
 	}, [filteredTools]);
 
 	return (

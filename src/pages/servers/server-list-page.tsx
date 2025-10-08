@@ -30,7 +30,12 @@ import {
 	CardTitle,
 } from "../../components/ui/card";
 // Dropdown removed in favor of a single combined add flow
-import { PageToolbar, type PageToolbarConfig, type PageToolbarCallbacks, type PageToolbarState } from "../../components/ui/page-toolbar";
+import {
+	PageToolbar,
+	type PageToolbarConfig,
+	type PageToolbarCallbacks,
+	type PageToolbarState,
+} from "../../components/ui/page-toolbar";
 import { Switch } from "../../components/ui/switch";
 import { useServerInstallPipeline } from "../../hooks/use-server-install-pipeline";
 import { configSuitsApi, serversApi } from "../../lib/api";
@@ -47,7 +52,7 @@ import type {
 
 // Helper function to get the instance count for a server
 function getCapabilitySummary(server: ServerSummary) {
-	return server.capability ?? (server as any).capabilities ?? undefined;
+	return server.capability ?? server.capabilities ?? undefined;
 }
 
 function canIngestFromDataTransfer(dataTransfer: DataTransfer | null): boolean {
@@ -437,10 +442,16 @@ export function ServerListPage() {
 		// 返回两行显示的 React 元素
 		return (
 			<div className="space-y-1">
-				<div className="text-sm text-slate-500 truncate" title={firstLine}>
+				<div
+					className="text-sm text-slate-500 truncate max-w-[200px]"
+					title={firstLine}
+				>
 					{firstLine}
 				</div>
-				<div className="text-sm text-slate-500 truncate" title={secondLine}>
+				<div
+					className="text-sm text-slate-500 truncate max-w-[200px]"
+					title={secondLine}
+				>
 					{secondLine}
 				</div>
 			</div>
@@ -764,9 +775,9 @@ export function ServerListPage() {
 					</div>
 				));
 
-// 工具栏配置
-type ToolbarServer = ServerSummary & { [key: string]: unknown };
-const toolbarConfig: PageToolbarConfig<ToolbarServer> = {
+	// 工具栏配置
+	type ToolbarServer = ServerSummary & { [key: string]: unknown };
+	const toolbarConfig: PageToolbarConfig<ToolbarServer> = {
 		data: (serverListResponse?.servers || []) as ToolbarServer[],
 		search: {
 			placeholder: "Search servers...",
@@ -799,15 +810,15 @@ const toolbarConfig: PageToolbarConfig<ToolbarServer> = {
 	};
 
 	// 工具栏状态
-const toolbarState: PageToolbarState = {
+	const toolbarState: PageToolbarState = {
 		search,
 		viewMode: defaultView,
 		sort: "name", // 添加必需的 sort 属性
 		expanded,
 	};
 
-// 工具栏回调
-const toolbarCallbacks: PageToolbarCallbacks<ToolbarServer> = {
+	// 工具栏回调
+	const toolbarCallbacks: PageToolbarCallbacks<ToolbarServer> = {
 		onSearchChange: setSearch,
 		onViewModeChange: (mode: "grid" | "list") => {
 			// 直接更新全局设置

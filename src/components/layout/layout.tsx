@@ -94,7 +94,7 @@ export function Layout() {
 					<div className="flex-1">
 						<Outlet />
 					</div>
-					<footer className="mt-6 text-[11px] text-slate-500 border-t pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+					<footer className="mt-6 text-[11px] text-slate-500 border-t border-slate-200 dark:border-slate-900 pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 						<div>
 							MCPMate Preview <span className="font-mono">v0.1.0</span>
 						</div>

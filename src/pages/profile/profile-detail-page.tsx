@@ -17,6 +17,7 @@ import {
 	CapsuleStripeList,
 	CapsuleStripeListItem,
 } from "../../components/capsule-stripe-list";
+import { ListItemActions } from "../../components/list-item-actions";
 import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import {
 	AlertDialog,
@@ -75,7 +76,7 @@ const toTitleCase = (value?: string | null) =>
 	"";
 
 export function ProfileSuitDetailPage() {
-	const { suitId } = useParams<{ suitId: string }>();
+	const { profileId } = useParams<{ profileId: string }>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState("overview");
@@ -136,7 +137,7 @@ export function ProfileSuitDetailPage() {
 	const bulkToolsM = useMutation({
 		mutationFn: ({ enable }: { enable: boolean }) =>
 			configSuitsApi.bulkTools(
-				suitId!,
+				profileId!,
 				selectedToolIds,
 				enable ? "enable" : "disable",
 			),
@@ -150,7 +151,7 @@ export function ProfileSuitDetailPage() {
 	const bulkResourcesM = useMutation({
 		mutationFn: ({ enable }: { enable: boolean }) =>
 			configSuitsApi.bulkResources(
-				suitId!,
+				profileId!,
 				selectedResourceIds,
 				enable ? "enable" : "disable",
 			),
@@ -164,7 +165,7 @@ export function ProfileSuitDetailPage() {
 	const bulkPromptsM = useMutation({
 		mutationFn: ({ enable }: { enable: boolean }) =>
 			configSuitsApi.bulkPrompts(
-				suitId!,
+				profileId!,
 				selectedPromptIds,
 				enable ? "enable" : "disable",
 			),
@@ -179,7 +180,7 @@ export function ProfileSuitDetailPage() {
 	const bulkServersM = useMutation({
 		mutationFn: ({ enable }: { enable: boolean }) =>
 			configSuitsApi.bulkServers(
-				suitId!,
+				profileId!,
 				selectedServerIds,
 				enable ? "enable" : "disable",
 			),
@@ -232,15 +233,15 @@ export function ProfileSuitDetailPage() {
 		refetch: refetchSuit,
 		isRefetching: isRefetchingSuit,
 	} = useQuery({
-		queryKey: ["configSuit", suitId],
+		queryKey: ["configSuit", profileId],
 		queryFn: async () => {
-			if (!suitId) return undefined;
-			console.log("Fetching profile details for:", suitId);
-			const result = await configSuitsApi.getSuit(suitId);
+			if (!profileId) return undefined;
+			console.log("Fetching profile details for:", profileId);
+			const result = await configSuitsApi.getSuit(profileId);
 			console.log("Profile details response:", result);
 			return result;
 		},
-		enabled: !!suitId,
+		enabled: !!profileId,
 		retry: 1,
 	});
 
@@ -250,15 +251,15 @@ export function ProfileSuitDetailPage() {
 		isLoading: isLoadingServers,
 		refetch: refetchServers,
 	} = useQuery({
-		queryKey: ["configSuitServers", suitId],
+		queryKey: ["configSuitServers", profileId],
 		queryFn: async () => {
-			if (!suitId) return undefined;
-			console.log("Fetching servers for profile:", suitId);
-			const result = await configSuitsApi.getServers(suitId);
+			if (!profileId) return undefined;
+			console.log("Fetching servers for profile:", profileId);
+			const result = await configSuitsApi.getServers(profileId);
 			console.log("Profile servers response:", result);
 			return result;
 		},
-		enabled: !!suitId,
+		enabled: !!profileId,
 		retry: 1,
 	});
 	// Fetch tools in suit
@@ -267,10 +268,12 @@ export function ProfileSuitDetailPage() {
 		isLoading: isLoadingTools,
 		refetch: refetchTools,
 	} = useQuery({
-		queryKey: ["configSuitTools", suitId],
+		queryKey: ["configSuitTools", profileId],
 		queryFn: () =>
-			suitId ? configSuitsApi.getTools(suitId) : Promise.resolve(undefined),
-		enabled: !!suitId,
+			profileId
+				? configSuitsApi.getTools(profileId)
+				: Promise.resolve(undefined),
+		enabled: !!profileId,
 		retry: 1,
 	});
 
@@ -280,10 +283,12 @@ export function ProfileSuitDetailPage() {
 		isLoading: isLoadingResources,
 		refetch: refetchResources,
 	} = useQuery({
-		queryKey: ["configSuitResources", suitId],
+		queryKey: ["configSuitResources", profileId],
 		queryFn: () =>
-			suitId ? configSuitsApi.getResources(suitId) : Promise.resolve(undefined),
-		enabled: !!suitId,
+			profileId
+				? configSuitsApi.getResources(profileId)
+				: Promise.resolve(undefined),
+		enabled: !!profileId,
 		retry: 1,
 	});
 
@@ -293,18 +298,20 @@ export function ProfileSuitDetailPage() {
 		isLoading: isLoadingPrompts,
 		refetch: refetchPrompts,
 	} = useQuery({
-		queryKey: ["configSuitPrompts", suitId],
+		queryKey: ["configSuitPrompts", profileId],
 		queryFn: () =>
-			suitId ? configSuitsApi.getPrompts(suitId) : Promise.resolve(undefined),
-		enabled: !!suitId,
+			profileId
+				? configSuitsApi.getPrompts(profileId)
+				: Promise.resolve(undefined),
+		enabled: !!profileId,
 		retry: 1,
 	});
 
 	// Activation/deactivation mutations
 	const activateSuitMutation = useMutation({
-		mutationFn: () => configSuitsApi.activateSuit(suitId!),
+		mutationFn: () => configSuitsApi.activateSuit(profileId!),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+			queryClient.invalidateQueries({ queryKey: ["configSuit", profileId] });
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
 				"Profile activated",
@@ -320,9 +327,9 @@ export function ProfileSuitDetailPage() {
 	});
 
 	const deactivateSuitMutation = useMutation({
-		mutationFn: () => configSuitsApi.deactivateSuit(suitId!),
+		mutationFn: () => configSuitsApi.deactivateSuit(profileId!),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+			queryClient.invalidateQueries({ queryKey: ["configSuit", profileId] });
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
 				"Profile deactivated",
@@ -339,9 +346,9 @@ export function ProfileSuitDetailPage() {
 
 	const toggleDefaultMutation = useMutation({
 		mutationFn: (nextDefault: boolean) =>
-			configSuitsApi.updateSuit(suitId!, { is_default: nextDefault }),
+			configSuitsApi.updateSuit(profileId!, { is_default: nextDefault }),
 		onSuccess: (_response, nextDefault) => {
-			queryClient.invalidateQueries({ queryKey: ["configSuit", suitId] });
+			queryClient.invalidateQueries({ queryKey: ["configSuit", profileId] });
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
 				"Default bundle updated",
@@ -363,8 +370,8 @@ export function ProfileSuitDetailPage() {
 	// Delete profile mutation
 	const deleteSuitMutation = useMutation({
 		mutationFn: () => {
-			if (!suitId) return Promise.reject("No suit ID");
-			return configSuitsApi.deleteSuit(suitId);
+			if (!profileId) return Promise.reject("No suit ID");
+			return configSuitsApi.deleteSuit(profileId);
 		},
 		onSuccess: () => {
 			// Invalidate queries to refresh the profiles list
@@ -390,8 +397,8 @@ export function ProfileSuitDetailPage() {
 			enable: boolean;
 		}) => {
 			return enable
-				? configSuitsApi.enableServer(suitId!, serverId)
-				: configSuitsApi.disableServer(suitId!, serverId);
+				? configSuitsApi.enableServer(profileId!, serverId)
+				: configSuitsApi.disableServer(profileId!, serverId);
 		},
 		onSuccess: () => {
 			// Refetch all capability data to update counts in tabs
@@ -401,7 +408,9 @@ export function ProfileSuitDetailPage() {
 			refetchPrompts();
 
 			// Invalidate profile statistics cache for config page
-			queryClient.invalidateQueries({ queryKey: ["configSuitStats", suitId] });
+			queryClient.invalidateQueries({
+				queryKey: ["configSuitStats", profileId],
+			});
 
 			notifySuccess("Server updated", "Server status has been updated");
 		},
@@ -417,8 +426,8 @@ export function ProfileSuitDetailPage() {
 	const toolToggleMutation = useMutation({
 		mutationFn: ({ toolId, enable }: { toolId: string; enable: boolean }) => {
 			return enable
-				? configSuitsApi.enableTool(suitId!, toolId)
-				: configSuitsApi.disableTool(suitId!, toolId);
+				? configSuitsApi.enableTool(profileId!, toolId)
+				: configSuitsApi.disableTool(profileId!, toolId);
 		},
 		onSuccess: () => {
 			refetchTools();
@@ -442,8 +451,8 @@ export function ProfileSuitDetailPage() {
 			enable: boolean;
 		}) => {
 			return enable
-				? configSuitsApi.enableResource(suitId!, resourceId)
-				: configSuitsApi.disableResource(suitId!, resourceId);
+				? configSuitsApi.enableResource(profileId!, resourceId)
+				: configSuitsApi.disableResource(profileId!, resourceId);
 		},
 		onSuccess: () => {
 			refetchResources();
@@ -467,8 +476,8 @@ export function ProfileSuitDetailPage() {
 			enable: boolean;
 		}) => {
 			return enable
-				? configSuitsApi.enablePrompt(suitId!, promptId)
-				: configSuitsApi.disablePrompt(suitId!, promptId);
+				? configSuitsApi.enablePrompt(profileId!, promptId)
+				: configSuitsApi.disablePrompt(profileId!, promptId);
 		},
 		onSuccess: () => {
 			refetchPrompts();
@@ -653,7 +662,7 @@ export function ProfileSuitDetailPage() {
 				{/* page-level actions moved into Overview card */}
 			</div>
 
-			{!suitId ? (
+			{!profileId ? (
 				<Card>
 					<CardContent className="p-4">
 						<p className="text-center text-slate-500">
@@ -682,11 +691,11 @@ export function ProfileSuitDetailPage() {
 							<TabsTrigger value="tools">
 								Tools ({enabledTools.length}/{tools.length})
 							</TabsTrigger>
-							<TabsTrigger value="resources">
-								Resources ({enabledResources.length}/{resources.length})
-							</TabsTrigger>
 							<TabsTrigger value="prompts">
 								Prompts ({enabledPrompts.length}/{prompts.length})
+							</TabsTrigger>
+							<TabsTrigger value="resources">
+								Resources ({enabledResources.length}/{resources.length})
 							</TabsTrigger>
 						</TabsList>
 					</div>
@@ -894,7 +903,7 @@ export function ProfileSuitDetailPage() {
 												placeholder="Search by name..."
 												value={serverQuery}
 												onChange={(e) => setServerQuery(e.target.value)}
-												className="w-48"
+												className="w-48 h-9"
 											/>
 											<Select
 												value={serverStatus}
@@ -902,7 +911,7 @@ export function ProfileSuitDetailPage() {
 													setServerStatus(v as "all" | "enabled" | "disabled")
 												}
 											>
-												<SelectTrigger className="w-36">
+												<SelectTrigger className="w-36 h-9">
 													<SelectValue placeholder="Status" />
 												</SelectTrigger>
 												<SelectContent>
@@ -990,7 +999,9 @@ export function ProfileSuitDetailPage() {
 													key={server.id}
 													interactive
 													className={`group relative transition-colors ${
-														selected ? "bg-primary/10 ring-1 ring-primary/40" : ""
+														selected
+															? "bg-primary/10 ring-1 ring-primary/40"
+															: ""
 													}`}
 													onClick={() =>
 														setSelectedServerIds((prev) =>
@@ -1027,53 +1038,28 @@ export function ProfileSuitDetailPage() {
 																fallback={avatarFallback}
 																size="sm"
 																shape="rounded"
+																className="border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/40"
 															/>
-																<div className="min-w-0">
-																	<h3 className="font-medium text-slate-900 dark:text-slate-100">
-																		{server.name}
-																	</h3>
-																	<p className="text-sm text-slate-500">
-																		ID: {server.id}
+															<div className="min-w-0">
+																<h3 className="font-medium text-slate-900 dark:text-slate-100">
+																	{server.name}
+																</h3>
+																<p className="text-sm text-slate-500">
+																	ID: {server.id}
+																</p>
+																{globalDescription ? (
+																	<p className="text-xs text-slate-500 line-clamp-2">
+																		{globalDescription}
 																	</p>
-																	{globalDescription ? (
-																		<p className="text-xs text-slate-500 line-clamp-2">
-																			{globalDescription}
-																		</p>
-																	) : null}
-																</div>
+																) : null}
 															</div>
-															<div className="flex items-center gap-2">
-																<div className="flex items-center gap-1 text-xs text-slate-600">
-																	{server.enabled ? (
-																		<Badge>Enabled</Badge>
-																	) : (
-																		<Badge variant="outline">Disabled</Badge>
-																	)}
-																	{globallyEnabled !== undefined &&
-																		(globallyEnabled ? (
-																			<Badge>Global Enabled</Badge>
-																		) : (
-																			<Badge variant="outline">
-																				Global Disabled
-																			</Badge>
-																		))}
-																</div>
-																<Switch
-																	checked={server.enabled}
-																	onClick={(e) => e.stopPropagation()}
-																	onCheckedChange={(enabled) =>
-																		serverToggleMutation.mutate({
-																			serverId: server.id,
-																			enable: enabled,
-																		})
-																	}
-																	disabled={serverToggleMutation.isPending}
-																/>
-																{enableServerDebug && (
-																	<Button
-																		size="sm"
-																		variant="outline"
-																		className="gap-1"
+														</div>
+														<div className="ml-auto flex items-center gap-2">
+															{/* Debug button with hover logic - positioned on the left */}
+															{enableServerDebug && (
+																<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+																	<button
+																		type="button"
 																		onClick={(ev) => {
 																			ev.stopPropagation();
 																			openDebug(
@@ -1081,13 +1067,39 @@ export function ProfileSuitDetailPage() {
 																				server.enabled ? "proxy" : "native",
 																			);
 																		}}
+																		aria-label="Debug server"
+																		className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
 																	>
-																		<Bug className="h-4 w-4" />
-																	</Button>
-																)}
-															</div>
+																		<Bug size={20} />
+																	</button>
+																</div>
+															)}
+
+															{/* Global status badges and switch - positioned on the right */}
+															{globallyEnabled !== undefined &&
+																(globallyEnabled ? (
+																	<Badge>Global Enabled</Badge>
+																) : (
+																	<Badge variant="outline">
+																		Global Disabled
+																	</Badge>
+																))}
+
+															{/* Always show switch */}
+															<Switch
+																checked={server.enabled}
+																onClick={(e) => e.stopPropagation()}
+																onCheckedChange={(enabled) =>
+																	serverToggleMutation.mutate({
+																		serverId: server.id,
+																		enable: enabled,
+																	})
+																}
+																disabled={serverToggleMutation.isPending}
+															/>
 														</div>
-													</CapsuleStripeListItem>
+													</div>
+												</CapsuleStripeListItem>
 											);
 										})}
 									</CapsuleStripeList>
@@ -1116,7 +1128,7 @@ export function ProfileSuitDetailPage() {
 												placeholder="Search tool or unique name..."
 												value={toolQuery}
 												onChange={(e) => setToolQuery(e.target.value)}
-												className="w-48"
+												className="w-48 h-9"
 											/>
 											<Select
 												value={toolStatus}
@@ -1124,7 +1136,7 @@ export function ProfileSuitDetailPage() {
 													setToolStatus(v as "all" | "enabled" | "disabled")
 												}
 											>
-												<SelectTrigger className="w-36">
+												<SelectTrigger className="w-36 h-9">
 													<SelectValue placeholder="Status" />
 												</SelectTrigger>
 												<SelectContent>
@@ -1137,7 +1149,7 @@ export function ProfileSuitDetailPage() {
 												value={toolServer}
 												onValueChange={(v) => setToolServer(v)}
 											>
-												<SelectTrigger className="w-40">
+												<SelectTrigger className="w-40 h-9">
 													<SelectValue placeholder="Server" />
 												</SelectTrigger>
 												<SelectContent>
@@ -1217,26 +1229,132 @@ export function ProfileSuitDetailPage() {
 												: [...prev, id],
 										);
 									}}
-									renderAction={
-										enableServerDebug
-											? (mapped, tool: ConfigSuitTool) => (
-													<Button
-														size="sm"
-														variant="outline"
-														className="gap-1"
-														onClick={(e) => {
-															e.stopPropagation();
-															openDebug(
-																tool.server_id,
-																tool.enabled ? "proxy" : "native",
-															);
-														}}
-													>
-														<Bug className="h-3.5 w-3.5" />
-													</Button>
-												)
-											: undefined
+									renderAction={undefined}
+								/>
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					<TabsContent value="prompts">
+						<Card>
+							<CardHeader>
+								<div className="flex items-center justify-between gap-2">
+									<div>
+										<CardTitle>Prompts</CardTitle>
+										<CardDescription>
+											Manage prompts included in this profile
+										</CardDescription>
+									</div>
+									{!isLoadingPrompts && (
+										<div className="flex flex-wrap items-center gap-2">
+											<Input
+												placeholder="Search by prompt name..."
+												value={promptQuery}
+												onChange={(e) => setPromptQuery(e.target.value)}
+												className="w-48 h-9"
+											/>
+											<Select
+												value={promptStatus}
+												onValueChange={(v) =>
+													setPromptStatus(v as "all" | "enabled" | "disabled")
+												}
+											>
+												<SelectTrigger className="w-36 h-9">
+													<SelectValue placeholder="Status" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All</SelectItem>
+													<SelectItem value="enabled">Enabled</SelectItem>
+													<SelectItem value="disabled">Disabled</SelectItem>
+												</SelectContent>
+											</Select>
+											<Select
+												value={promptServer}
+												onValueChange={(v) => setPromptServer(v)}
+											>
+												<SelectTrigger className="w-40 h-9">
+													<SelectValue placeholder="Server" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All Servers</SelectItem>
+													{serverNameOptions.map((name) => (
+														<SelectItem key={`prm-sel-${name}`} value={name}>
+															{name}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<ButtonGroup className="hidden md:flex ml-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() =>
+														setSelectedPromptIds(
+															visiblePrompts.map((p: any) => p.id),
+														)
+													}
+												>
+													Select all
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => setSelectedPromptIds([])}
+												>
+													Clear
+												</Button>
+												<Button
+													size="sm"
+													disabled={
+														bulkPromptsM.isPending ||
+														selectedPromptIds.length === 0
+													}
+													onClick={() => bulkPromptsM.mutate({ enable: true })}
+												>
+													Enable
+												</Button>
+												<Button
+													size="sm"
+													variant="secondary"
+													disabled={
+														bulkPromptsM.isPending ||
+														selectedPromptIds.length === 0
+													}
+													onClick={() => bulkPromptsM.mutate({ enable: false })}
+												>
+													Disable
+												</Button>
+											</ButtonGroup>
+										</div>
+									)}
+								</div>
+							</CardHeader>
+							<CardContent>
+								<CapabilityList
+									asCard={false}
+									title="Prompts"
+									kind="prompts"
+									context="profile"
+									items={visiblePrompts as any}
+									loading={isLoadingPrompts}
+									enableToggle
+									getId={(p: any) => p.id}
+									getEnabled={(p: any) => !!p.enabled}
+									onToggle={(id, next) =>
+										promptToggleMutation.mutate({ promptId: id, enable: next })
 									}
+									emptyText="No prompts found in this profile"
+									filterText={promptQuery}
+									selectable
+									selectedIds={selectedPromptIds}
+									onSelectToggle={(id) => {
+										setSelectedPromptIds((prev) =>
+											prev.includes(id)
+												? prev.filter((x) => x !== id)
+												: [...prev, id],
+										);
+									}}
+									renderAction={undefined}
 								/>
 							</CardContent>
 						</Card>
@@ -1258,7 +1376,7 @@ export function ProfileSuitDetailPage() {
 												placeholder="Search by URI..."
 												value={resourceQuery}
 												onChange={(e) => setResourceQuery(e.target.value)}
-												className="w-48"
+												className="w-48 h-9"
 											/>
 											<Select
 												value={resourceStatus}
@@ -1266,7 +1384,7 @@ export function ProfileSuitDetailPage() {
 													setResourceStatus(v as "all" | "enabled" | "disabled")
 												}
 											>
-												<SelectTrigger className="w-36">
+												<SelectTrigger className="w-36 h-9">
 													<SelectValue placeholder="Status" />
 												</SelectTrigger>
 												<SelectContent>
@@ -1279,7 +1397,7 @@ export function ProfileSuitDetailPage() {
 												value={resourceServer}
 												onValueChange={(v) => setResourceServer(v)}
 											>
-												<SelectTrigger className="w-40">
+												<SelectTrigger className="w-40 h-9">
 													<SelectValue placeholder="Server" />
 												</SelectTrigger>
 												<SelectContent>
@@ -1368,170 +1486,7 @@ export function ProfileSuitDetailPage() {
 												: [...prev, id],
 										);
 									}}
-									renderAction={
-										enableServerDebug
-											? (mapped, resource: ConfigSuitResource) => (
-													<Button
-														size="sm"
-														variant="outline"
-														className="gap-1"
-														onClick={(e) => {
-															e.stopPropagation();
-															openDebug(
-																resource.server_id,
-																resource.enabled ? "proxy" : "native",
-															);
-														}}
-													>
-														<Bug className="h-3.5 w-3.5" />
-													</Button>
-												)
-											: undefined
-									}
-								/>
-							</CardContent>
-						</Card>
-					</TabsContent>
-
-					<TabsContent value="prompts">
-						<Card>
-							<CardHeader>
-								<div className="flex items-center justify-between gap-2">
-									<div>
-										<CardTitle>Prompts</CardTitle>
-										<CardDescription>
-											Manage prompts included in this profile
-										</CardDescription>
-									</div>
-									{!isLoadingPrompts && (
-										<div className="flex flex-wrap items-center gap-2">
-											<Input
-												placeholder="Search by prompt name..."
-												value={promptQuery}
-												onChange={(e) => setPromptQuery(e.target.value)}
-												className="w-48"
-											/>
-											<Select
-												value={promptStatus}
-												onValueChange={(v) =>
-													setPromptStatus(v as "all" | "enabled" | "disabled")
-												}
-											>
-												<SelectTrigger className="w-36">
-													<SelectValue placeholder="Status" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All</SelectItem>
-													<SelectItem value="enabled">Enabled</SelectItem>
-													<SelectItem value="disabled">Disabled</SelectItem>
-												</SelectContent>
-											</Select>
-											<Select
-												value={promptServer}
-												onValueChange={(v) => setPromptServer(v)}
-											>
-												<SelectTrigger className="w-40">
-													<SelectValue placeholder="Server" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All Servers</SelectItem>
-													{serverNameOptions.map((name) => (
-														<SelectItem key={`prm-sel-${name}`} value={name}>
-															{name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-											<ButtonGroup className="hidden md:flex ml-2">
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() =>
-														setSelectedPromptIds(
-															visiblePrompts.map((p: any) => p.id),
-														)
-													}
-												>
-													Select all
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => setSelectedPromptIds([])}
-												>
-													Clear
-												</Button>
-												<Button
-													size="sm"
-													disabled={
-														bulkPromptsM.isPending ||
-														selectedPromptIds.length === 0
-													}
-													onClick={() => bulkPromptsM.mutate({ enable: true })}
-												>
-													Enable
-												</Button>
-												<Button
-													size="sm"
-													variant="secondary"
-													disabled={
-														bulkPromptsM.isPending ||
-														selectedPromptIds.length === 0
-													}
-													onClick={() => bulkPromptsM.mutate({ enable: false })}
-												>
-													Disable
-												</Button>
-											</ButtonGroup>
-										</div>
-									)}
-								</div>
-							</CardHeader>
-							<CardContent>
-								<CapabilityList
-									asCard={false}
-									title="Prompts"
-									kind="prompts"
-									context="profile"
-									items={visiblePrompts as any}
-									loading={isLoadingPrompts}
-									enableToggle
-									getId={(p: any) => p.id}
-									getEnabled={(p: any) => !!p.enabled}
-									onToggle={(id, next) =>
-										promptToggleMutation.mutate({ promptId: id, enable: next })
-									}
-									emptyText="No prompts found in this profile"
-									filterText={promptQuery}
-									selectable
-									selectedIds={selectedPromptIds}
-									onSelectToggle={(id) => {
-										setSelectedPromptIds((prev) =>
-											prev.includes(id)
-												? prev.filter((x) => x !== id)
-												: [...prev, id],
-										);
-									}}
-									renderAction={
-										enableServerDebug
-											? (mapped, prompt: ConfigSuitPrompt) => (
-													<Button
-														size="sm"
-														variant="outline"
-														className="gap-1"
-														onClick={(e) => {
-															e.stopPropagation();
-															openDebug(
-																prompt.server_id,
-																prompt.enabled ? "proxy" : "native",
-															);
-														}}
-													>
-														<Bug className="h-3.5 w-3.5" />
-													</Button>
-												)
-											: undefined
-									}
+									renderAction={undefined}
 								/>
 							</CardContent>
 						</Card>

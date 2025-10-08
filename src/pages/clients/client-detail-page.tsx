@@ -1,27 +1,44 @@
-import { useEffect, useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	Check,
+	Download,
+	Play,
+	RefreshCw,
+	RotateCcw,
+	Square,
+	Trash2,
+} from "lucide-react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { clientsApi } from "../../lib/api";
-import type {
-	ClientBackupEntry,
-	ClientBackupPolicySetReq,
-	ClientConfigMode,
-	ClientConfigSelected,
-	ClientConfigUpdateData,
-} from "../../lib/types";
 import {
 	CapsuleStripeList,
 	CapsuleStripeListItem,
 } from "../../components/capsule-stripe-list";
+import { ConfirmDialog } from "../../components/confirm-dialog";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "../../components/ui/avatar";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { ButtonGroup } from "../../components/ui/button-group";
-import { Badge } from "../../components/ui/badge";
 import {
 	Card,
 	CardContent,
+	CardDescription,
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+} from "../../components/ui/drawer";
+import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import {
 	Select,
@@ -30,51 +47,41 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "../../components/ui/select";
-import { Input } from "../../components/ui/input";
 import {
 	Tabs,
 	TabsContent,
 	TabsList,
 	TabsTrigger,
 } from "../../components/ui/tabs";
+import { clientsApi } from "../../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
+import type {
+	ClientBackupEntry,
+	ClientBackupPolicySetReq,
+	ClientConfigMode,
+	ClientConfigSelected,
+	ClientConfigUpdateData,
+} from "../../lib/types";
 import { formatBackupTime } from "../../lib/utils";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "../../components/ui/dropdown-menu";
-import { ConfirmDialog } from "../../components/confirm-dialog";
-import {
-	Drawer,
-	DrawerContent,
-	DrawerHeader,
-	DrawerTitle,
-	DrawerFooter,
-	DrawerDescription,
-} from "../../components/ui/drawer";
-import {
-	BookOpen,
-	Download,
-	Globe,
-	LifeBuoy,
-	RefreshCw,
-	RotateCcw,
-	Trash2,
-	Upload,
-	Play,
-	Square,
-	Check,
-} from "lucide-react";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-} from "../../components/ui/avatar";
 
 type ClientDetailTab = "overview" | "configuration" | "backups";
+
+function extractServers(obj: any): string[] {
+	if (!obj || typeof obj !== "object") return [];
+	if (obj.mcpServers && typeof obj.mcpServers === "object") {
+		return Object.keys(obj.mcpServers);
+	}
+	if (obj.mcp_servers && typeof obj.mcp_servers === "object") {
+		return Object.keys(obj.mcp_servers);
+	}
+	if (obj.mcp && Array.isArray(obj.mcp.servers)) {
+		return obj.mcp.servers.map((s: any) => s?.name).filter(Boolean);
+	}
+	if (Array.isArray(obj.servers)) {
+		return obj.servers.map((s: any) => s?.name).filter(Boolean);
+	}
+	return [];
+}
 
 export function ClientDetailPage() {
 	const { identifier } = useParams<{ identifier: string }>();
@@ -100,13 +107,15 @@ export function ClientDetailPage() {
 			clientsApi
 				.list(false)
 				.then((d) => {
-					const f = d.client?.find((c: any) => c.identifier === identifier);
-					if (f?.display_name) setDisplayName(f.display_name);
-					if (typeof f?.detected === "boolean") setDetected(!!f.detected);
+					if (d?.client) {
+						const f = d.client.find((c: any) => c.identifier === identifier);
+						if (f?.display_name) setDisplayName(f.display_name);
+						if (typeof f?.detected === "boolean") setDetected(!!f.detected);
+					}
 				})
 				.catch(() => {});
 		}
-	}, [identifier, qc]);
+	}, [identifier, qc, displayName]);
 
 	const modeId = useId();
 	const sourceId = useId();
@@ -158,30 +167,46 @@ export function ClientDetailPage() {
 	const detailDocsUrl = configDetails?.docs_url ?? templateMeta?.docs_url ?? "";
 	const detailSupportUrl =
 		configDetails?.support_url ?? templateMeta?.support_url ?? "";
-	const detailQuickLinks = useMemo(
-		() =>
-			[
-				detailHomepageUrl
-					? { label: "Homepage", url: detailHomepageUrl, icon: Globe }
-					: null,
-				detailDocsUrl
-					? { label: "Docs", url: detailDocsUrl, icon: BookOpen }
-					: null,
-				detailSupportUrl
-					? { label: "Support", url: detailSupportUrl, icon: LifeBuoy }
-					: null,
-			].filter(Boolean) as { label: string; url: string; icon: typeof Globe }[],
-		[detailHomepageUrl, detailDocsUrl, detailSupportUrl],
-	);
 
-	const handleDetailLinkClick = (url: string) => {
-		if (!url) return;
-		try {
-			window.open(url, "_blank", "noopener,noreferrer");
-		} catch {
-			/* noop */
+	const [logEntries, setLogEntries] = useState<
+		Array<{
+			id: string;
+			message: string;
+			level: "warning";
+			timestamp: string;
+		}>
+	>([]);
+	const [logFilter, setLogFilter] = useState("");
+
+	useEffect(() => {
+		if (configDetails?.warnings?.length) {
+			setLogEntries((prev) => {
+				const existing = new Set(prev.map((entry) => entry.message));
+				const next = [...prev];
+				for (const warning of configDetails.warnings ?? []) {
+					if (!existing.has(warning)) {
+						next.push({
+							id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+							message: warning,
+							level: "warning",
+							timestamp: new Date().toISOString(),
+						});
+					}
+				}
+				return next;
+			});
 		}
-	};
+	}, [configDetails?.warnings]);
+
+	const filteredLogs = useMemo(() => {
+		if (!logFilter.trim()) {
+			return logEntries;
+		}
+		const term = logFilter.toLowerCase();
+		return logEntries.filter((entry) =>
+			entry.message.toLowerCase().includes(term),
+		);
+	}, [logEntries, logFilter]);
 
 	const { data: policyData, refetch: refetchPolicy } = useQuery({
 		queryKey: ["client-policy", identifier],
@@ -229,16 +254,6 @@ export function ClientDetailPage() {
 		onError: (e) => notifyError("Apply failed", String(e)),
 	});
 
-	const handlePreviewConfig = () => {
-		if (!identifier) return;
-		applyMutation.mutate({ preview: true });
-	};
-
-	const handleApplyConfig = () => {
-		if (!identifier) return;
-		applyMutation.mutate({ preview: false });
-	};
-
 	const importMutation = useMutation({
 		mutationFn: async () => {
 			// If no preview yet, generate one first
@@ -277,10 +292,13 @@ export function ClientDetailPage() {
 	const refreshDetectMutation = useMutation({
 		mutationFn: async () => {
 			const data = await clientsApi.list(true);
-			const f = data.client?.find((c: any) => c.identifier === identifier);
-			if (f) {
-				if (typeof f.display_name === "string") setDisplayName(f.display_name);
-				setDetected(!!f.detected);
+			if (data?.client) {
+				const f = data.client.find((c: any) => c.identifier === identifier);
+				if (f) {
+					if (typeof f.display_name === "string")
+						setDisplayName(f.display_name);
+					setDetected(!!f.detected);
+				}
 			}
 			await refetchDetails();
 		},
@@ -385,23 +403,6 @@ export function ClientDetailPage() {
 		}
 	}, [configDetails]);
 
-	function extractServers(obj: any): string[] {
-		if (!obj || typeof obj !== "object") return [];
-		if (obj.mcpServers && typeof obj.mcpServers === "object") {
-			return Object.keys(obj.mcpServers);
-		}
-		if (obj.mcp_servers && typeof obj.mcp_servers === "object") {
-			return Object.keys(obj.mcp_servers);
-		}
-		if (obj.mcp && Array.isArray(obj.mcp.servers)) {
-			return obj.mcp.servers.map((s: any) => s?.name).filter(Boolean);
-		}
-		if (Array.isArray(obj.servers)) {
-			return obj.servers.map((s: any) => s?.name).filter(Boolean);
-		}
-		return [];
-	}
-
 	if (!identifier)
 		return <div className="p-4">No client identifier provided.</div>;
 
@@ -441,6 +442,7 @@ export function ClientDetailPage() {
 						<TabsTrigger value="overview">Overview</TabsTrigger>
 						<TabsTrigger value="configuration">Configuration</TabsTrigger>
 						<TabsTrigger value="backups">Backups</TabsTrigger>
+						<TabsTrigger value="logs">Logs</TabsTrigger>
 					</TabsList>
 				</div>
 
@@ -452,128 +454,118 @@ export function ClientDetailPage() {
 									<div className="animate-pulse h-16 bg-slate-200 dark:bg-slate-800 rounded" />
 								</CardContent>
 							) : configDetails ? (
-								<>
-									<CardContent className="p-4">
-										<div className="flex flex-col gap-4">
-											<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-												<div className="flex flex-wrap items-start gap-4">
-													<Avatar className="text-sm">
-														{configDetails.logo_url ? (
-															<AvatarImage
-																src={configDetails.logo_url}
-																alt={displayName || identifier}
-															/>
-														) : null}
-														<AvatarFallback>
-															{(displayName || identifier || "C")
-																.slice(0, 1)
-																.toUpperCase()}
-														</AvatarFallback>
-													</Avatar>
-													<div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
-														<span className="text-xs uppercase text-slate-500">
-															Config Path
-														</span>
-														<span className="font-mono text-xs truncate max-w-[520px]">
-															{configDetails.config_path}
-														</span>
-
-														<span className="text-xs uppercase text-slate-500">
-															Last Modified
-														</span>
-														<span className="text-xs">
-															{configDetails.last_modified || "-"}
-														</span>
-
-														{detailHomepageUrl ? (
-															<>
-																<span className="text-xs uppercase text-slate-500">
-																	Homepage
-																</span>
-																<a
-																	href={detailHomepageUrl}
-																	target="_blank"
-																	rel="noreferrer"
-																	className="text-xs underline underline-offset-2 truncate"
-																>
-																	{detailHomepageUrl}
-																</a>
-															</>
-														) : null}
-														{detailDocsUrl ? (
-															<>
-																<span className="text-xs uppercase text-slate-500">
-																	Docs
-																</span>
-																<a
-																	href={detailDocsUrl}
-																	target="_blank"
-																	rel="noreferrer"
-																	className="text-xs underline underline-offset-2 truncate"
-																>
-																	{detailDocsUrl}
-																</a>
-															</>
-														) : null}
-														{detailSupportUrl ? (
-															<>
-																<span className="text-xs uppercase text-slate-500">
-																	Support
-																</span>
-																<a
-																	href={detailSupportUrl}
-																	target="_blank"
-																	rel="noreferrer"
-																	className="text-xs underline underline-offset-2 truncate"
-																>
-																	{detailSupportUrl}
-																</a>
-															</>
-														) : null}
-													</div>
-												</div>
-												<ButtonGroup className="ml-auto flex-shrink-0 flex-nowrap self-start">
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => refreshDetectMutation.mutate()}
-														disabled={refreshDetectMutation.isPending}
-														className="gap-2"
-													>
-														<RefreshCw
-															className={`h-4 w-4 ${refreshDetectMutation.isPending ? "animate-spin" : ""}`}
+								<CardContent className="p-4">
+									<div className="flex flex-col gap-4">
+										<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+											<div className="flex flex-wrap items-start gap-4">
+												<Avatar className="text-sm">
+													{configDetails.logo_url ? (
+														<AvatarImage
+															src={configDetails.logo_url}
+															alt={displayName || identifier}
 														/>
-														Refresh
-													</Button>
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => toggleManagedMutation.mutate()}
-														disabled={
-															toggleManagedMutation.isPending || !configDetails
-														}
-														className="gap-2"
-													>
-														{configDetails?.managed ? (
-															<Square className="h-4 w-4" />
-														) : (
-															<Play className="h-4 w-4" />
-														)}
-														{configDetails?.managed ? "Disable" : "Enable"}
-													</Button>
-													<Button
-														size="sm"
-														onClick={() => setTabValue("configuration")}
-														className="gap-2"
-													>
-														<Upload className="h-4 w-4" />
-														Configure
-													</Button>
-												</ButtonGroup>
+													) : null}
+													<AvatarFallback>
+														{(displayName || identifier || "C")
+															.slice(0, 1)
+															.toUpperCase()}
+													</AvatarFallback>
+												</Avatar>
+												<div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
+													<span className="text-xs uppercase text-slate-500">
+														Config Path
+													</span>
+													<span className="font-mono text-xs truncate max-w-[520px]">
+														{configDetails.config_path}
+													</span>
+
+													<span className="text-xs uppercase text-slate-500">
+														Last Modified
+													</span>
+													<span className="text-xs">
+														{configDetails.last_modified || "-"}
+													</span>
+
+													{detailHomepageUrl ? (
+														<>
+															<span className="text-xs uppercase text-slate-500">
+																Homepage
+															</span>
+															<a
+																href={detailHomepageUrl}
+																target="_blank"
+																rel="noreferrer"
+																className="text-xs underline underline-offset-2 truncate"
+															>
+																{detailHomepageUrl}
+															</a>
+														</>
+													) : null}
+													{detailDocsUrl ? (
+														<>
+															<span className="text-xs uppercase text-slate-500">
+																Docs
+															</span>
+															<a
+																href={detailDocsUrl}
+																target="_blank"
+																rel="noreferrer"
+																className="text-xs underline underline-offset-2 truncate"
+															>
+																{detailDocsUrl}
+															</a>
+														</>
+													) : null}
+													{detailSupportUrl ? (
+														<>
+															<span className="text-xs uppercase text-slate-500">
+																Support
+															</span>
+															<a
+																href={detailSupportUrl}
+																target="_blank"
+																rel="noreferrer"
+																className="text-xs underline underline-offset-2 truncate"
+															>
+																{detailSupportUrl}
+															</a>
+														</>
+													) : null}
+												</div>
 											</div>
+											<ButtonGroup className="ml-auto flex-shrink-0 flex-nowrap self-start">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => refreshDetectMutation.mutate()}
+													disabled={refreshDetectMutation.isPending}
+													className="gap-2"
+												>
+													<RefreshCw
+														className={`h-4 w-4 ${refreshDetectMutation.isPending ? "animate-spin" : ""}`}
+													/>
+													Refresh
+												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={() => toggleManagedMutation.mutate()}
+													disabled={
+														toggleManagedMutation.isPending || !configDetails
+													}
+													className="gap-2"
+												>
+													{configDetails?.managed ? (
+														<Square className="h-4 w-4" />
+													) : (
+														<Play className="h-4 w-4" />
+													)}
+													{configDetails?.managed ? "Disable" : "Enable"}
+												</Button>
+											</ButtonGroup>
 										</div>
-									</CardContent>
-								</>
+									</div>
+								</CardContent>
 							) : (
 								<CardContent className="text-sm text-slate-500">
 									No details available
@@ -628,12 +620,12 @@ export function ClientDetailPage() {
 					<div className="grid gap-4">
 						<Card>
 							<CardHeader>
-								<div className="flex flex-col gap-1">
+								<div>
 									<CardTitle>Configuration Mode</CardTitle>
-									<p className="text-sm text-muted-foreground">
+									<CardDescription>
 										Choose how MCPMate generates and applies configuration for
 										this client.
-									</p>
+									</CardDescription>
 								</div>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -672,40 +664,6 @@ export function ClientDetailPage() {
 										</Select>
 									</div>
 								</div>
-								<div className="flex flex-wrap items-center gap-2">
-									<Button
-										variant="outline"
-										onClick={handlePreviewConfig}
-										disabled={applyMutation.isPending || !identifier}
-										className="gap-2"
-									>
-										<RotateCcw
-											className={`h-4 w-4 ${applyMutation.isPending && lastAction === "preview" ? "animate-spin" : ""}`}
-										/>
-										Preview Diff
-									</Button>
-									<Button
-										onClick={handleApplyConfig}
-										disabled={applyMutation.isPending || !identifier}
-										className="gap-2"
-									>
-										<Upload
-											className={`h-4 w-4 ${applyMutation.isPending && lastAction === "apply" ? "animate-spin" : ""}`}
-										/>
-										Apply Configuration
-									</Button>
-									<Button
-										variant="ghost"
-										onClick={() => refetchDetails()}
-										disabled={loadingConfig}
-										className="gap-2"
-									>
-										<RefreshCw
-											className={`h-4 w-4 ${loadingConfig ? "animate-spin" : ""}`}
-										/>
-										Refresh Data
-									</Button>
-								</div>
 								{applyMutation.isPending && (
 									<div className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
 								)}
@@ -734,7 +692,9 @@ export function ClientDetailPage() {
 										{applyResult.warnings && applyResult.warnings.length > 0 ? (
 											<ul className="list-disc space-y-1 pl-5 text-amber-600 dark:text-amber-400">
 												{applyResult.warnings.map((warning, idx) => (
-													<li key={idx}>{warning}</li>
+													<li key={`warning-${idx}-${warning.slice(0, 20)}`}>
+														{warning}
+													</li>
 												))}
 											</ul>
 										) : null}
@@ -774,61 +734,63 @@ export function ClientDetailPage() {
 						</Card>
 					</div>
 				</TabsContent>
+
 				<TabsContent value="backups">
 					<Card>
-						<CardHeader>
-							<div className="flex items-center justify-between">
+						<CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+							<div>
 								<CardTitle>Backups</CardTitle>
-								<div className="flex items-center gap-2">
-									<Button
-										variant="outline"
-										onClick={() => refetchBackups()}
-										disabled={loadingBackups}
-										size="sm"
-									>
-										<RefreshCw
-											className={`mr-2 h-4 w-4 ${loadingBackups ? "animate-spin" : ""}`}
-										/>
-										Refresh
-									</Button>
-									{!loadingBackups && visibleBackups.length > 0 && (
-										<ButtonGroup>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() =>
-													setSelectedBackups(
-														visibleBackups.map((b) => b.backup),
-													)
-												}
-											>
-												Select all
-											</Button>
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={() => setSelectedBackups([])}
-											>
-												Clear
-											</Button>
-											<Button
-												size="sm"
-												variant="destructive"
-												disabled={
-													bulkDeleteMutation.isPending ||
-													selectedBackups.length === 0
-												}
-												onClick={() => setBulkConfirmOpen(true)}
-											>
-												<Trash2 className="mr-2 h-4 w-4" />
-												Delete selected ({selectedBackups.length})
-											</Button>
-										</ButtonGroup>
-									)}
-								</div>
+								<CardDescription>
+									Review, restore, or delete configuration snapshots.
+								</CardDescription>
+							</div>
+							<div className="flex flex-wrap items-center gap-2">
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => refetchBackups()}
+									disabled={loadingBackups}
+								>
+									<RefreshCw
+										className={`mr-2 h-4 w-4 ${loadingBackups ? "animate-spin" : ""}`}
+									/>
+									Refresh
+								</Button>
+								{!loadingBackups && visibleBackups.length > 0 && (
+									<ButtonGroup>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() =>
+												setSelectedBackups(visibleBackups.map((b) => b.backup))
+											}
+										>
+											Select all
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setSelectedBackups([])}
+										>
+											Clear
+										</Button>
+										<Button
+											size="sm"
+											variant="destructive"
+											disabled={
+												bulkDeleteMutation.isPending ||
+												selectedBackups.length === 0
+											}
+											onClick={() => setBulkConfirmOpen(true)}
+										>
+											<Trash2 className="mr-2 h-4 w-4" />
+											Delete selected ({selectedBackups.length})
+										</Button>
+									</ButtonGroup>
+								)}
 							</div>
 						</CardHeader>
-						<CardContent className="space-y-4">
+						<CardContent className="space-y-4 pt-0">
 							{loadingBackups ? (
 								<div className="space-y-2">
 									{[1, 2, 3].map((i) => (
@@ -877,20 +839,20 @@ export function ClientDetailPage() {
 														</div>
 													</div>
 													<div className="flex items-center justify-end gap-4">
-															<div
-																className={`flex items-center gap-4 text-slate-500 transition-all duration-200 ${
-																	selected ? "text-primary" : ""
-																}`}
-															>
-																<div>{formatBackupTime(b.created_at)}</div>
-																<div>{(b.size / 1024).toFixed(1)} KB</div>
-															</div>
-															<div className="flex items-center gap-2 overflow-hidden transition-all duration-200 opacity-0 max-w-0 pointer-events-none group-hover:max-w-[12rem] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:max-w-[12rem] group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
-																<Button
-																	size="sm"
-																	variant="outline"
-																	onClick={(e) => {
-																		e.stopPropagation();
+														<div
+															className={`flex items-center gap-4 text-slate-500 transition-all duration-200 ${
+																selected ? "text-primary" : ""
+															}`}
+														>
+															<div>{formatBackupTime(b.created_at)}</div>
+															<div>{(b.size / 1024).toFixed(1)} KB</div>
+														</div>
+														<div className="flex items-center gap-2 overflow-hidden transition-all duration-200 opacity-0 max-w-0 pointer-events-none group-hover:max-w-[12rem] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:max-w-[12rem] group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+															<Button
+																size="sm"
+																variant="outline"
+																onClick={(e) => {
+																	e.stopPropagation();
 																	setConfirm({
 																		kind: "restore",
 																		backup: b.backup,
@@ -922,6 +884,64 @@ export function ClientDetailPage() {
 								</CapsuleStripeList>
 							) : (
 								<div className="text-slate-500 text-sm">No backups.</div>
+							)}
+						</CardContent>
+					</Card>
+				</TabsContent>
+
+				<TabsContent value="logs">
+					<Card>
+						<CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+							<div>
+								<CardTitle>Logs</CardTitle>
+								<CardDescription>
+									Runtime warnings and backend notes for this client.
+								</CardDescription>
+							</div>
+							<div className="flex flex-wrap items-center gap-2">
+								<Input
+									type="search"
+									placeholder="Search logs..."
+									value={logFilter}
+									onChange={(event) => setLogFilter(event.target.value)}
+									className="h-8 w-48"
+								/>
+								<Button
+									size="sm"
+									variant="outline"
+									onClick={() => setLogEntries([])}
+									disabled={!logEntries.length}
+								>
+									Clear Logs
+								</Button>
+							</div>
+						</CardHeader>
+						<CardContent className="pt-0">
+							{filteredLogs.length ? (
+								<div className="space-y-3">
+									{filteredLogs.map((entry) => (
+										<div
+											key={entry.id}
+											className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
+										>
+											<div className="flex items-center justify-between border-b border-slate-100 px-4 py-2 text-xs text-slate-500 dark:border-slate-800">
+												<span>
+													{new Date(entry.timestamp).toLocaleTimeString()}
+												</span>
+												<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+													Warning
+												</span>
+											</div>
+											<pre className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+												{entry.message}
+											</pre>
+										</div>
+									))}
+								</div>
+							) : (
+								<div className="rounded border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+									No log entries recorded for this client yet.
+								</div>
 							)}
 						</CardContent>
 					</Card>
@@ -1055,7 +1075,10 @@ export function ClientDetailPage() {
 										</div>
 										<ul className="divide-y max-h-[30vh] overflow-auto">
 											{importPreviewData.items.map((it: any, idx: number) => (
-												<li key={idx} className="p-3 text-xs">
+												<li
+													key={`import-item-${idx}-${it.name || it.server_name || "unnamed"}`}
+													className="p-3 text-xs"
+												>
 													<div className="font-medium">
 														{it.name || it.server_name || `#${idx + 1}`}
 													</div>

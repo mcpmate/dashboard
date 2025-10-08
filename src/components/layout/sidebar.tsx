@@ -81,7 +81,7 @@ export function Sidebar() {
 		<div
 			className={cn(
 				"fixed inset-y-0 left-0 z-40 flex flex-col transition-all duration-300 ease-in-out",
-				"border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950",
+				"border-r border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950",
 				sidebarOpen ? "w-64" : "w-16",
 			)}
 		>
