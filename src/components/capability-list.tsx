@@ -457,7 +457,7 @@ export function CapabilityList<T = CapabilityRecord>({
 		);
 
 		const leftSection = (
-			<div className="flex flex-1 items-start gap-3">
+			<div className="flex flex-1 items-center gap-3">
 				{avatarNode}
 				{infoBlock}
 			</div>
@@ -527,7 +527,7 @@ export function CapabilityList<T = CapabilityRecord>({
 				onClick={handleSelect}
 				onKeyDown={handleKeyDown}
 			>
-				<div className="flex items-start justify-between gap-3">
+				<div className="flex items-center justify-between gap-3">
 					{leftSection}
 					{actionSection}
 				</div>

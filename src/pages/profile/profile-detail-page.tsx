@@ -904,21 +904,23 @@ export function ProfileDetailPage() {
 												onChange={(e) => setServerQuery(e.target.value)}
 												className="w-48 h-9"
 											/>
-											<Select
-												value={serverStatus}
-												onValueChange={(v) =>
-													setServerStatus(v as "all" | "enabled" | "disabled")
-												}
-											>
-												<SelectTrigger className="w-36 h-9">
-													<SelectValue placeholder="Status" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All</SelectItem>
-													<SelectItem value="enabled">Enabled</SelectItem>
-													<SelectItem value="disabled">Disabled</SelectItem>
-												</SelectContent>
-											</Select>
+											<div className="hidden xl:block">
+												<Select
+													value={serverStatus}
+													onValueChange={(v) =>
+														setServerStatus(v as "all" | "enabled" | "disabled")
+													}
+												>
+													<SelectTrigger className="w-36 h-9">
+														<SelectValue placeholder="Status" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">All</SelectItem>
+														<SelectItem value="enabled">Enabled</SelectItem>
+														<SelectItem value="disabled">Disabled</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
 											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
@@ -1129,37 +1131,41 @@ export function ProfileDetailPage() {
 												onChange={(e) => setToolQuery(e.target.value)}
 												className="w-48 h-9"
 											/>
-											<Select
-												value={toolStatus}
-												onValueChange={(v) =>
-													setToolStatus(v as "all" | "enabled" | "disabled")
-												}
-											>
-												<SelectTrigger className="w-36 h-9">
-													<SelectValue placeholder="Status" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All</SelectItem>
-													<SelectItem value="enabled">Enabled</SelectItem>
-													<SelectItem value="disabled">Disabled</SelectItem>
-												</SelectContent>
-											</Select>
-											<Select
-												value={toolServer}
-												onValueChange={(v) => setToolServer(v)}
-											>
-												<SelectTrigger className="w-40 h-9">
-													<SelectValue placeholder="Server" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All Servers</SelectItem>
-													{serverNameOptions.map((name) => (
-														<SelectItem key={`tool-sel-${name}`} value={name}>
-															{name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+											<div className="hidden xl:block">
+												<Select
+													value={toolStatus}
+													onValueChange={(v) =>
+														setToolStatus(v as "all" | "enabled" | "disabled")
+													}
+												>
+													<SelectTrigger className="w-36 h-9">
+														<SelectValue placeholder="Status" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">All</SelectItem>
+														<SelectItem value="enabled">Enabled</SelectItem>
+														<SelectItem value="disabled">Disabled</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+											<div className="hidden xl:block">
+												<Select
+													value={toolServer}
+													onValueChange={(v) => setToolServer(v)}
+												>
+													<SelectTrigger className="w-40 h-9">
+														<SelectValue placeholder="Server" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">All Servers</SelectItem>
+														{serverNameOptions.map((name) => (
+															<SelectItem key={`tool-sel-${name}`} value={name}>
+																{name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
 											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
@@ -1252,37 +1258,41 @@ export function ProfileDetailPage() {
 												onChange={(e) => setPromptQuery(e.target.value)}
 												className="w-48 h-9"
 											/>
-											<Select
-												value={promptStatus}
-												onValueChange={(v) =>
-													setPromptStatus(v as "all" | "enabled" | "disabled")
-												}
-											>
-												<SelectTrigger className="w-36 h-9">
-													<SelectValue placeholder="Status" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All</SelectItem>
-													<SelectItem value="enabled">Enabled</SelectItem>
-													<SelectItem value="disabled">Disabled</SelectItem>
-												</SelectContent>
-											</Select>
-											<Select
-												value={promptServer}
-												onValueChange={(v) => setPromptServer(v)}
-											>
-												<SelectTrigger className="w-40 h-9">
-													<SelectValue placeholder="Server" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All Servers</SelectItem>
-													{serverNameOptions.map((name) => (
-														<SelectItem key={`prm-sel-${name}`} value={name}>
-															{name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+											<div className="hidden xl:block">
+												<Select
+													value={promptStatus}
+													onValueChange={(v) =>
+														setPromptStatus(v as "all" | "enabled" | "disabled")
+													}
+												>
+													<SelectTrigger className="w-36 h-9">
+														<SelectValue placeholder="Status" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">All</SelectItem>
+														<SelectItem value="enabled">Enabled</SelectItem>
+														<SelectItem value="disabled">Disabled</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+											<div className="hidden xl:block">
+												<Select
+													value={promptServer}
+													onValueChange={(v) => setPromptServer(v)}
+												>
+													<SelectTrigger className="w-40 h-9">
+														<SelectValue placeholder="Server" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">All Servers</SelectItem>
+														{serverNameOptions.map((name) => (
+															<SelectItem key={`prm-sel-${name}`} value={name}>
+																{name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
 											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
@@ -1377,37 +1387,43 @@ export function ProfileDetailPage() {
 												onChange={(e) => setResourceQuery(e.target.value)}
 												className="w-48 h-9"
 											/>
-											<Select
-												value={resourceStatus}
-												onValueChange={(v) =>
-													setResourceStatus(v as "all" | "enabled" | "disabled")
-												}
-											>
-												<SelectTrigger className="w-36 h-9">
-													<SelectValue placeholder="Status" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All</SelectItem>
-													<SelectItem value="enabled">Enabled</SelectItem>
-													<SelectItem value="disabled">Disabled</SelectItem>
-												</SelectContent>
-											</Select>
-											<Select
-												value={resourceServer}
-												onValueChange={(v) => setResourceServer(v)}
-											>
-												<SelectTrigger className="w-40 h-9">
-													<SelectValue placeholder="Server" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="all">All Servers</SelectItem>
-													{serverNameOptions.map((name) => (
-														<SelectItem key={`res-sel-${name}`} value={name}>
-															{name}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+											<div className="hidden xl:block">
+												<Select
+													value={resourceStatus}
+													onValueChange={(v) =>
+														setResourceStatus(
+															v as "all" | "enabled" | "disabled",
+														)
+													}
+												>
+													<SelectTrigger className="w-36 h-9">
+														<SelectValue placeholder="Status" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">All</SelectItem>
+														<SelectItem value="enabled">Enabled</SelectItem>
+														<SelectItem value="disabled">Disabled</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+											<div className="hidden xl:block">
+												<Select
+													value={resourceServer}
+													onValueChange={(v) => setResourceServer(v)}
+												>
+													<SelectTrigger className="w-40 h-9">
+														<SelectValue placeholder="Server" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">All Servers</SelectItem>
+														{serverNameOptions.map((name) => (
+															<SelectItem key={`res-sel-${name}`} value={name}>
+																{name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
 											<ButtonGroup className="hidden md:flex ml-2">
 												<Button
 													variant="outline"
