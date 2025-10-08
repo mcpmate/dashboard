@@ -1,5 +1,6 @@
 import { ArrowLeft, MessageSquare, Moon, Sun } from "lucide-react";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { NotificationCenter } from "../notification-center";
@@ -11,32 +12,46 @@ const FEEDBACK_BODY = encodeURIComponent(
 );
 const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=${FEEDBACK_SUBJECT}&body=${FEEDBACK_BODY}`;
 
-const ROUTE_TITLES: Record<string, string> = {
-	"/": "Dashboard",
-	"/profiles": "Profiles",
-	"/clients": "Clients",
-	"/market": "Market",
-	"/servers": "Servers",
-	"/runtime": "Runtime",
-	"/system": "System",
-	"/settings": "Settings",
+const ROUTE_KEYS: Record<string, keyof typeof ROUTE_TRANSLATIONS> = {
+	"/": "dashboard",
+	"/profiles": "profiles",
+	"/clients": "clients",
+	"/market": "market",
+	"/servers": "servers",
+	"/runtime": "runtime",
+	"/system": "system",
+	"/settings": "settings",
 };
 
-const MAIN_ROUTES = [
-	"/",
-	"/profiles",
-	"/clients",
-	"/market",
-	"/servers",
-	"/runtime",
-	"/system",
-	"/settings",
-];
+const ROUTE_TRANSLATIONS = {
+	dashboard: "header.routes.dashboard",
+	profiles: "header.routes.profiles",
+	clients: "header.routes.clients",
+	market: "header.routes.market",
+	servers: "header.routes.servers",
+	runtime: "header.routes.runtime",
+	system: "header.routes.system",
+	settings: "header.routes.settings",
+} as const;
+
+const ROUTE_FALLBACKS: Record<keyof typeof ROUTE_TRANSLATIONS, string> = {
+	dashboard: "Dashboard",
+	profiles: "Profiles",
+	clients: "Clients",
+	market: "Market",
+	servers: "Servers",
+	runtime: "Runtime",
+	system: "System",
+	settings: "Settings",
+};
+
+const MAIN_ROUTES = Object.keys(ROUTE_KEYS);
 
 export function Header() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { theme, setTheme, sidebarOpen } = useAppStore();
+	const { t } = useTranslation();
 
 	const toggleTheme = () => {
 		setTheme(theme === "dark" ? "light" : "dark");
@@ -58,7 +73,12 @@ export function Header() {
 	}, []);
 
 	const isMainRoute = MAIN_ROUTES.includes(location.pathname);
-	const pageTitle = ROUTE_TITLES[location.pathname];
+	const routeKey = ROUTE_KEYS[location.pathname];
+	const pageTitle = routeKey
+		? t(ROUTE_TRANSLATIONS[routeKey], {
+				defaultValue: ROUTE_FALLBACKS[routeKey] ?? location.pathname,
+			})
+		: location.pathname;
 
 	const handleBack = () => {
 		navigate(-1);
@@ -85,7 +105,7 @@ export function Header() {
 							className="flex items-center gap-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
 						>
 							<ArrowLeft className="h-4 w-4" />
-							Back
+							{t("header.back", { defaultValue: "Back" })}
 						</button>
 					)}
 				</div>
@@ -96,7 +116,9 @@ export function Header() {
 						type="button"
 						onClick={handleFeedbackClick}
 						className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
-						aria-label="Send feedback via email"
+						aria-label={t("header.sendFeedback", {
+							defaultValue: "Send feedback via email",
+						})}
 					>
 						<MessageSquare size={20} />
 					</button>
@@ -104,7 +126,9 @@ export function Header() {
 					<button
 						type="button"
 						onClick={toggleTheme}
-						aria-label="Toggle theme"
+						aria-label={t("header.toggleTheme", {
+							defaultValue: "Toggle theme",
+						})}
 						className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
 					>
 						{theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}

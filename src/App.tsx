@@ -7,6 +7,7 @@ import {
 	useParams,
 } from "react-router-dom";
 import { Layout } from "./components/layout/layout";
+import { LanguageSynchronizer } from "./components/language-synchronizer.ts";
 import { ClientDetailPage } from "./pages/clients/client-detail-page";
 import { ClientsPage } from "./pages/clients/clients-page";
 import { DashboardPage } from "./pages/dashboard/dashboard-page";
@@ -35,6 +36,7 @@ const queryClient = new QueryClient({
 function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
+			<LanguageSynchronizer />
 			<BrowserRouter>
 				<Routes>
 					<Route path="/" element={<Layout />}>

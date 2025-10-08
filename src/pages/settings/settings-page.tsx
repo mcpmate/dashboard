@@ -1,4 +1,5 @@
 import { Moon, RotateCcw, Sun } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
 import {
@@ -41,35 +42,82 @@ import {
 	detectTauriEnvironment,
 	isTauriEnvironmentSync,
 } from "../../lib/platform";
+import { SUPPORTED_LANGUAGES } from "../../lib/i18n";
 import type { OpenSourceDocument } from "../../types/open-source";
 import { AboutLicensesSection } from "./about-licenses-section";
 import { mergePortalOverrides } from "../market/portal-registry";
 
 // Options for Segment components
-const THEME_OPTIONS: SegmentOption[] = [
-	{ value: "light", label: "Light", icon: <Sun className="h-4 w-4" /> },
-	{ value: "dark", label: "Dark", icon: <Moon className="h-4 w-4" /> },
+const THEME_CONFIG = [
+	{
+		value: "light" as const,
+		icon: Sun,
+		labelKey: "settings.options.theme.light",
+		fallback: "Light",
+	},
+	{
+		value: "dark" as const,
+		icon: Moon,
+		labelKey: "settings.options.theme.dark",
+		fallback: "Dark",
+	},
 ];
 
-const DEFAULT_VIEW_OPTIONS: SegmentOption[] = [
-	{ value: "list", label: "List" },
-	{ value: "grid", label: "Grid" },
+const DEFAULT_VIEW_CONFIG = [
+	{
+		value: "list" as const,
+		labelKey: "settings.options.defaultView.list",
+		fallback: "List",
+	},
+	{
+		value: "grid" as const,
+		labelKey: "settings.options.defaultView.grid",
+		fallback: "Grid",
+	},
 ];
 
-const APPLICATION_MODE_OPTIONS: SegmentOption[] = [
-	{ value: "express", label: "Express" },
-	{ value: "expert", label: "Expert" },
+const APPLICATION_MODE_CONFIG = [
+	{
+		value: "express" as const,
+		labelKey: "settings.options.appMode.express",
+		fallback: "Express",
+	},
+	{
+		value: "expert" as const,
+		labelKey: "settings.options.appMode.expert",
+		fallback: "Expert",
+	},
 ];
 
-const CLIENT_MODE_OPTIONS: SegmentOption[] = [
-	{ value: "hosted", label: "Hosted" },
-	{ value: "transparent", label: "Transparent" },
+const CLIENT_MODE_CONFIG = [
+	{
+		value: "hosted" as const,
+		labelKey: "settings.options.clientMode.hosted",
+		fallback: "Hosted",
+	},
+	{
+		value: "transparent" as const,
+		labelKey: "settings.options.clientMode.transparent",
+		fallback: "Transparent",
+	},
 ];
 
-const BACKUP_STRATEGY_OPTIONS: SegmentOption[] = [
-	{ value: "keep_n", label: "Nub." },
-	{ value: "keep_last", label: "Last" },
-	{ value: "none", label: "None" },
+const BACKUP_STRATEGY_CONFIG = [
+	{
+		value: "keep_n" as const,
+		labelKey: "settings.options.backup.keepN",
+		fallback: "Keep N",
+	},
+	{
+		value: "keep_last" as const,
+		labelKey: "settings.options.backup.keepLast",
+		fallback: "Keep Last",
+	},
+	{
+		value: "none" as const,
+		labelKey: "settings.options.backup.none",
+		fallback: "None",
+	},
 ];
 
 interface ShellPreferencesResponse {
@@ -79,16 +127,26 @@ interface ShellPreferencesResponse {
 
 const MENU_BAR_ICON_OPTIONS: ReadonlyArray<{
 	value: MenuBarIconMode;
-	label: string;
+	labelKey: string;
+	fallback: string;
 }> = [
-	{ value: "runtime", label: "Visible When Running" },
-	{ value: "hidden", label: "Hidden" },
+	{
+		value: "runtime",
+		labelKey: "settings.options.menuBar.runtime",
+		fallback: "Visible When Running",
+	},
+	{
+		value: "hidden",
+		labelKey: "settings.options.menuBar.hidden",
+		fallback: "Hidden",
+	},
 ];
 
 export function SettingsPage() {
 	const languageId = useId();
 	const backupLimitId = useId();
 	const menuBarSelectId = useId();
+	const { t } = useTranslation();
 
 	const theme = useAppStore((state) => state.theme);
 	const setTheme = useAppStore((state) => state.setTheme);
@@ -109,6 +167,72 @@ export function SettingsPage() {
 
 	const tabTriggerClass =
 		"justify-start px-3 py-2 text-left text-sm font-medium text-slate-600 data-[state=active]:text-emerald-700 dark:text-slate-300";
+
+	const themeOptions = useMemo<SegmentOption[]>(
+		() =>
+			THEME_CONFIG.map(({ value, icon: Icon, labelKey, fallback }) => ({
+				value,
+				label: t(labelKey, { defaultValue: fallback }),
+				icon: <Icon className="h-4 w-4" />,
+			})),
+		[t],
+	);
+
+	const defaultViewOptions = useMemo<SegmentOption[]>(
+		() =>
+			DEFAULT_VIEW_CONFIG.map(({ value, labelKey, fallback }) => ({
+				value,
+				label: t(labelKey, { defaultValue: fallback }),
+			})),
+		[t],
+	);
+
+	const applicationModeOptions = useMemo<SegmentOption[]>(
+		() =>
+			APPLICATION_MODE_CONFIG.map(({ value, labelKey, fallback }) => ({
+				value,
+				label: t(labelKey, { defaultValue: fallback }),
+			})),
+		[t],
+	);
+
+	const clientModeOptions = useMemo<SegmentOption[]>(
+		() =>
+			CLIENT_MODE_CONFIG.map(({ value, labelKey, fallback }) => ({
+				value,
+				label: t(labelKey, { defaultValue: fallback }),
+			})),
+		[t],
+	);
+
+	const backupStrategyOptions = useMemo<SegmentOption[]>(
+		() =>
+			BACKUP_STRATEGY_CONFIG.map(({ value, labelKey, fallback }) => ({
+				value,
+				label: t(labelKey, { defaultValue: fallback }),
+			})),
+		[t],
+	);
+
+	const languageOptions = useMemo(
+		() =>
+			SUPPORTED_LANGUAGES.map(({ store, i18n, fallback }) => ({
+				value: store,
+				label: t(`languageNames.${i18n}`, { defaultValue: fallback }),
+			})),
+		[t],
+	);
+
+	const menuBarOptions = useMemo(
+		() =>
+			MENU_BAR_ICON_OPTIONS.map((option) => ({
+				...option,
+				label: t(option.labelKey, {
+					defaultValue: option.fallback,
+				}),
+			})),
+		[t],
+	);
 
 	// Build available portals list for Default Market selector
 	const availablePortals = useMemo(
@@ -214,7 +338,9 @@ export function SettingsPage() {
 
 	return (
 		<div className="space-y-4">
-			<h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+			<h2 className="text-3xl font-bold tracking-tight">
+				{t("settings.title", { defaultValue: "Settings" })}
+			</h2>
 
 			<Tabs
 				defaultValue="general"
@@ -223,26 +349,30 @@ export function SettingsPage() {
 			>
 				<TabsList className="flex w-full flex-row flex-wrap gap-2 overflow-x-auto rounded-lg p-2 xl:w-64 xl:flex-col xl:overflow-visible xl:p-3 xl:self-start">
 					<TabsTrigger value="general" className={tabTriggerClass}>
-						General
+						{t("settings.tabs.general", { defaultValue: "General" })}
 					</TabsTrigger>
 					<TabsTrigger value="appearance" className={tabTriggerClass}>
-						Appearance
+						{t("settings.tabs.appearance", { defaultValue: "Appearance" })}
 					</TabsTrigger>
 					<TabsTrigger value="servers" className={tabTriggerClass}>
-						Server Controls
+						{t("settings.tabs.serverControls", {
+							defaultValue: "Server Controls",
+						})}
 					</TabsTrigger>
 					<TabsTrigger value="clients" className={tabTriggerClass}>
-						Client Defaults
+						{t("settings.tabs.clientDefaults", {
+							defaultValue: "Client Defaults",
+						})}
 					</TabsTrigger>
 					<TabsTrigger value="market" className={tabTriggerClass}>
-						MCP Market
+						{t("settings.tabs.market", { defaultValue: "MCP Market" })}
 					</TabsTrigger>
 					<TabsTrigger value="develop" className={tabTriggerClass}>
-						Developer
+						{t("settings.tabs.developer", { defaultValue: "Developer" })}
 					</TabsTrigger>
 					{showLicenseTab && (
 						<TabsTrigger value="about" className={tabTriggerClass}>
-							About &amp; Licenses
+							{t("settings.tabs.about", { defaultValue: "About & Licenses" })}
 						</TabsTrigger>
 					)}
 				</TabsList>
@@ -251,23 +381,35 @@ export function SettingsPage() {
 					<TabsContent value="general" className="mt-0 h-full">
 						<Card className="h-full">
 							<CardHeader>
-								<CardTitle>General</CardTitle>
+								<CardTitle>
+									{t("settings.general.title", { defaultValue: "General" })}
+								</CardTitle>
 								<CardDescription>
-									Baseline preferences for the main workspace views.
+									{t("settings.general.description", {
+										defaultValue:
+											"Baseline preferences for the main workspace views.",
+									})}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
 								{/* Default View */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
-										<h3 className="text-base font-medium">Default View</h3>
+										<h3 className="text-base font-medium">
+											{t("settings.general.defaultView", {
+												defaultValue: "Default View",
+											})}
+										</h3>
 										<p className="text-sm text-slate-500">
-											Choose the default layout for displaying items.
+											{t("settings.general.defaultViewDescription", {
+												defaultValue:
+													"Choose the default layout for displaying items.",
+											})}
 										</p>
 									</div>
 									<div className="w-48">
 										<Segment
-											options={DEFAULT_VIEW_OPTIONS}
+											options={defaultViewOptions}
 											value={dashboardSettings.defaultView}
 											onValueChange={(value) =>
 												setDashboardSetting(
@@ -284,15 +426,20 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											Application Mode <sup>(WIP)</sup>
+											{t("settings.general.appMode", {
+												defaultValue: "Application Mode",
+											})}{" "}
+											<sup>{t("common.wipTag", { defaultValue: "(WIP)" })}</sup>
 										</h3>
 										<p className="text-sm text-slate-500">
-											Select the interface complexity level.
+											{t("settings.general.appModeDescription", {
+												defaultValue: "Select the interface complexity level.",
+											})}
 										</p>
 									</div>
 									<div className="w-48">
 										<Segment
-											options={APPLICATION_MODE_OPTIONS}
+											options={applicationModeOptions}
 											value={dashboardSettings.appMode}
 											onValueChange={(value) =>
 												setDashboardSetting(
@@ -309,10 +456,16 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											Language <sup>(WIP)</sup>
+											{t("settings.general.language", {
+												defaultValue: "Language",
+											})}{" "}
+											<sup>{t("common.wipTag", { defaultValue: "(WIP)" })}</sup>
 										</h3>
 										<p className="text-sm text-slate-500">
-											Multi-language support is currently in development.
+											{t("settings.general.languageDescription", {
+												defaultValue:
+													"Multi-language support is currently in development.",
+											})}
 										</p>
 									</div>
 									<Select
@@ -320,15 +473,20 @@ export function SettingsPage() {
 										onValueChange={(value: DashboardLanguage) =>
 											setDashboardSetting("language", value)
 										}
-										disabled
 									>
 										<SelectTrigger id={languageId} className="w-48">
-											<SelectValue placeholder="Select language" />
+											<SelectValue
+												placeholder={t("settings.general.languagePlaceholder", {
+													defaultValue: "Select language",
+												})}
+											/>
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="en">English</SelectItem>
-											<SelectItem value="zh-cn">简体中文</SelectItem>
-											<SelectItem value="ja">日本语</SelectItem>
+											{languageOptions.map((option) => (
+												<SelectItem key={option.value} value={option.value}>
+													{option.label}
+												</SelectItem>
+											))}
 										</SelectContent>
 									</Select>
 								</div>
@@ -339,23 +497,36 @@ export function SettingsPage() {
 					<TabsContent value="appearance" className="mt-0 h-full">
 						<Card className="h-full">
 							<CardHeader>
-								<CardTitle>Appearance</CardTitle>
+								<CardTitle>
+									{t("settings.appearance.title", {
+										defaultValue: "Appearance",
+									})}
+								</CardTitle>
 								<CardDescription>
-									Customize the look and feel of the dashboard.
+									{t("settings.appearance.description", {
+										defaultValue:
+											"Customize the look and feel of the dashboard.",
+									})}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
 								<div className="space-y-4">
 									<div className="flex items-center justify-between gap-4">
 										<div className="space-y-0.5">
-											<h3 className="text-base font-medium">Theme</h3>
+											<h3 className="text-base font-medium">
+												{t("settings.appearance.themeTitle", {
+													defaultValue: "Theme",
+												})}
+											</h3>
 											<p className="text-sm text-slate-500">
-												Switch between light and dark mode.
+												{t("settings.appearance.themeDescription", {
+													defaultValue: "Switch between light and dark mode.",
+												})}
 											</p>
 										</div>
 										<div className="w-48">
 											<Segment
-												options={THEME_OPTIONS}
+												options={themeOptions}
 												value={theme === "system" ? "light" : theme}
 												onValueChange={(value) =>
 													setTheme(value as "light" | "dark")
@@ -368,10 +539,15 @@ export function SettingsPage() {
 									<div className="flex items-center justify-between gap-4">
 										<div className="space-y-0.5">
 											<h3 className="text-base font-medium">
-												System Preference
+												{t("settings.appearance.systemPreferenceTitle", {
+													defaultValue: "System Preference",
+												})}
 											</h3>
 											<p className="text-sm text-slate-500">
-												Follow the operating system preference automatically.
+												{t("settings.appearance.systemPreferenceDescription", {
+													defaultValue:
+														"Follow the operating system preference automatically.",
+												})}
 											</p>
 										</div>
 										<Switch
@@ -387,10 +563,18 @@ export function SettingsPage() {
 											<div className="flex items-center justify-between gap-4">
 												<div className="space-y-0.5">
 													<h3 className="text-base font-medium">
-														Menu Bar Icon <sup>(WIP)</sup>
+														{t("settings.appearance.menuBarTitle", {
+															defaultValue: "Menu Bar Icon",
+														})}{" "}
+														<sup>
+															{t("common.wipTag", { defaultValue: "(WIP)" })}
+														</sup>
 													</h3>
 													<p className="text-sm text-slate-500">
-														Choose when the desktop tray icon should appear.
+														{t("settings.appearance.menuBarDescription", {
+															defaultValue:
+																"Choose when the desktop tray icon should appear.",
+														})}
 													</p>
 												</div>
 												<Select
@@ -400,10 +584,15 @@ export function SettingsPage() {
 													}
 												>
 													<SelectTrigger id={menuBarSelectId} className="w-56">
-														<SelectValue placeholder="Menu bar visibility" />
+														<SelectValue
+															placeholder={t(
+																"common.placeholders.menuBarVisibility",
+																{ defaultValue: "Menu bar visibility" },
+															)}
+														/>
 													</SelectTrigger>
 													<SelectContent>
-														{MENU_BAR_ICON_OPTIONS.map((option) => (
+														{menuBarOptions.map((option) => (
 															<SelectItem
 																key={option.value}
 																value={option.value}
@@ -422,11 +611,18 @@ export function SettingsPage() {
 											<div className="flex items-center justify-between gap-4">
 												<div className="space-y-0.5">
 													<h3 className="text-base font-medium">
-														Dock Icon <sup>(WIP)</sup>
+														{t("settings.appearance.dockTitle", {
+															defaultValue: "Dock Icon",
+														})}{" "}
+														<sup>
+															{t("common.wipTag", { defaultValue: "(WIP)" })}
+														</sup>
 													</h3>
 													<p className="text-sm text-slate-500">
-														Display MCPMate in the macOS Dock or run silently
-														from the menu bar.
+														{t("settings.appearance.dockDescription", {
+															defaultValue:
+																"Display MCPMate in the macOS Dock or run silently from the menu bar.",
+														})}
 													</p>
 												</div>
 												<Switch
@@ -453,19 +649,31 @@ export function SettingsPage() {
 					<TabsContent value="servers" className="mt-0 h-full">
 						<Card className="h-full">
 							<CardHeader>
-								<CardTitle>Server Controls</CardTitle>
+								<CardTitle>
+									{t("settings.servers.title", {
+										defaultValue: "Server Controls",
+									})}
+								</CardTitle>
 								<CardDescription>
-									Decide how server operations propagate across clients.
+									{t("settings.servers.description", {
+										defaultValue:
+											"Decide how server operations propagate across clients.",
+									})}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-5">
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											Sync Global Start/Stop
+											{t("settings.servers.syncTitle", {
+												defaultValue: "Sync Global Start/Stop",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Push global enable state to managed clients instantly.
+											{t("settings.servers.syncDescription", {
+												defaultValue:
+													"Push global enable state to managed clients instantly.",
+											})}
 										</p>
 									</div>
 									<Switch
@@ -479,10 +687,15 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											Auto Add To Default Profile
+											{t("settings.servers.autoAddTitle", {
+												defaultValue: "Auto Add To Default Profile",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Include new servers in the default profile automatically.
+											{t("settings.servers.autoAddDescription", {
+												defaultValue:
+													"Include new servers in the default profile automatically.",
+											})}
 										</p>
 									</div>
 									<Switch
@@ -502,25 +715,37 @@ export function SettingsPage() {
 					<TabsContent value="clients" className="mt-0 h-full">
 						<Card className="h-full">
 							<CardHeader>
-								<CardTitle>Client Defaults</CardTitle>
+								<CardTitle>
+									{t("settings.clients.title", {
+										defaultValue: "Client Defaults",
+									})}
+								</CardTitle>
 								<CardDescription>
-									Configure default rollout and backup behavior for client apps.
+									{t("settings.clients.description", {
+										defaultValue:
+											"Configure default rollout and backup behavior for client apps.",
+									})}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
-								{/* Client Application Mode */}
+								{/* {t("settings.clients.modeTitle", { defaultValue: "Client Application Mode" })} */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											Client Application Mode
+											{t("settings.clients.modeTitle", {
+												defaultValue: "Client Application Mode",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Choose how client applications should operate by default.
+											{t("settings.clients.modeDescription", {
+												defaultValue:
+													"Choose how client applications should operate by default.",
+											})}
 										</p>
 									</div>
-									<div className="w-48">
+									<div className="w-64">
 										<Segment
-											options={CLIENT_MODE_OPTIONS}
+											options={clientModeOptions}
 											value={dashboardSettings.clientDefaultMode}
 											onValueChange={(value) =>
 												setDashboardSetting(
@@ -533,19 +758,24 @@ export function SettingsPage() {
 									</div>
 								</div>
 
-								{/* Client Backup Strategy */}
+								{/* {t("settings.clients.backupStrategyTitle", { defaultValue: "Client Backup Strategy" })} */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											Client Backup Strategy
+											{t("settings.clients.backupStrategyTitle", {
+												defaultValue: "Client Backup Strategy",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Define how client configurations should be backed up.
+											{t("settings.clients.backupStrategyDescription", {
+												defaultValue:
+													"Define how client configurations should be backed up.",
+											})}
 										</p>
 									</div>
-									<div className="w-48">
+									<div className="w-64">
 										<Segment
-											options={BACKUP_STRATEGY_OPTIONS}
+											options={backupStrategyOptions}
 											value={dashboardSettings.clientBackupStrategy}
 											onValueChange={(value) =>
 												setDashboardSetting(
@@ -558,16 +788,19 @@ export function SettingsPage() {
 									</div>
 								</div>
 
-								{/* Maximum Backup Copies */}
+								{/* {t("settings.clients.backupLimitTitle", { defaultValue: "Maximum Backup Copies" })} */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											Maximum Backup Copies
+											{t("settings.clients.backupLimitTitle", {
+												defaultValue: "Maximum Backup Copies",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Set the maximum number of backup copies to keep. Applied
-											when the strategy is set to Keep N. Values below 1 are
-											rounded up.
+											{t("settings.clients.backupLimitDescription", {
+												defaultValue:
+													"Set the maximum number of backup copies to keep. Applied when the strategy is set to Keep N. Values below 1 are rounded up.",
+											})}
 										</p>
 									</div>
 									<Input
@@ -584,7 +817,7 @@ export function SettingsPage() {
 										disabled={
 											dashboardSettings.clientBackupStrategy !== "keep_n"
 										}
-										className="w-48"
+										className="w-64"
 									/>
 								</div>
 							</CardContent>
@@ -594,20 +827,29 @@ export function SettingsPage() {
 					<TabsContent value="develop" className="mt-0 h-full">
 						<Card className="h-full">
 							<CardHeader>
-								<CardTitle>Developer</CardTitle>
+								<CardTitle>
+									{t("settings.developer.title", { defaultValue: "Developer" })}
+								</CardTitle>
 								<CardDescription>
-									Experimental toggles for internal debugging and navigation
-									visibility.
+									{t("settings.developer.description", {
+										defaultValue:
+											"Experimental toggles for internal debugging and navigation visibility.",
+									})}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-5">
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											Enable Server Debug
+											{t("settings.developer.enableServerDebugTitle", {
+												defaultValue: "Enable Server Debug",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Expose debug instrumentation for newly added servers.
+											{t("settings.developer.enableServerDebugDescription", {
+												defaultValue:
+													"Expose debug instrumentation for newly added servers.",
+											})}
 										</p>
 									</div>
 									<Switch
@@ -621,11 +863,15 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											Open Debug Views In New Window
+											{t("settings.developer.openDebugInNewWindowTitle", {
+												defaultValue: "Open Debug Views In New Window",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											When enabled, Debug buttons launch a separate tab instead
-											of navigating the current view.
+											{t("settings.developer.openDebugInNewWindowDescription", {
+												defaultValue:
+													"When enabled, Debug buttons launch a separate tab instead of navigating the current view.",
+											})}
 										</p>
 									</div>
 									<Switch
@@ -639,10 +885,15 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											Show API Docs Menu
+											{t("settings.developer.showApiDocsTitle", {
+												defaultValue: "Show API Docs Menu",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Reveal the API Docs shortcut in the sidebar navigation.
+											{t("settings.developer.showApiDocsDescription", {
+												defaultValue:
+													"Reveal the API Docs shortcut in the sidebar navigation.",
+											})}
 										</p>
 									</div>
 									<Switch
@@ -656,11 +907,15 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											Show Raw Capability JSON
+											{t("settings.developer.showRawJsonTitle", {
+												defaultValue: "Show Raw Capability JSON",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Display raw JSON payloads under Details in capability
-											lists (Server details and Uni‑Import preview).
+											{t("settings.developer.showRawJsonDescription", {
+												defaultValue:
+													"Display raw JSON payloads under Details in capability lists (Server details and Uni‑Import preview).",
+											})}
 										</p>
 									</div>
 									<Switch
@@ -675,11 +930,15 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											Show Default HTTP Headers
+											{t("settings.developer.showDefaultHeadersTitle", {
+												defaultValue: "Show Default HTTP Headers",
+											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											Display the server's default HTTP headers (values are
-											redacted) in Server Details. Use only for debugging.
+											{t("settings.developer.showDefaultHeadersDescription", {
+												defaultValue:
+													"Display the server's default HTTP headers (values are redacted) in Server Details. Use only for debugging.",
+											})}
 										</p>
 									</div>
 									<Switch
@@ -731,6 +990,7 @@ function MarketBlacklistCard({
 	dashboardSettings,
 	availablePortals,
 }: MarketBlacklistCardProps) {
+	const { t } = useTranslation();
 	const searchId = useId();
 	const sortId = useId();
 	const enableBlacklistId = useId();
@@ -766,18 +1026,30 @@ function MarketBlacklistCard({
 	return (
 		<Card className="h-full">
 			<CardHeader>
-				<CardTitle>MCP Market</CardTitle>
+				<CardTitle>
+					{t("settings.market.title", { defaultValue: "MCP Market" })}
+				</CardTitle>
 				<CardDescription>
-					Configure default market and manage hidden marketplace servers.
+					{t("settings.market.description", {
+						defaultValue:
+							"Configure default market and manage hidden marketplace servers.",
+					})}
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex h-full flex-col gap-4">
 				{/* Default Market 设置项 */}
 				<div className="flex items-center justify-between gap-4">
 					<div className="space-y-0.5">
-						<h3 className="text-base font-medium">Default Market</h3>
+						<h3 className="text-base font-medium">
+							{t("settings.market.defaultMarketTitle", {
+								defaultValue: "Default Market",
+							})}
+						</h3>
 						<p className="text-sm text-slate-500">
-							Choose which market appears first and cannot be closed
+							{t("settings.market.defaultMarketDescription", {
+								defaultValue:
+									"Choose which market appears first and cannot be closed.",
+							})}
 						</p>
 					</div>
 					<Select
@@ -790,7 +1062,11 @@ function MarketBlacklistCard({
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="official">Official MCP Registry</SelectItem>
+							<SelectItem value="official">
+								{t("settings.market.officialPortal", {
+									defaultValue: "Official MCP Registry",
+								})}
+							</SelectItem>
 							{availablePortals.map((portal) => (
 								<SelectItem key={portal.id} value={portal.id}>
 									{portal.label}
@@ -803,10 +1079,16 @@ function MarketBlacklistCard({
 				{/* Enable Blacklist 设置项 */}
 				<div className="flex items-center justify-between gap-4">
 					<div className="space-y-0.5">
-						<h3 className="text-base font-medium">Enable Blacklist</h3>
+						<h3 className="text-base font-medium">
+							{t("settings.market.enableBlacklistTitle", {
+								defaultValue: "Enable Blacklist",
+							})}
+						</h3>
 						<p className="text-sm text-slate-500">
-							Hide quality-poor or unavailable content from the market to keep
-							it clean
+							{t("settings.market.enableBlacklistDescription", {
+								defaultValue:
+									"Hide quality-poor or unavailable content from the market to keep it clean",
+							})}
 						</p>
 					</div>
 					<Switch
@@ -822,18 +1104,24 @@ function MarketBlacklistCard({
 					<div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-3">
 						<div className="grow">
 							<Label htmlFor="market-blacklist-search" className="sr-only">
-								Search hidden servers
+								{t("settings.market.searchHiddenServers", {
+									defaultValue: "Search hidden servers",
+								})}
 							</Label>
 							<Input
 								id={searchId}
-								placeholder="Search hidden servers..."
+								placeholder={t("common.placeholders.searchHiddenServers", {
+									defaultValue: "Search hidden servers...",
+								})}
 								value={searchTerm}
 								onChange={(event) => setSearchTerm(event.target.value)}
 							/>
 						</div>
 						<div className="w-full md:ml-auto md:w-52">
 							<Label htmlFor="market-blacklist-sort" className="sr-only">
-								Sort hidden servers
+								{t("settings.market.sortHiddenServers", {
+									defaultValue: "Sort hidden servers",
+								})}
 							</Label>
 							<Select
 								value={sortOrder}
@@ -842,11 +1130,21 @@ function MarketBlacklistCard({
 								}
 							>
 								<SelectTrigger id={sortId}>
-									<SelectValue placeholder="Sort" />
+									<SelectValue
+										placeholder={t("settings.market.sortPlaceholder", {
+											defaultValue: "Sort",
+										})}
+									/>
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="recent">Most Recently Hidden</SelectItem>
-									<SelectItem value="name">Name (A-Z)</SelectItem>
+									<SelectItem value="recent">
+										{t("common.sort.recent", {
+											defaultValue: "Most Recently Hidden",
+										})}
+									</SelectItem>
+									<SelectItem value="name">
+										{t("common.sort.name", { defaultValue: "Name (A-Z)" })}
+									</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -855,10 +1153,16 @@ function MarketBlacklistCard({
 
 				{filteredEntries.length === 0 ? (
 					<div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-						<p>No hidden servers currently.</p>
+						<p>
+							{t("settings.market.emptyTitle", {
+								defaultValue: "No hidden servers currently.",
+							})}
+						</p>
 						<p className="mt-1 text-xs text-slate-400">
-							Hide servers from the Market list to keep this space tidy. They
-							will appear here for recovery.
+							{t("settings.market.emptyDescription", {
+								defaultValue:
+									"Hide servers from the Market list to keep this space tidy. They will appear here for recovery.",
+							})}
 						</p>
 					</div>
 				) : (
@@ -878,10 +1182,16 @@ function MarketBlacklistCard({
 											{entry.label}
 										</p>
 										<p className="text-xs text-slate-500">
-											{entry.description?.trim() || "No notes added."}
+											{entry.description?.trim() ||
+												t("settings.market.noNotes", {
+													defaultValue: "No notes added.",
+												})}
 										</p>
 										<p className="text-xs text-slate-400">
-											Hidden on {hiddenLabel}
+											{t("settings.market.hiddenOn", {
+												defaultValue: "Hidden on {{value}}",
+												value: hiddenLabel,
+											})}
 										</p>
 									</div>
 									<Button

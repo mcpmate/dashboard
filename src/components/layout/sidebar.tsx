@@ -11,6 +11,7 @@ import {
 	Store,
 } from "lucide-react";
 import type React from "react";
+import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { cn } from "../../lib/utils";
@@ -76,6 +77,7 @@ export function Sidebar() {
 	const showApiDocsMenu = useAppStore(
 		(state) => state.dashboardSettings.showApiDocsMenu,
 	);
+	const { t } = useTranslation();
 
 	return (
 		<div
@@ -104,7 +106,10 @@ export function Sidebar() {
 					/>
 					{sidebarOpen && (
 						<span className="font-bold text-xl dark:text-white">
-							MCPMate <sup className="text-[9px] text-red-500">Alpha</sup>
+							{t("layout.brand", { defaultValue: "MCPMate" })}{" "}
+							<sup className="text-[9px] text-red-500">
+								{t("layout.alpha", { defaultValue: "Alpha" })}
+							</sup>
 						</span>
 					)}
 					<Button
@@ -112,7 +117,15 @@ export function Sidebar() {
 						size="icon"
 						onClick={toggleSidebar}
 						className="ml-auto"
-						aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+						aria-label={
+							sidebarOpen
+								? t("layout.collapseSidebar", {
+										defaultValue: "Collapse sidebar",
+									})
+								: t("layout.expandSidebar", {
+										defaultValue: "Expand sidebar",
+									})
+						}
 					>
 						{sidebarOpen ? (
 							<ChevronLeft size={18} />
@@ -127,35 +140,36 @@ export function Sidebar() {
 				<div className={cn("flex", !sidebarOpen && "justify-center")}>
 					{sidebarOpen ? (
 						<span className="px-3 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
-							MAIN
+							{t("nav.main", { defaultValue: "MAIN" })}
 						</span>
 					) : null}
 				</div>
 
 				<SidebarLink to="/" icon={<LayoutDashboard size={20} />}>
-					{sidebarOpen && "Dashboard"}
+					{sidebarOpen &&
+						t("nav.dashboard", { defaultValue: "Dashboard" })}
 				</SidebarLink>
 
 				<SidebarLink to="/profiles" icon={<Sliders size={20} />}>
-					{sidebarOpen && "Profiles"}
+					{sidebarOpen && t("nav.profiles", { defaultValue: "Profiles" })}
 				</SidebarLink>
 
 				<SidebarLink to="/clients" icon={<AppWindow size={20} />}>
-					{sidebarOpen && "Clients"}
+					{sidebarOpen && t("nav.clients", { defaultValue: "Clients" })}
 				</SidebarLink>
 
 				<SidebarLink to="/servers" icon={<Server size={20} />}>
-					{sidebarOpen && "Servers"}
+					{sidebarOpen && t("nav.servers", { defaultValue: "Servers" })}
 				</SidebarLink>
 
 				<SidebarLink to="/market" icon={<Store size={20} />}>
-					{sidebarOpen && "Market"}
+					{sidebarOpen && t("nav.market", { defaultValue: "Market" })}
 				</SidebarLink>
 
 				{/* Tools removed per feedback */}
 
 				<SidebarLink to="/runtime" icon={<Activity size={20} />}>
-					{sidebarOpen && "Runtime"}
+					{sidebarOpen && t("nav.runtime", { defaultValue: "Runtime" })}
 				</SidebarLink>
 
 				<div className="mt-auto">
@@ -164,12 +178,14 @@ export function Sidebar() {
 							href="http://127.0.0.1:8080/docs"
 							icon={<Bug size={20} />}
 						>
-							{sidebarOpen && "API Docs"}
+							{sidebarOpen &&
+								t("nav.apiDocs", { defaultValue: "API Docs" })}
 						</ExternalSidebarLink>
 					)}
 
 					<SidebarLink to="/settings" icon={<Settings size={20} />}>
-						{sidebarOpen && "Settings"}
+						{sidebarOpen &&
+							t("nav.settings", { defaultValue: "Settings" })}
 					</SidebarLink>
 				</div>
 			</div>

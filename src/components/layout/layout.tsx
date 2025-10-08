@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { Header } from "./header";
@@ -7,6 +8,7 @@ import { Sidebar } from "./sidebar";
 export function Layout() {
 	const { sidebarOpen, theme, setSidebarOpen } = useAppStore();
 	const navigate = useNavigate();
+	const { t } = useTranslation();
 
 	// Apply theme and react to changes (system/manual)
 	React.useEffect(() => {
@@ -133,7 +135,10 @@ export function Layout() {
 					</div>
 					<footer className="mt-6 text-[11px] text-slate-500 border-t border-slate-200 dark:border-slate-900 pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 						<div>
-							MCPMate Board <span className="font-mono">v0.1.0</span>
+							{t("layout.versionFooter", {
+								defaultValue: "MCPMate Board",
+							})}{" "}
+							<span className="font-mono">v0.1.0</span>
 						</div>
 						<div className="flex items-center gap-3">
 							<a
@@ -142,7 +147,9 @@ export function Layout() {
 								target="_blank"
 								rel="noreferrer"
 							>
-								© 2025 MCPMate
+								{t("layout.copyright", {
+									defaultValue: "© 2025 MCPMate",
+								})}
 							</a>
 						</div>
 					</footer>
