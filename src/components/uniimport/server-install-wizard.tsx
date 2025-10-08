@@ -19,11 +19,12 @@ import {
 	useState,
 } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import {
+	type InstallSource,
 	type ServerInstallDraft,
 	useServerInstallPipeline,
 	type WizardStep,
-	type InstallSource,
 } from "../../hooks/use-server-install-pipeline";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Badge } from "../ui/badge";
@@ -112,41 +113,42 @@ export const ServerInstallWizard = forwardRef<
 		// Install pipeline (prefer external shared instance to keep state in sync with parent page)
 		const installPipeline = externalPipeline ?? useServerInstallPipeline();
 		const currentStep = installPipeline.state.currentStep ?? "form";
+		const navigate = useNavigate();
 
 		// Form state management
-	const {
-		viewMode,
-		setViewMode,
-		jsonText,
-		setJsonText,
-		jsonError,
-		setJsonError,
-		formStateRef,
-		isRestoringRef,
-		createInitialFormState,
-		buildFormValuesFromState,
-	} = useFormState();
+		const {
+			viewMode,
+			setViewMode,
+			jsonText,
+			setJsonText,
+			jsonError,
+			setJsonError,
+			formStateRef,
+			isRestoringRef,
+			createInitialFormState,
+			buildFormValuesFromState,
+		} = useFormState();
 
-	const {
-		control,
-		handleSubmit,
-		register,
-		formState: { errors, isSubmitting },
+		const {
+			control,
+			handleSubmit,
+			register,
+			formState: { errors, isSubmitting },
 			reset,
 			watch,
 			setValue,
 			getValues,
 			trigger,
-	} = useForm<ManualServerFormValues>({
-		resolver: zodResolver(manualServerSchema),
-		defaultValues: buildFormValuesFromState(createInitialFormState()),
-	});
+		} = useForm<ManualServerFormValues>({
+			resolver: zodResolver(manualServerSchema),
+			defaultValues: buildFormValuesFromState(createInitialFormState()),
+		});
 
-	const viewModeRef = useRef(viewMode);
+		const viewModeRef = useRef(viewMode);
 
-	useEffect(() => {
-		viewModeRef.current = viewMode;
-	}, [viewMode]);
+		useEffect(() => {
+			viewModeRef.current = viewMode;
+		}, [viewMode]);
 
 		// Form field arrays
 		const argFields = useFieldArray({
@@ -298,129 +300,129 @@ export const ServerInstallWizard = forwardRef<
 		const watchedMetaRepositoryId = watch("meta_repository_id");
 		const watchedCommand = watch("command");
 		const watchedUrl = watch("url");
-	const watchedArgs = watch("args");
-	const watchedEnv = watch("env");
-	const watchedHeaders = watch("headers");
-	const previewInFlightRef = useRef(false);
+		const watchedArgs = watch("args");
+		const watchedEnv = watch("env");
+		const watchedHeaders = watch("headers");
+		const previewInFlightRef = useRef(false);
 
-	const toKeyValueRecord = useCallback(
-		(items?: Array<{ key?: string | null; value?: string | null }>) => {
-			if (!Array.isArray(items)) return {} as Record<string, string>;
-			return items.reduce<Record<string, string>>((acc, entry) => {
-				const key = typeof entry?.key === "string" ? entry.key.trim() : "";
-				if (!key) return acc;
-				const rawValue = typeof entry?.value === "string" ? entry.value : "";
-				acc[key] = rawValue.trim();
-				return acc;
-			}, {});
-		},
-		[],
-	);
+		const toKeyValueRecord = useCallback(
+			(items?: Array<{ key?: string | null; value?: string | null }>) => {
+				if (!Array.isArray(items)) return {} as Record<string, string>;
+				return items.reduce<Record<string, string>>((acc, entry) => {
+					const key = typeof entry?.key === "string" ? entry.key.trim() : "";
+					if (!key) return acc;
+					const rawValue = typeof entry?.value === "string" ? entry.value : "";
+					acc[key] = rawValue.trim();
+					return acc;
+				}, {});
+			},
+			[],
+		);
 
-	const toArgsArray = useCallback(
-		(items?: Array<{ value?: string | null }>) => {
-			if (!Array.isArray(items)) return [] as string[];
-			return items
-				.map((entry) =>
-					typeof entry?.value === "string" ? entry.value.trim() : "",
-				)
-				.filter((value): value is string => value.length > 0);
-		},
-		[],
-	);
+		const toArgsArray = useCallback(
+			(items?: Array<{ value?: string | null }>) => {
+				if (!Array.isArray(items)) return [] as string[];
+				return items
+					.map((entry) =>
+						typeof entry?.value === "string" ? entry.value.trim() : "",
+					)
+					.filter((value): value is string => value.length > 0);
+			},
+			[],
+		);
 
-	const buildJsonPayloadFromValues = useCallback(
-		(values: ManualServerFormValues) => {
-			const trim = (input?: string | null) =>
-				typeof input === "string" ? input.trim() : "";
-			const serverName = (() => {
-				const name = trim(values.name);
-				return name.length > 0 ? name : "example";
-			})();
-			const serverPayload: Record<string, unknown> = {
-				type: values.kind,
-			};
+		const buildJsonPayloadFromValues = useCallback(
+			(values: ManualServerFormValues) => {
+				const trim = (input?: string | null) =>
+					typeof input === "string" ? input.trim() : "";
+				const serverName = (() => {
+					const name = trim(values.name);
+					return name.length > 0 ? name : "example";
+				})();
+				const serverPayload: Record<string, unknown> = {
+					type: values.kind,
+				};
 
-			if (values.kind === "stdio") {
-				serverPayload.command = trim(values.command);
-				serverPayload.args = toArgsArray(values.args);
-				const envRecord = toKeyValueRecord(values.env);
-				if (Object.keys(envRecord).length > 0) {
-					serverPayload.env = envRecord;
+				if (values.kind === "stdio") {
+					serverPayload.command = trim(values.command);
+					serverPayload.args = toArgsArray(values.args);
+					const envRecord = toKeyValueRecord(values.env);
+					if (Object.keys(envRecord).length > 0) {
+						serverPayload.env = envRecord;
+					}
+					if (!Array.isArray(serverPayload.args)) {
+						serverPayload.args = [];
+					}
+				} else {
+					serverPayload.url = trim(values.url);
+					const headersRecord = toKeyValueRecord(values.headers);
+					if (Object.keys(headersRecord).length > 0) {
+						serverPayload.headers = headersRecord;
+					}
+					const urlParamsRecord = toKeyValueRecord((values as any).urlParams);
+					if (Object.keys(urlParamsRecord).length > 0) {
+						serverPayload.urlParams = urlParamsRecord;
+					}
 				}
-				if (!Array.isArray(serverPayload.args)) {
-					serverPayload.args = [];
+
+				const repository: Record<string, string> = {};
+				const meta: Record<string, unknown> = {};
+
+				const description = trim(values.meta_description);
+				if (description) meta.description = description;
+				const version = trim(values.meta_version);
+				if (version) meta.version = version;
+				const websiteUrl = trim(values.meta_website_url);
+				if (websiteUrl) meta.websiteUrl = websiteUrl;
+
+				const repoUrl = trim(values.meta_repository_url);
+				if (repoUrl) repository.url = repoUrl;
+				const repoSource = trim(values.meta_repository_source);
+				if (repoSource) repository.source = repoSource;
+				const repoSubfolder = trim(values.meta_repository_subfolder);
+				if (repoSubfolder) repository.subfolder = repoSubfolder;
+				const repoId = trim(values.meta_repository_id);
+				if (repoId) repository.id = repoId;
+				if (Object.keys(repository).length > 0) {
+					meta.repository = repository;
 				}
-			} else {
-				serverPayload.url = trim(values.url);
-				const headersRecord = toKeyValueRecord(values.headers);
-				if (Object.keys(headersRecord).length > 0) {
-					serverPayload.headers = headersRecord;
+
+				if (Object.keys(meta).length > 0) {
+					serverPayload.meta = meta;
 				}
-				const urlParamsRecord = toKeyValueRecord((values as any).urlParams);
-				if (Object.keys(urlParamsRecord).length > 0) {
-					serverPayload.urlParams = urlParamsRecord;
-				}
-			}
 
-			const repository: Record<string, string> = {};
-			const meta: Record<string, unknown> = {};
-
-			const description = trim(values.meta_description);
-			if (description) meta.description = description;
-			const version = trim(values.meta_version);
-			if (version) meta.version = version;
-			const websiteUrl = trim(values.meta_website_url);
-			if (websiteUrl) meta.websiteUrl = websiteUrl;
-
-			const repoUrl = trim(values.meta_repository_url);
-			if (repoUrl) repository.url = repoUrl;
-			const repoSource = trim(values.meta_repository_source);
-			if (repoSource) repository.source = repoSource;
-			const repoSubfolder = trim(values.meta_repository_subfolder);
-			if (repoSubfolder) repository.subfolder = repoSubfolder;
-			const repoId = trim(values.meta_repository_id);
-			if (repoId) repository.id = repoId;
-			if (Object.keys(repository).length > 0) {
-				meta.repository = repository;
-			}
-
-			if (Object.keys(meta).length > 0) {
-				serverPayload.meta = meta;
-			}
-
-			return JSON.stringify(
-				{
-					mcpServers: {
-						[serverName]: serverPayload,
+				return JSON.stringify(
+					{
+						mcpServers: {
+							[serverName]: serverPayload,
+						},
 					},
-				},
-				null,
-				2,
-			);
-		},
-		[toArgsArray, toKeyValueRecord],
-	);
+					null,
+					2,
+				);
+			},
+			[toArgsArray, toKeyValueRecord],
+		);
 
-	const updateJsonFromValues = useCallback(
-		(values?: ManualServerFormValues) => {
-			const currentValues = values ?? getValues();
-			const nextJson = buildJsonPayloadFromValues(currentValues);
-			setJsonError(null);
-			setJsonText((prev) => (prev === nextJson ? prev : nextJson));
-		},
-		[buildJsonPayloadFromValues, getValues, setJsonError, setJsonText],
-	);
+		const updateJsonFromValues = useCallback(
+			(values?: ManualServerFormValues) => {
+				const currentValues = values ?? getValues();
+				const nextJson = buildJsonPayloadFromValues(currentValues);
+				setJsonError(null);
+				setJsonText((prev) => (prev === nextJson ? prev : nextJson));
+			},
+			[buildJsonPayloadFromValues, getValues, setJsonError, setJsonText],
+		);
 
-	useEffect(() => {
-		if (viewMode !== "json") return;
-		updateJsonFromValues();
-		const subscription = watch((formValues) => {
-			if (viewModeRef.current !== "json") return;
-			updateJsonFromValues(formValues as ManualServerFormValues);
-		});
-		return () => subscription.unsubscribe();
-	}, [viewMode, watch, updateJsonFromValues]);
+		useEffect(() => {
+			if (viewMode !== "json") return;
+			updateJsonFromValues();
+			const subscription = watch((formValues) => {
+				if (viewModeRef.current !== "json") return;
+				updateJsonFromValues(formValues as ManualServerFormValues);
+			});
+			return () => subscription.unsubscribe();
+		}, [viewMode, watch, updateJsonFromValues]);
 
 		const previewPrereqsMet = useMemo(() => {
 			const normalize = (value?: string | null) =>
@@ -712,20 +714,6 @@ export const ServerInstallWizard = forwardRef<
 			handlePreview,
 		]);
 
-		const handleStepChange = useCallback(
-			(step: WizardStep) => {
-				if (isSubmitting) return;
-				if (step === "preview") {
-					void handlePreview();
-					return;
-				}
-				if (canNavigateToStep(step)) {
-					installPipeline.setCurrentStep(step);
-				}
-			},
-			[isSubmitting, handlePreview, canNavigateToStep, installPipeline],
-		);
-
 		// Handle import action
 		const handleImport = useCallback(async () => {
 			if (onImport) {
@@ -739,6 +727,32 @@ export const ServerInstallWizard = forwardRef<
 
 			// The pipeline will handle step changes automatically
 		}, [getValues, onImport, installPipeline]);
+
+		const handleStepChange = useCallback(
+			(step: WizardStep) => {
+				if (isSubmitting) return;
+				if (step === "preview") {
+					void handlePreview();
+					return;
+				}
+				if (step === "result") {
+					if (installPipeline.state.currentStep !== "result") {
+						void handleImport();
+					}
+					return;
+				}
+				if (canNavigateToStep(step)) {
+					installPipeline.setCurrentStep(step);
+				}
+			},
+			[
+				isSubmitting,
+				handlePreview,
+				handleImport,
+				canNavigateToStep,
+				installPipeline,
+			],
+		);
 
 		// Overlay close handler (immediate, no delay)
 		const handleOverlayClose = useCallback(() => {
@@ -786,6 +800,33 @@ export const ServerInstallWizard = forwardRef<
 			resetIngestState,
 			setViewMode,
 		]);
+
+		type NextStepAction = "close" | "servers" | "profiles" | "preview" | "none";
+
+		const handleNextStepAction = useCallback(
+			(action: NextStepAction) => {
+				switch (action) {
+					case "close":
+						handleOverlayClose();
+						break;
+					case "servers":
+						handleOverlayClose();
+						window.setTimeout(() => navigate("/servers"), 0);
+						break;
+					case "profiles":
+						handleOverlayClose();
+						window.setTimeout(() => navigate("/profiles"), 0);
+						break;
+					case "preview":
+						handleStepChange("preview");
+						break;
+					case "none":
+					default:
+						break;
+				}
+			},
+			[handleOverlayClose, navigate, handleStepChange],
+		);
 
 		// Reset wizard when opening (only on transition from closed to open)
 		useEffect(() => {
@@ -1443,20 +1484,86 @@ export const ServerInstallWizard = forwardRef<
 		const renderResultStep = () => {
 			const { state } = installPipeline;
 			const { importResult, isImporting } = state;
+			const summary = importResult?.summary as
+				| { imported_count?: number | null; skipped_count?: number | null }
+				| undefined;
+			const importedCount = summary?.imported_count ?? 0;
+			const skippedCount = summary?.skipped_count ?? 0;
+			const onlySkipped = importedCount === 0 && skippedCount > 0;
+
+			const successSteps: Array<{ label: string; action: NextStepAction }> = [
+				{
+					label:
+						"Close this drawer to continue browsing or queue another server for import.",
+					action: "close",
+				},
+				{
+					label:
+						"Open the Servers dashboard to review and manage the new server.",
+					action: "servers",
+				},
+				{
+					label:
+						"Visit Profiles to add this server to the appropriate activation sets.",
+					action: "profiles",
+				},
+			];
+			const failureSteps: Array<{ label: string; action: NextStepAction }> = [
+				{
+					label:
+						"Return to the Servers dashboard to adjust or remove the configuration before retrying.",
+					action: "servers",
+				},
+				{
+					label:
+						"Review the preview output above for errors and apply the necessary fixes before confirming again.",
+					action: "preview",
+				},
+				{
+					label:
+						"Keep this drawer open, update the configuration, and rerun Preview before another import attempt.",
+					action: "preview",
+				},
+			];
+
+			const renderNextSteps = (
+				items: Array<{ label: string; action: NextStepAction }>,
+			) => (
+				<div className="rounded-lg border p-4 space-y-3">
+					<h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+						Next steps
+					</h4>
+					<ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+						{items.map(({ label, action }) => {
+							const interactive = action !== "none";
+							return (
+								<li key={label} className="flex items-start gap-2">
+									{interactive ? (
+										<button
+											type="button"
+											onClick={() => handleNextStepAction(action)}
+											className="group flex items-start gap-2 text-left text-slate-600 hover:text-primary focus:outline-none dark:text-slate-300"
+										>
+											<ChevronRight className="mt-0.5 h-4 w-4 text-slate-400 group-hover:text-primary" />
+											<span className="underline decoration-dotted underline-offset-2">
+												{label}
+											</span>
+										</button>
+									) : (
+										<div className="flex items-start gap-2">
+											<ChevronRight className="mt-0.5 h-4 w-4 text-slate-400" />
+											<span>{label}</span>
+										</div>
+									)}
+								</li>
+							);
+						})}
+					</ul>
+				</div>
+			);
 
 			return (
 				<div className="flex flex-col">
-					<div className="p-4 border-b">
-						<div className="flex items-start justify-between gap-2">
-							<div>
-								<h3 className="text-lg font-semibold">Import Complete</h3>
-								<p className="text-sm text-muted-foreground">
-									Server installation has been completed
-								</p>
-							</div>
-						</div>
-					</div>
-
 					<div className="p-4 space-y-4">
 						{isImporting ? (
 							<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
@@ -1480,8 +1587,9 @@ export const ServerInstallWizard = forwardRef<
 									</div>
 									{importResult.success !== false ? (
 										<p className="text-sm text-muted-foreground">
-											The server has been successfully installed and is ready to
-											use.
+											{onlySkipped
+												? "All selected servers were already installed. No changes were applied."
+												: "The server has been successfully installed and is ready to use."}
 										</p>
 									) : (
 										<p className="text-sm text-red-600">
@@ -1545,6 +1653,10 @@ export const ServerInstallWizard = forwardRef<
 											)}
 										</div>
 									</div>
+								)}
+
+								{renderNextSteps(
+									importResult.success !== false ? successSteps : failureSteps,
 								)}
 							</div>
 						) : (
@@ -1663,14 +1775,22 @@ export const ServerInstallWizard = forwardRef<
 					{/* Footer - fixed at bottom with subtle shadow for separation */}
 					<DrawerFooter className="absolute bottom-0 left-0 right-0 z-10 border-t p-4 bg-background">
 						<div className="flex w-full items-center justify-between gap-3">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={handleCancelClose}
-								disabled={isSubmitting}
-							>
-								Cancel
-							</Button>
+							{currentStep === "result" ? (
+								<div />
+							) : (
+								<Button
+									type="button"
+									variant="outline"
+									onClick={
+										currentStep === "preview"
+											? () => handleStepChange("form")
+											: handleCancelClose
+									}
+									disabled={isSubmitting}
+								>
+									{currentStep === "preview" ? "Back" : "Cancel"}
+								</Button>
+							)}
 							<div className="flex gap-2">
 								{currentStep === "form" && (
 									<Button
@@ -1700,7 +1820,7 @@ export const ServerInstallWizard = forwardRef<
 												Importing...
 											</>
 										) : (
-											"Import"
+											"Confirm"
 										)}
 									</Button>
 								)}

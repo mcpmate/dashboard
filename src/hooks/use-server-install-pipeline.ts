@@ -223,6 +223,7 @@ export function useServerInstallPipeline(
 					: skippedCount > 0
 						? `${skippedCount} server${skippedCount > 1 ? "s" : ""} skipped${fallbackList ? ` (${fallbackList})` : ""}`
 						: "";
+				const shouldAutoClose = importedCount > 0;
 				if (importedCount > 0) {
 					const parts: string[] = [
 						`${importedCount} server${importedCount > 1 ? "s" : ""} imported`,
@@ -240,7 +241,9 @@ export function useServerInstallPipeline(
 				} else {
 					notifySuccess("Servers installed", "Import completed (no changes)");
 				}
-				opts.onImported?.();
+				if (shouldAutoClose) {
+					opts.onImported?.();
+				}
 				return;
 			}
 			notifyError("Import failed", String(result.error ?? "Unknown error"));
