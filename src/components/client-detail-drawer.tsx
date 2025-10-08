@@ -232,7 +232,12 @@ export function ClientDetailDrawer({
 										</SelectTrigger>
 										<SelectContent>
 											<SelectItem value="default">default</SelectItem>
-											<SelectItem value="profile">profile</SelectItem>
+											<SelectItem value="profile">
+												profile <sup>(WIP)</sup>
+											</SelectItem>
+											<SelectItem value="custom">
+												custom <sup>(WIP)</sup>
+											</SelectItem>
 										</SelectContent>
 									</Select>
 								</div>
@@ -368,7 +373,7 @@ export function ClientDetailDrawer({
 											onClick={() =>
 												setPolicyMutation.mutate({
 													identifier,
-													policy: { label: policyLabel, limit: policyLimit },
+													policy: { policy: policyLabel, limit: policyLimit },
 												})
 											}
 											disabled={setPolicyMutation.isPending}

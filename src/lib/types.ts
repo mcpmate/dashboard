@@ -199,6 +199,73 @@ export interface ServerInstanceDetails {
 	last_health_check?: string;
 }
 
+export interface InspectorToolCallStartData {
+	call_id: string;
+	server_id: string;
+	mode: "proxy" | "native";
+	session_id?: string;
+	request_id: string;
+	progress_token: string;
+}
+
+export interface InspectorSessionOpenData {
+	session_id: string;
+	server_id: string;
+	mode: "proxy" | "native";
+	expires_at_epoch_ms: number;
+}
+
+export interface InspectorSessionCloseData {
+	closed: boolean;
+}
+
+export interface InspectorToolCallCancelData {
+	cancelled: boolean;
+}
+
+export type InspectorSseEvent =
+	| {
+			event: "started";
+			call_id: string;
+			server_id: string;
+			mode: "proxy" | "native";
+			session_id?: string;
+			started_at_epoch_ms: number;
+	  }
+	| {
+			event: "progress";
+			call_id: string;
+			progress: number;
+			total?: number;
+			message?: string;
+	  }
+	| {
+			event: "log";
+			call_id: string;
+			level?: string;
+			logger?: string;
+			data: unknown;
+	  }
+	| {
+			event: "result";
+			call_id: string;
+			server_id: string;
+			elapsed_ms: number;
+			result: unknown;
+	  }
+	| {
+			event: "error";
+			call_id: string;
+			server_id: string;
+			message: string;
+	  }
+	| {
+			event: "cancelled";
+			call_id: string;
+			server_id: string;
+			reason?: string;
+	  };
+
 export interface InstanceDetail {
 	id: string;
 	name: string;
@@ -254,7 +321,10 @@ export interface SystemStatus {
 
 export interface SystemMetrics {
 	cpu_usage_percent?: number;
+	cpu_usage?: number;
 	memory_usage_bytes?: number;
+	memory_usage?: number;
+	memory_usage_percent?: number;
 	active_connections?: number;
 	total_requests_mcp?: number;
 	error_rate_mcp?: number;
@@ -263,6 +333,17 @@ export interface SystemMetrics {
 	connected_servers_count?: number;
 	total_instances_count?: number;
 	ready_instances_count?: number;
+	error_instances_count?: number;
+	initializing_instances_count?: number;
+	busy_instances_count?: number;
+	shutdown_instances_count?: number;
+	system_cpu_usage?: number;
+	system_memory_usage?: number;
+	system_memory_total?: number;
+	system_memory_usage_percent?: number;
+	total_tools_count?: number;
+	unique_tools_count?: number;
+	config_application_status?: string | null;
 }
 
 // API Response Status
@@ -669,13 +750,26 @@ export type ClientCategory = "editor" | "terminal" | "browser" | string;
 
 export type ClientConfigType = "json" | "yaml" | "toml" | string;
 
+export interface ClientTemplateStorageMetadata {
+	kind: string;
+	path_strategy?: string | null;
+}
+
 export interface ClientTemplateMetadata {
-	name?: string | null;
-	version?: string | null;
+	format: string;
+	container_type: ClientConfigType;
+	merge_strategy: string;
+	keep_original_config: boolean;
+	storage: ClientTemplateStorageMetadata;
 	description?: string | null;
 	homepage_url?: string | null;
 	docs_url?: string | null;
 	support_url?: string | null;
+	protocol_revision?: string | null;
+	managed_source?: string | null;
+	// Legacy fields that may still surface from cached payloads
+	name?: string | null;
+	version?: string | null;
 }
 
 export interface ClientInfo {
@@ -699,7 +793,7 @@ export interface ClientInfo {
 	logo_url?: string | null;
 	last_detected?: string | null;
 	last_modified?: string | null;
-	template?: ClientTemplateMetadata;
+	template: ClientTemplateMetadata;
 	mcp_servers_count?: number | null;
 }
 
@@ -724,13 +818,58 @@ export interface ClientManageResp {
 }
 
 // Client config details
-export type ClientConfigMode = "hosted" | "transparent" | string;
+export type ClientConfigMode = "hosted" | "transparent" | "none" | string;
 export type ClientConfigSelected = "default" | "profile" | "custom" | string;
 
 export interface ClientImportedServer {
-	name?: string;
+	name: string;
+	command: string;
+	args: string[];
+	env: Record<string, string>;
+	server_type: string;
+	// Legacy fields kept optional for backward compatibility
 	kind?: string;
 	status?: string;
+	url?: string | null;
+}
+
+export interface ClientImportSummary {
+	attempted: boolean;
+	imported_count: number;
+	skipped_count: number;
+	failed_count: number;
+	errors?: Record<string, string> | null;
+}
+
+export interface ClientConfigImportItem {
+	name?: string;
+	server_name?: string;
+	error?: string;
+	tools?: { items?: unknown[] };
+	resources?: { items?: unknown[] };
+	resource_templates?: { items?: unknown[] };
+	prompts?: { items?: unknown[] };
+}
+
+export interface ClientConfigImportData {
+	summary: ClientImportSummary;
+	imported_servers?: ClientImportedServer[] | null;
+	profile_id?: string | null;
+	scheduled?: boolean | null;
+	scheduled_reason?: string | null;
+	items?: ClientConfigImportItem[];
+}
+
+export interface ClientConfigImportResp {
+	data?: ClientConfigImportData | null;
+	error?: unknown | null;
+	success: boolean;
+}
+
+export interface ClientConfigImportReq {
+	identifier: string;
+	preview?: boolean;
+	profile_id?: string | null;
 }
 
 export interface ClientConfigData {
@@ -741,11 +880,12 @@ export interface ClientConfigData {
 	warnings?: string[];
 	has_mcp_config: boolean;
 	imported_servers?: ClientImportedServer[] | null;
+	import_summary?: ClientImportSummary | null;
 	last_modified?: string | null;
 	managed: boolean;
 	mcp_servers_count: number;
 	supported_transports: string[];
-	template?: ClientTemplateMetadata;
+	template: ClientTemplateMetadata;
 	description?: string | null;
 	homepage_url?: string | null;
 	docs_url?: string | null;
@@ -768,10 +908,10 @@ export interface ClientConfigUpdateReq {
 
 export interface ClientConfigUpdateData {
 	success: boolean;
-	preview?: Record<string, unknown> | null;
+	preview: Record<string, unknown> | null;
 	applied: boolean;
 	backup_path?: string | null;
-	warnings?: string[];
+	warnings: string[];
 	diff_format?: string | null;
 	diff_before?: string | null;
 	diff_after?: string | null;
@@ -828,7 +968,12 @@ export interface ClientBackupPolicyResp {
 	success: boolean;
 }
 
+export interface ClientBackupPolicyPayload {
+	policy: string;
+	limit?: number | null;
+}
+
 export interface ClientBackupPolicySetReq {
 	identifier: string;
-	policy: { label: string; limit?: number | null };
+	policy: ClientBackupPolicyPayload;
 }

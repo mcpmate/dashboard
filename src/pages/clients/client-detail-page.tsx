@@ -1,15 +1,22 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import {
 	Check,
 	Download,
+	Info,
 	Play,
+	Plus,
 	RefreshCw,
 	RotateCcw,
 	Square,
 	Trash2,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
 	CapsuleStripeList,
 	CapsuleStripeListItem,
@@ -40,6 +47,7 @@ import {
 } from "../../components/ui/drawer";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { Segment } from "../../components/ui/segment";
 import {
 	Select,
 	SelectContent,
@@ -53,52 +61,91 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "../../components/ui/tabs";
-import { clientsApi } from "../../lib/api";
+import { clientsApi, configSuitsApi } from "../../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import type {
 	ClientBackupEntry,
 	ClientBackupPolicySetReq,
+	ClientConfigImportData,
 	ClientConfigMode,
 	ClientConfigSelected,
 	ClientConfigUpdateData,
+	ConfigSuit,
 } from "../../lib/types";
 import { formatBackupTime } from "../../lib/utils";
 
 type ClientDetailTab = "overview" | "configuration" | "backups";
 
-function extractServers(obj: any): string[] {
+function extractServers(obj: unknown): string[] {
 	if (!obj || typeof obj !== "object") return [];
-	if (obj.mcpServers && typeof obj.mcpServers === "object") {
-		return Object.keys(obj.mcpServers);
+	const objRecord = obj as Record<string, unknown>;
+	const collected = new Set<string>();
+	const addFromValue = (value: unknown) => {
+		if (!value) return;
+		if (Array.isArray(value)) {
+			for (const entry of value) {
+				if (typeof entry === "string") {
+					collected.add(entry);
+				} else if (
+					entry &&
+					typeof entry === "object" &&
+					"name" in entry &&
+					typeof (entry as { name?: unknown }).name === "string"
+				) {
+					collected.add((entry as { name: string }).name);
+				}
+			}
+			return;
+		}
+		if (typeof value === "object") {
+			for (const key of Object.keys(value as Record<string, unknown>)) {
+				collected.add(key);
+			}
+		}
+	};
+
+	addFromValue(objRecord.mcpServers);
+	addFromValue(objRecord.mcp_servers);
+	addFromValue(objRecord.servers);
+	addFromValue(objRecord.context_servers);
+	addFromValue(objRecord.contextServers);
+	addFromValue(objRecord.agent_servers);
+
+	if (
+		objRecord.mcp &&
+		typeof objRecord.mcp === "object" &&
+		(objRecord.mcp as Record<string, unknown>).servers
+	) {
+		addFromValue((objRecord.mcp as Record<string, unknown>).servers);
 	}
-	if (obj.mcp_servers && typeof obj.mcp_servers === "object") {
-		return Object.keys(obj.mcp_servers);
-	}
-	if (obj.mcp && Array.isArray(obj.mcp.servers)) {
-		return obj.mcp.servers.map((s: any) => s?.name).filter(Boolean);
-	}
-	if (Array.isArray(obj.servers)) {
-		return obj.servers.map((s: any) => s?.name).filter(Boolean);
-	}
-	return [];
+
+	return Array.from(collected);
 }
 
 export function ClientDetailPage() {
 	const { identifier } = useParams<{ identifier: string }>();
 	const qc = useQueryClient();
+	const navigate = useNavigate();
 	const [displayName, setDisplayName] = useState("");
 	const [selectedBackups, setSelectedBackups] = useState<string[]>([]);
 	const [detected, setDetected] = useState<boolean>(false);
 	const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
 	const [tabValue, setTabValue] = useState<ClientDetailTab>("overview");
+	const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
 
 	// Try to get display name from list cache
 	useEffect(() => {
-		const cached = qc.getQueryData<any>(["clients"]);
+		const cached = qc.getQueryData<{
+			client?: Array<{
+				identifier: string;
+				display_name?: string;
+				detected?: boolean;
+			}>;
+		}>(["clients"]);
 		if (cached?.client) {
-			const found = cached.client.find((c: any) => c.identifier === identifier);
+			const found = cached.client.find((c) => c.identifier === identifier);
 			if (found) {
-				setDisplayName(found.display_name);
+				setDisplayName(found.display_name || "");
 				setDetected(!!found.detected);
 			}
 		}
@@ -108,7 +155,7 @@ export function ClientDetailPage() {
 				.list(false)
 				.then((d) => {
 					if (d?.client) {
-						const f = d.client.find((c: any) => c.identifier === identifier);
+						const f = d.client.find((c) => c.identifier === identifier);
 						if (f?.display_name) setDisplayName(f.display_name);
 						if (typeof f?.detected === "boolean") setDetected(!!f.detected);
 					}
@@ -117,21 +164,14 @@ export function ClientDetailPage() {
 		}
 	}, [identifier, qc, displayName]);
 
-	const modeId = useId();
-	const sourceId = useId();
 	const limitId = useId();
 	const [mode, setMode] = useState<ClientConfigMode>("hosted");
 	const [selectedConfig, setSelectedConfig] =
 		useState<ClientConfigSelected>("default");
-	const [applyResult, setApplyResult] = useState<ClientConfigUpdateData | null>(
-		null,
-	);
-	const [lastAction, setLastAction] = useState<"preview" | "apply" | null>(
-		null,
-	);
 	const [policyOpen, setPolicyOpen] = useState(false);
 	const [importPreviewOpen, setImportPreviewOpen] = useState(false);
-	const [importPreviewData, setImportPreviewData] = useState<any | null>(null);
+	const [importPreviewData, setImportPreviewData] =
+		useState<ClientConfigImportData | null>(null);
 
 	const {
 		data: configDetails,
@@ -153,11 +193,102 @@ export function ClientDetailPage() {
 		enabled: !!identifier,
 	});
 
+	// Fetch profiles data
+	const { data: profilesData, isLoading: loadingProfiles } = useQuery({
+		queryKey: ["profiles"],
+		queryFn: () => configSuitsApi.getAll(),
+		retry: 1,
+	});
+
 	const backups: ClientBackupEntry[] = backupsData?.backups || [];
 	const visibleBackups = useMemo(
 		() => backups.filter((b) => b.identifier === identifier),
 		[backups, identifier],
 	);
+
+	// Process profiles data
+	const profiles: ConfigSuit[] = profilesData?.suits || [];
+	const activeProfiles = useMemo(
+		() => profiles.filter((profile) => profile.is_active),
+		[profiles],
+	);
+const sharedProfiles = useMemo(
+	() =>
+		profiles.filter(
+			(profile) => profile.suit_type === "shared" && profile.is_active,
+		),
+	[profiles],
+);
+
+	// Get profile IDs for fetching capabilities
+	const profileIds = useMemo(() => {
+		if (selectedConfig === "default") {
+			return activeProfiles.map((p) => p.id);
+		} else if (selectedConfig === "profile") {
+			return sharedProfiles.map((p) => p.id);
+		}
+		return [];
+	}, [selectedConfig, activeProfiles, sharedProfiles]);
+
+	// Fetch capabilities for profiles
+	const profileCapabilitiesQueries = useQueries({
+		queries: profileIds.map((profileId) => ({
+			queryKey: ["profile-capabilities", profileId],
+			queryFn: async () => {
+				const [serversRes, toolsRes, resourcesRes, promptsRes] =
+					await Promise.all([
+						configSuitsApi.getServers(profileId),
+						configSuitsApi.getTools(profileId),
+						configSuitsApi.getResources(profileId),
+						configSuitsApi.getPrompts(profileId),
+					]);
+
+				return {
+					profileId,
+					servers: {
+						total: serversRes?.servers?.length || 0,
+						enabled:
+							serversRes?.servers?.filter(
+								(s: { enabled?: boolean }) => s.enabled,
+							).length || 0,
+					},
+					tools: {
+						total: toolsRes?.tools?.length || 0,
+						enabled:
+							toolsRes?.tools?.filter((t: { enabled?: boolean }) => t.enabled)
+								.length || 0,
+					},
+					resources: {
+						total: resourcesRes?.resources?.length || 0,
+						enabled:
+							resourcesRes?.resources?.filter(
+								(r: { enabled?: boolean }) => r.enabled,
+							).length || 0,
+					},
+					prompts: {
+						total: promptsRes?.prompts?.length || 0,
+						enabled:
+							promptsRes?.prompts?.filter(
+								(p: { enabled?: boolean }) => p.enabled,
+							).length || 0,
+					},
+				};
+			},
+			enabled: profileIds.length > 0,
+			retry: 1,
+		})),
+	});
+
+	// Create capabilities map
+	const profileCapabilities = useMemo(() => {
+		const map = new Map();
+		profileCapabilitiesQueries.forEach((query) => {
+			if (query.data) {
+				map.set(query.data.profileId, query.data);
+			}
+		});
+		return map;
+	}, [profileCapabilitiesQueries]);
 
 	const templateMeta = configDetails?.template;
 	const detailDescription =
@@ -220,24 +351,21 @@ export function ClientDetailPage() {
 		{ preview: boolean }
 	>({
 		mutationFn: async ({ preview }) => {
+			if (!identifier) throw new Error("No identifier provided");
 			const data = await clientsApi.applyConfig({
-				identifier: identifier!,
+				identifier,
 				mode,
 				selected_config: selectedConfig,
 				preview,
 			});
 			return { data: data ?? null, preview };
 		},
-		onMutate: ({ preview }) => {
-			setLastAction(preview ? "preview" : "apply");
-			if (preview) {
-				setApplyResult(null);
-			}
+		onMutate: () => {
+			// No longer needed since we removed the result display
 		},
 		onSuccess: ({ data, preview }) => {
 			if (preview) {
 				if (data) {
-					setApplyResult(data);
 					notifyInfo("Preview ready", "Review the diff before applying.");
 				} else {
 					notifyInfo(
@@ -247,30 +375,35 @@ export function ClientDetailPage() {
 				}
 			} else {
 				notifySuccess("Applied", "Configuration applied");
-				setApplyResult(null);
+				// Refresh backup records after successful apply
+				refetchBackups();
 			}
 			qc.invalidateQueries({ queryKey: ["client-config", identifier] });
 		},
 		onError: (e) => notifyError("Apply failed", String(e)),
 	});
 
-	const importMutation = useMutation({
+	const importMutation = useMutation<ClientConfigImportData | null>({
 		mutationFn: async () => {
 			// If no preview yet, generate one first
 			if (!importPreviewData) {
-				const res = await clientsApi.importFromClient(identifier!, {
+				if (!identifier) throw new Error("No identifier provided");
+				const res = await clientsApi.importFromClient(identifier, {
 					preview: true,
 				});
 				setImportPreviewData(res);
-				return null as any; // indicate preview stage; caller handles UI
+				return null; // indicate preview stage; caller handles UI
 			}
-			return clientsApi.importFromClient(identifier!, { preview: false });
+			if (!identifier) throw new Error("No identifier provided");
+			return clientsApi.importFromClient(identifier, { preview: false });
 		},
-		onSuccess: (res: any) => {
+		onSuccess: (res) => {
 			// If onSuccess received null means we just did a preview; do not close
 			if (!res) return;
 			const imported =
-				res?.imported_servers?.length ?? res?.summary?.imported_count ?? 0;
+				res.imported_servers?.length ??
+				res.summary?.imported_count ??
+				0;
 			if (imported > 0) {
 				notifySuccess(
 					"Imported",
@@ -293,7 +426,7 @@ export function ClientDetailPage() {
 		mutationFn: async () => {
 			const data = await clientsApi.list(true);
 			if (data?.client) {
-				const f = data.client.find((c: any) => c.identifier === identifier);
+				const f = data.client.find((c) => c.identifier === identifier);
 				if (f) {
 					if (typeof f.display_name === "string")
 						setDisplayName(f.display_name);
@@ -308,16 +441,19 @@ export function ClientDetailPage() {
 
 	const toggleManagedMutation = useMutation({
 		mutationFn: async () => {
+			if (!identifier) throw new Error("No identifier provided");
 			const next = !(configDetails?.managed ?? false);
-			await clientsApi.manage(identifier!, next ? "enable" : "disable");
+			await clientsApi.manage(identifier, next ? "enable" : "disable");
 			await refetchDetails();
 		},
 		onSuccess: () => notifySuccess("Updated", "Managed state changed"),
 		onError: (e) => notifyError("Update failed", String(e)),
 	});
-	const importPreviewMutation = useMutation({
-		mutationFn: () =>
-			clientsApi.importFromClient(identifier!, { preview: true }),
+	const importPreviewMutation = useMutation<ClientConfigImportData>({
+		mutationFn: async () => {
+			if (!identifier) throw new Error("No identifier provided");
+			return clientsApi.importFromClient(identifier, { preview: true });
+		},
 		onSuccess: (res) => {
 			setImportPreviewData(res);
 			setImportPreviewOpen(true);
@@ -326,8 +462,10 @@ export function ClientDetailPage() {
 	});
 
 	const restoreMutation = useMutation({
-		mutationFn: ({ backup }: { backup: string }) =>
-			clientsApi.restoreConfig({ identifier: identifier!, backup }),
+		mutationFn: ({ backup }: { backup: string }) => {
+			if (!identifier) throw new Error("No identifier provided");
+			return clientsApi.restoreConfig({ identifier, backup });
+		},
 		onSuccess: () => {
 			notifySuccess("Restored", "Configuration restored from backup");
 			refetchDetails();
@@ -337,8 +475,10 @@ export function ClientDetailPage() {
 	});
 
 	const deleteBackupMutation = useMutation({
-		mutationFn: ({ backup }: { backup: string }) =>
-			clientsApi.deleteBackup(identifier!, backup),
+		mutationFn: ({ backup }: { backup: string }) => {
+			if (!identifier) throw new Error("No identifier provided");
+			return clientsApi.deleteBackup(identifier, backup);
+		},
 		onSuccess: () => {
 			notifySuccess("Deleted", "Backup deleted");
 			refetchBackups();
@@ -348,9 +488,10 @@ export function ClientDetailPage() {
 
 	const bulkDeleteMutation = useMutation({
 		mutationFn: async () => {
+			if (!identifier) throw new Error("No identifier provided");
 			const items = [...selectedBackups];
 			const results = await Promise.allSettled(
-				items.map((b) => clientsApi.deleteBackup(identifier!, b)),
+				items.map((b) => clientsApi.deleteBackup(identifier, b)),
 			);
 			const failed = results.filter((r) => r.status === "rejected").length;
 			if (failed > 0) throw new Error(`${failed} deletions failed`);
@@ -390,7 +531,7 @@ export function ClientDetailPage() {
 
 	// Heuristic extract current servers from config content for preview
 	const currentServers = useMemo(() => {
-		const c = (configDetails as any)?.content as any;
+		const c = (configDetails as { content?: unknown })?.content;
 		try {
 			if (!c) return [] as string[];
 			if (typeof c === "string") {
@@ -619,117 +760,364 @@ export function ClientDetailPage() {
 				<TabsContent value="configuration">
 					<div className="grid gap-4">
 						<Card>
-							<CardHeader>
+							<CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 								<div>
 									<CardTitle>Configuration Mode</CardTitle>
 									<CardDescription>
-										Choose how MCPMate generates and applies configuration for
-										this client.
+										If you don't understand what this means, please don't make
+										any changes and keep the current settings.
 									</CardDescription>
 								</div>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="grid gap-4 md:grid-cols-2">
-									<div className="space-y-1">
-										<Label htmlFor={modeId}>Mode</Label>
-										<Select
-											value={mode}
-											onValueChange={(v) => setMode(v as ClientConfigMode)}
-										>
-											<SelectTrigger id={modeId}>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="hosted">hosted</SelectItem>
-												<SelectItem value="transparent">transparent</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-									<div className="space-y-1">
-										<Label htmlFor={sourceId}>Source</Label>
-										<Select
-											value={selectedConfig}
-											onValueChange={(v) =>
-												setSelectedConfig(v as ClientConfigSelected)
-											}
-										>
-											<SelectTrigger id={sourceId}>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="default">default</SelectItem>
-												<SelectItem value="profile">profile</SelectItem>
-												<SelectItem value="custom">custom</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
+								<div className="flex items-center gap-2">
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => {
+											// Re-apply configuration logic
+											applyMutation.mutate({ preview: false });
+										}}
+										disabled={
+											applyMutation.isPending ||
+											!configDetails?.managed ||
+											mode === "none"
+										}
+									>
+										<RefreshCw
+											className={`mr-2 h-4 w-4 ${applyMutation.isPending ? "animate-spin" : ""}`}
+										/>
+										Re-apply
+									</Button>
 								</div>
-								{applyMutation.isPending && (
-									<div className="h-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-								)}
-								{applyResult ? (
-									<div className="space-y-4 rounded border p-3 text-xs">
-										<div className="grid gap-2 sm:grid-cols-3">
-											<div>
-												<span className="text-slate-500">Format</span>
-												<div className="font-medium">
-													{applyResult.diff_format ?? "-"}
-												</div>
+							</CardHeader>
+							<CardContent className="pt-0">
+								<div className="grid grid-cols-10 gap-8">
+									{/* Left side - Mode and Source (4/10) */}
+									<div className="col-span-4 space-y-6">
+										{/* Mode Selection */}
+										<div className="space-y-3">
+											<div className="space-y-1">
+												<h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+													1. Mode
+												</h4>
+												<p className="text-xs text-slate-500 leading-relaxed">
+													{mode === "hosted" &&
+														"MCPMate generates and applies configuration for this client."}
+													{mode === "transparent" &&
+														"MCPMate monitors and reports on this client's configuration."}
+													{mode === "none" &&
+														"MCPMate does not manage this client's configuration."}
+												</p>
 											</div>
-											<div>
-												<span className="text-slate-500">Warnings</span>
-												<div className="font-medium">
-													{applyResult.warnings?.length ?? 0}
-												</div>
-											</div>
-											<div>
-												<span className="text-slate-500">Scheduled</span>
-												<div className="font-medium">
-													{applyResult.scheduled ? "Yes" : "No"}
-												</div>
-											</div>
+											<Segment
+												value={mode}
+												onValueChange={(v) => setMode(v as ClientConfigMode)}
+												options={[
+													{ value: "hosted", label: "Hosted" },
+													{ value: "transparent", label: "Transparent" },
+													{ value: "none", label: "None" },
+												]}
+												showDots={true}
+												className="w-full"
+											/>
 										</div>
-										{applyResult.warnings && applyResult.warnings.length > 0 ? (
-											<ul className="list-disc space-y-1 pl-5 text-amber-600 dark:text-amber-400">
-												{applyResult.warnings.map((warning, idx) => (
-													<li key={`warning-${idx}-${warning.slice(0, 20)}`}>
-														{warning}
-													</li>
-												))}
-											</ul>
-										) : null}
-										{applyResult.preview ? (
-											<details>
-												<summary className="cursor-pointer text-slate-500">
-													Preview payload
-												</summary>
-												<pre className="mt-2 max-h-64 overflow-auto rounded bg-slate-50 p-3 text-[11px] leading-relaxed dark:bg-slate-900">
-													{JSON.stringify(applyResult.preview, null, 2)}
-												</pre>
-											</details>
-										) : null}
-										{applyResult.diff_before || applyResult.diff_after ? (
-											<div className="grid gap-3 sm:grid-cols-2">
-												<div>
-													<div className="mb-1 text-slate-500">Before</div>
-													<pre className="max-h-64 overflow-auto rounded bg-slate-50 p-3 text-[11px] leading-relaxed dark:bg-slate-900">
-														{applyResult.diff_before || "-"}
-													</pre>
-												</div>
-												<div>
-													<div className="mb-1 text-slate-500">After</div>
-													<pre className="max-h-64 overflow-auto rounded bg-slate-50 p-3 text-[11px] leading-relaxed dark:bg-slate-900">
-														{applyResult.diff_after || "-"}
-													</pre>
-												</div>
-											</div>
-										) : null}
+
+										{/* Source Selection */}
+										<div className="space-y-3">
+											<div className="space-y-1">
+												<h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+													2. Source
+												</h4>
+					<p className="text-xs text-slate-500 leading-relaxed">
+						{selectedConfig === "default" &&
+							"Use all currently activated profiles."}
+						{selectedConfig === "profile" &&
+							"Select specific shared profiles to include."}
+						{selectedConfig === "custom" &&
+							"Use customized configuration settings."}
+					</p>
+				</div>
+				<Segment
+					value={selectedConfig}
+					onValueChange={(v) =>
+						setSelectedConfig(v as ClientConfigSelected)
+					}
+					options={[
+						{ value: "default", label: "Activated" },
+						{
+							value: "profile",
+							label: "Profiles",
+							status: "WIP",
+						},
+						{
+							value: "custom",
+							label: "Customize",
+							status: "WIP",
+						},
+					]}
+												showDots={true}
+												className="w-full"
+												disabled={mode === "none"}
+											/>
+										</div>
 									</div>
-								) : lastAction === "preview" && !applyMutation.isPending ? (
-									<p className="text-xs text-slate-500">
-										No preview details available for the selected options.
-									</p>
-								) : null}
+
+									{/* Right side - Profiles List (6/10) */}
+									{(mode === "hosted" ||
+										mode === "transparent" ||
+										mode === "none") && (
+										<div
+											className={`col-span-6 ${mode === "none" ? "opacity-50 pointer-events-none" : ""}`}
+										>
+											<div className="mb-3">
+												<h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+													3. Profiles List
+												</h4>
+												{/* Dynamic description based on source */}
+					{selectedConfig === "default" && (
+						<p className="text-xs text-slate-500 mt-1 leading-relaxed">
+							When the activated source is selected, configure all
+							currently activated profiles. Checkboxes are locked to
+							keep the selection consistent.
+						</p>
+					)}
+					{selectedConfig === "profile" && (
+						<p className="text-xs text-slate-500 mt-1 leading-relaxed">
+							Select which shared profiles to include in this
+							client's configuration.
+						</p>
+					)}
+					{selectedConfig === "custom" && (
+						<p className="text-xs text-slate-500 mt-1 leading-relaxed">
+							Create and maintain a customized configuration for the
+							current application.
+						</p>
+					)}
+											</div>
+
+											{loadingProfiles ? (
+												<div className="space-y-2">
+													{[1, 2, 3].map((i) => (
+														<div
+															key={i}
+															className="h-12 bg-slate-200 dark:bg-slate-800 animate-pulse rounded"
+														/>
+													))}
+												</div>
+											) : mode === "none" ? (
+												<div className="rounded border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+													Configuration mode is set to "none" - no profiles need
+													to be applied
+												</div>
+											) : (
+												<CapsuleStripeList>
+													{selectedConfig === "default" ? (
+														// Show active profiles for default source
+														activeProfiles.length > 0 ? (
+															activeProfiles.map((profile) => {
+																const capabilities = profileCapabilities.get(
+																	profile.id,
+																);
+																return (
+																	<CapsuleStripeListItem
+																		key={profile.id}
+																		className="cursor-default"
+																	>
+																		<div className="flex w-full items-center gap-3">
+																			<div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 dark:border-slate-600 dark:bg-slate-700">
+																				<Check className="h-3 w-3 text-slate-500" />
+																			</div>
+																			<div className="flex-1 min-w-0">
+																				<div className="font-medium text-sm truncate">
+																					{profile.name}
+																				</div>
+																				<div className="text-xs text-slate-500 truncate">
+																					{profile.description ||
+																						"No description"}
+																				</div>
+																				{capabilities && (
+																					<div className="flex gap-4 mt-1 text-xs text-slate-500">
+																						<span>
+																							Servers:{" "}
+																							{capabilities.servers.enabled}/
+																							{capabilities.servers.total}
+																						</span>
+																						<span>
+																							Tools:{" "}
+																							{capabilities.tools.enabled}/
+																							{capabilities.tools.total}
+																						</span>
+																						<span>
+																							Resources:{" "}
+																							{capabilities.resources.enabled}/
+																							{capabilities.resources.total}
+																						</span>
+																						<span>
+																							Prompts:{" "}
+																							{capabilities.prompts.enabled}/
+																							{capabilities.prompts.total}
+																						</span>
+																					</div>
+																				)}
+																			</div>
+																			<div className="ml-auto flex items-center gap-2">
+																				<Button
+																					variant="ghost"
+																					size="sm"
+																					className="h-6 w-6 p-0"
+																					onClick={() =>
+																						navigate(`/profiles/${profile.id}`)
+																					}
+																				>
+																					<Info className="h-3 w-3" />
+																				</Button>
+																			</div>
+																		</div>
+																	</CapsuleStripeListItem>
+																);
+															})
+														) : (
+															<CapsuleStripeListItem>
+																<div className="text-sm text-slate-500 py-4 text-center w-full">
+																	No active profiles found
+																</div>
+															</CapsuleStripeListItem>
+														)
+													) : selectedConfig === "profile" ? (
+														// Show shared profiles for profile source
+														sharedProfiles.length > 0 ? (
+															sharedProfiles.map((profile) => {
+																const capabilities = profileCapabilities.get(
+																	profile.id,
+																);
+																const isSelected = selectedProfiles.includes(
+																	profile.id,
+																);
+																return (
+																	<CapsuleStripeListItem
+																		key={profile.id}
+																		interactive
+																		className={`group relative transition-colors ${
+																			isSelected
+																				? "bg-primary/10 ring-1 ring-primary/40"
+																				: ""
+																		}`}
+																		onClick={() => {
+																			setSelectedProfiles((prev) =>
+																				prev.includes(profile.id)
+																					? prev.filter(
+																							(id) => id !== profile.id,
+																						)
+																					: [...prev, profile.id],
+																			);
+																		}}
+																	>
+																		<div className="flex w-full items-center gap-3">
+																			<div
+																				className={`flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+																					isSelected
+																						? "border-primary bg-primary text-white"
+																						: "border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-700"
+																				}`}
+																			>
+																				{isSelected && (
+																					<Check className="h-3 w-3" />
+																				)}
+																			</div>
+																			<div className="flex-1 min-w-0">
+																				<div className="font-medium text-sm truncate">
+																					{profile.name}
+																				</div>
+																				<div className="text-xs text-slate-500 truncate">
+																					{profile.description ||
+																						"No description"}
+																				</div>
+																				{capabilities && (
+																					<div className="flex gap-4 mt-1 text-xs text-slate-500">
+																						<span>
+																							Servers:{" "}
+																							{capabilities.servers.enabled}/
+																							{capabilities.servers.total}
+																						</span>
+																						<span>
+																							Tools:{" "}
+																							{capabilities.tools.enabled}/
+																							{capabilities.tools.total}
+																						</span>
+																						<span>
+																							Resources:{" "}
+																							{capabilities.resources.enabled}/
+																							{capabilities.resources.total}
+																						</span>
+																						<span>
+																							Prompts:{" "}
+																							{capabilities.prompts.enabled}/
+																							{capabilities.prompts.total}
+																						</span>
+																					</div>
+																				)}
+																			</div>
+																			<div className="ml-auto flex items-center gap-2">
+																				<Button
+																					variant="ghost"
+																					size="sm"
+																					className="h-6 w-6 p-0"
+																					onClick={(e) => {
+																						e.stopPropagation();
+																						navigate(`/profiles/${profile.id}`);
+																					}}
+																				>
+																					<Info className="h-3 w-3" />
+																				</Button>
+																			</div>
+																		</div>
+																	</CapsuleStripeListItem>
+																);
+															})
+														) : (
+															<CapsuleStripeListItem>
+																<div className="text-sm text-slate-500 py-4 text-center w-full">
+																	No shared profiles found
+																</div>
+															</CapsuleStripeListItem>
+														)
+													) : null}
+
+													{/* Ghost item for creating new profile */}
+													<CapsuleStripeListItem
+														interactive
+														className="border-dashed border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500"
+														onClick={() => {
+															if (selectedConfig === "custom") {
+																// Navigate to profile creation with host application type
+																navigate("/profiles?type=host_app&mode=create");
+															} else {
+																navigate("/profiles");
+															}
+														}}
+													>
+														<div className="flex w-full items-center gap-3">
+															<div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600">
+																<Plus className="h-3 w-3 text-slate-400" />
+															</div>
+															<div className="flex-1 min-w-0">
+																<div className="font-medium text-sm truncate text-slate-700 dark:text-slate-300">
+																	{selectedConfig === "custom"
+																		? "Customize the profile"
+																		: "Add a new profile"}
+																</div>
+																<div className="text-xs text-slate-400 dark:text-slate-600 truncate">
+																	{selectedConfig === "custom"
+																		? "Create and manage host application profile"
+																		: "Click to navigate to profile management page"}
+																</div>
+															</div>
+														</div>
+													</CapsuleStripeListItem>
+												</CapsuleStripeList>
+											)}
+										</div>
+									)}
+								</div>
 							</CardContent>
 						</Card>
 					</div>
@@ -741,7 +1129,7 @@ export function ClientDetailPage() {
 							<div>
 								<CardTitle>Backups</CardTitle>
 								<CardDescription>
-									Review, restore, or delete configuration snapshots.
+									Restore or delete configuration snapshots.
 								</CardDescription>
 							</div>
 							<div className="flex flex-wrap items-center gap-2">
@@ -1021,12 +1409,13 @@ export function ClientDetailPage() {
 						</div>
 						<div>
 							<Button
-								onClick={() =>
-									setPolicyMutation.mutate({
-										identifier: identifier!,
-										policy: { label: policyLabel, limit: policyLimit },
-									})
-								}
+								onClick={() => {
+									if (!identifier) return;
+										setPolicyMutation.mutate({
+											identifier,
+											policy: { policy: policyLabel, limit: policyLimit },
+										});
+									}}
 								disabled={setPolicyMutation.isPending}
 							>
 								Save Policy
@@ -1074,7 +1463,7 @@ export function ClientDetailPage() {
 											Servers to import
 										</div>
 										<ul className="divide-y max-h-[30vh] overflow-auto">
-											{importPreviewData.items.map((it: any, idx: number) => (
+											{importPreviewData.items.map((it, idx: number) => (
 												<li
 													key={`import-item-${idx}-${it.name || it.server_name || "unnamed"}`}
 													className="p-3 text-xs"

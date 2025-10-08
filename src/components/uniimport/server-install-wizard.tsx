@@ -114,32 +114,39 @@ export const ServerInstallWizard = forwardRef<
 		const currentStep = installPipeline.state.currentStep ?? "form";
 
 		// Form state management
-		const {
-			viewMode,
-			setViewMode,
-			jsonText,
-			setJsonText,
-			jsonError,
-			formStateRef,
-			isRestoringRef,
-			createInitialFormState,
-			buildFormValuesFromState,
-		} = useFormState();
+	const {
+		viewMode,
+		setViewMode,
+		jsonText,
+		setJsonText,
+		jsonError,
+		setJsonError,
+		formStateRef,
+		isRestoringRef,
+		createInitialFormState,
+		buildFormValuesFromState,
+	} = useFormState();
 
-		const {
-			control,
-			handleSubmit,
-			register,
-			formState: { errors, isSubmitting },
+	const {
+		control,
+		handleSubmit,
+		register,
+		formState: { errors, isSubmitting },
 			reset,
 			watch,
 			setValue,
 			getValues,
 			trigger,
-		} = useForm<ManualServerFormValues>({
-			resolver: zodResolver(manualServerSchema),
-			defaultValues: buildFormValuesFromState(createInitialFormState()),
-		});
+	} = useForm<ManualServerFormValues>({
+		resolver: zodResolver(manualServerSchema),
+		defaultValues: buildFormValuesFromState(createInitialFormState()),
+	});
+
+	const viewModeRef = useRef(viewMode);
+
+	useEffect(() => {
+		viewModeRef.current = viewMode;
+	}, [viewMode]);
 
 		// Form field arrays
 		const argFields = useFieldArray({
@@ -291,10 +298,129 @@ export const ServerInstallWizard = forwardRef<
 		const watchedMetaRepositoryId = watch("meta_repository_id");
 		const watchedCommand = watch("command");
 		const watchedUrl = watch("url");
-		const watchedArgs = watch("args");
-		const watchedEnv = watch("env");
-		const watchedHeaders = watch("headers");
-		const previewInFlightRef = useRef(false);
+	const watchedArgs = watch("args");
+	const watchedEnv = watch("env");
+	const watchedHeaders = watch("headers");
+	const previewInFlightRef = useRef(false);
+
+	const toKeyValueRecord = useCallback(
+		(items?: Array<{ key?: string | null; value?: string | null }>) => {
+			if (!Array.isArray(items)) return {} as Record<string, string>;
+			return items.reduce<Record<string, string>>((acc, entry) => {
+				const key = typeof entry?.key === "string" ? entry.key.trim() : "";
+				if (!key) return acc;
+				const rawValue = typeof entry?.value === "string" ? entry.value : "";
+				acc[key] = rawValue.trim();
+				return acc;
+			}, {});
+		},
+		[],
+	);
+
+	const toArgsArray = useCallback(
+		(items?: Array<{ value?: string | null }>) => {
+			if (!Array.isArray(items)) return [] as string[];
+			return items
+				.map((entry) =>
+					typeof entry?.value === "string" ? entry.value.trim() : "",
+				)
+				.filter((value): value is string => value.length > 0);
+		},
+		[],
+	);
+
+	const buildJsonPayloadFromValues = useCallback(
+		(values: ManualServerFormValues) => {
+			const trim = (input?: string | null) =>
+				typeof input === "string" ? input.trim() : "";
+			const serverName = (() => {
+				const name = trim(values.name);
+				return name.length > 0 ? name : "example";
+			})();
+			const serverPayload: Record<string, unknown> = {
+				type: values.kind,
+			};
+
+			if (values.kind === "stdio") {
+				serverPayload.command = trim(values.command);
+				serverPayload.args = toArgsArray(values.args);
+				const envRecord = toKeyValueRecord(values.env);
+				if (Object.keys(envRecord).length > 0) {
+					serverPayload.env = envRecord;
+				}
+				if (!Array.isArray(serverPayload.args)) {
+					serverPayload.args = [];
+				}
+			} else {
+				serverPayload.url = trim(values.url);
+				const headersRecord = toKeyValueRecord(values.headers);
+				if (Object.keys(headersRecord).length > 0) {
+					serverPayload.headers = headersRecord;
+				}
+				const urlParamsRecord = toKeyValueRecord((values as any).urlParams);
+				if (Object.keys(urlParamsRecord).length > 0) {
+					serverPayload.urlParams = urlParamsRecord;
+				}
+			}
+
+			const repository: Record<string, string> = {};
+			const meta: Record<string, unknown> = {};
+
+			const description = trim(values.meta_description);
+			if (description) meta.description = description;
+			const version = trim(values.meta_version);
+			if (version) meta.version = version;
+			const websiteUrl = trim(values.meta_website_url);
+			if (websiteUrl) meta.websiteUrl = websiteUrl;
+
+			const repoUrl = trim(values.meta_repository_url);
+			if (repoUrl) repository.url = repoUrl;
+			const repoSource = trim(values.meta_repository_source);
+			if (repoSource) repository.source = repoSource;
+			const repoSubfolder = trim(values.meta_repository_subfolder);
+			if (repoSubfolder) repository.subfolder = repoSubfolder;
+			const repoId = trim(values.meta_repository_id);
+			if (repoId) repository.id = repoId;
+			if (Object.keys(repository).length > 0) {
+				meta.repository = repository;
+			}
+
+			if (Object.keys(meta).length > 0) {
+				serverPayload.meta = meta;
+			}
+
+			return JSON.stringify(
+				{
+					mcpServers: {
+						[serverName]: serverPayload,
+					},
+				},
+				null,
+				2,
+			);
+		},
+		[toArgsArray, toKeyValueRecord],
+	);
+
+	const updateJsonFromValues = useCallback(
+		(values?: ManualServerFormValues) => {
+			const currentValues = values ?? getValues();
+			const nextJson = buildJsonPayloadFromValues(currentValues);
+			setJsonError(null);
+			setJsonText((prev) => (prev === nextJson ? prev : nextJson));
+		},
+		[buildJsonPayloadFromValues, getValues, setJsonError, setJsonText],
+	);
+
+	useEffect(() => {
+		if (viewMode !== "json") return;
+		updateJsonFromValues();
+		const subscription = watch((formValues) => {
+			if (viewModeRef.current !== "json") return;
+			updateJsonFromValues(formValues as ManualServerFormValues);
+		});
+		return () => subscription.unsubscribe();
+	}, [viewMode, watch, updateJsonFromValues]);
 
 		const previewPrereqsMet = useMemo(() => {
 			const normalize = (value?: string | null) =>
@@ -909,7 +1035,9 @@ export const ServerInstallWizard = forwardRef<
 							>
 								<TabsList className="grid w-full grid-cols-2">
 									<TabsTrigger value="core">Core configuration</TabsTrigger>
-									<TabsTrigger value="meta">Meta information (WIP)</TabsTrigger>
+									<TabsTrigger value="meta">
+										Meta information <sup>(WIP)</sup>
+									</TabsTrigger>
 								</TabsList>
 
 								<TabsContent
@@ -1163,11 +1291,10 @@ export const ServerInstallWizard = forwardRef<
 								);
 								const uniqueKey = `${kind}-${name}-${idx}`;
 								return (
-									<div
-										key={uniqueKey}
-										className="text-sm leading-relaxed"
-									>
-										<div className="font-semibold text-slate-800 dark:text-slate-100">{name}</div>
+									<div key={uniqueKey} className="text-sm leading-relaxed">
+										<div className="font-semibold text-slate-800 dark:text-slate-100">
+											{name}
+										</div>
 										{description && (
 											<div className="text-slate-600 dark:text-slate-400 mt-1 text-xs leading-relaxed">
 												{description}

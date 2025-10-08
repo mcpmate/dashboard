@@ -321,7 +321,7 @@ export const ServerInstallManualForm = forwardRef<
 			setIngestMessage(
 				isEditMode
 					? "Editing server"
-					: "Drop JSON/TOML/Text or MCP bundles (.mcpb) to begin",
+					: "Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin",
 			);
 		}, [
 			applySingleDraftToForm,
@@ -406,7 +406,9 @@ export const ServerInstallManualForm = forwardRef<
 				setIsDropZoneCollapsed(false);
 				setIngestError(null);
 				setIsIngestSuccess(false);
-				setIngestMessage("Drop JSON/TOML/Text or MCP bundles (.mcpb) to begin");
+				setIngestMessage(
+					"Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin",
+				);
 			}
 		}, [
 			ingestEnabled,
@@ -427,7 +429,9 @@ export const ServerInstallManualForm = forwardRef<
 				setIsDropZoneCollapsed(false);
 				setIngestError(null);
 				setIsIngestSuccess(false);
-				setIngestMessage("Drop JSON/TOML/Text or MCP bundles (.mcpb) to begin");
+				setIngestMessage(
+					"Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin",
+				);
 			}
 		};
 
@@ -782,7 +786,9 @@ export const ServerInstallManualForm = forwardRef<
 							>
 								<TabsList className="grid w-full grid-cols-2">
 									<TabsTrigger value="core">Core configuration</TabsTrigger>
-									<TabsTrigger value="meta">Meta information (WIP)</TabsTrigger>
+									<TabsTrigger value="meta">
+										Meta information <sup>(WIP)</sup>
+									</TabsTrigger>
 								</TabsList>
 
 								<TabsContent

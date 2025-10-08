@@ -3,7 +3,8 @@ import type { ServerInstallDraft } from "../../hooks/use-server-install-pipeline
 import type { SegmentOption } from "../ui/segment";
 
 // Constants
-export const DEFAULT_INGEST_MESSAGE = "Drop JSON/TOML/Text or MCP bundles (.mcpb) to begin";
+export const DEFAULT_INGEST_MESSAGE =
+	"Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin";
 
 // Server type options for Segment component
 export const SERVER_TYPE_OPTIONS: SegmentOption[] = [

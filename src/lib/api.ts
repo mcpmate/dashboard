@@ -11,6 +11,9 @@ import type {
 	ClientBackupPolicyResp,
 	ClientBackupPolicySetReq,
 	ClientCheckResp,
+	ClientConfigImportData,
+	ClientConfigImportReq,
+	ClientConfigImportResp,
 	ClientConfigResp,
 	ClientConfigRestoreReq,
 	ClientConfigUpdateReq,
@@ -57,6 +60,10 @@ import type {
 	SystemStatus,
 	ToolDetail,
 	UpdateConfigSuitRequest,
+	InspectorToolCallStartData,
+	InspectorToolCallCancelData,
+	InspectorSessionOpenData,
+	InspectorSessionCloseData,
 } from "./types";
 
 // Base API configuration
@@ -1031,6 +1038,52 @@ export const inspectorApi = {
 			method: "POST",
 			body: JSON.stringify(req),
 		}),
+	toolCallStart: async (req: {
+		tool: string;
+		server_id?: string;
+		server_name?: string;
+		arguments?: Record<string, any>;
+		mode?: "proxy" | "native";
+		timeout_ms?: number;
+		session_id?: string;
+	}) =>
+		fetchApi<ApiWrapper<InspectorToolCallStartData>>(
+			`/api/mcp/inspector/tool/call/start`,
+			{
+				method: "POST",
+				body: JSON.stringify(req),
+			},
+		),
+	toolCallCancel: async (req: { call_id: string; reason?: string }) =>
+		fetchApi<ApiWrapper<InspectorToolCallCancelData>>(
+			`/api/mcp/inspector/tool/call/cancel`,
+			{
+				method: "POST",
+				body: JSON.stringify(req),
+			},
+		),
+	sessionOpen: async (req: {
+		mode: "proxy" | "native";
+		server_id?: string;
+		server_name?: string;
+	}) =>
+		fetchApi<ApiWrapper<InspectorSessionOpenData>>(
+			`/api/mcp/inspector/session/open`,
+			{
+				method: "POST",
+				body: JSON.stringify(req),
+			},
+		),
+	sessionClose: async (req: { session_id: string }) =>
+		fetchApi<ApiWrapper<InspectorSessionCloseData>>(
+			`/api/mcp/inspector/session/close`,
+			{
+				method: "POST",
+				body: JSON.stringify(req),
+			},
+		),
+	toolCallEventsUrl: (callId: string) =>
+		`${API_BASE_URL}/api/mcp/inspector/tool/call/events?call_id=${encodeURIComponent(callId)}`,
 	resourcesList: (q: {
 		server_id?: string;
 		server_name?: string;
@@ -1948,16 +2001,21 @@ export const clientsApi = {
 	importFromClient: async (
 		identifier: string,
 		options?: { preview?: boolean; profile_id?: string | null },
-	) => {
-		const body: any = { identifier };
-		if (options && typeof options.preview === "boolean")
+	): Promise<ClientConfigImportData> => {
+		const body: ClientConfigImportReq = { identifier };
+		if (options && typeof options.preview === "boolean") {
 			body.preview = options.preview;
-		if (options && "profile_id" in options)
-			body.profile_id = options.profile_id;
-		const resp = await fetchApi(`/api/client/config/import`, {
-			method: "POST",
-			body: JSON.stringify(body),
-		});
-		return extractApiData(resp as any);
+		}
+		if (options && "profile_id" in options) {
+			body.profile_id = options.profile_id ?? null;
+		}
+		const resp = await fetchApi<ClientConfigImportResp>(
+			`/api/client/config/import`,
+			{
+				method: "POST",
+				body: JSON.stringify(body),
+			},
+		);
+		return extractApiData(resp);
 	},
 };
