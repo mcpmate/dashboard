@@ -1,14 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import {
+	BrowserRouter,
+	Navigate,
+	Route,
+	Routes,
+	useParams,
+} from "react-router-dom";
 import { Layout } from "./components/layout/layout";
 import { ClientDetailPage } from "./pages/clients/client-detail-page";
 import { ClientsPage } from "./pages/clients/clients-page";
-import { ProfilePage } from "./pages/profile/profile-page";
-import { ProfilePresetPage } from "./pages/profile/profile-preset-page";
-import { ProfileSuitDetailPage } from "./pages/profile/profile-detail-page";
 import { DashboardPage } from "./pages/dashboard/dashboard-page";
 import { MarketPage } from "./pages/market/market-page";
 import { NotFoundPage } from "./pages/not-found-page";
+import { ProfileDetailPage } from "./pages/profile/profile-detail-page";
+import { ProfilePage } from "./pages/profile/profile-page";
+import { ProfilePresetPage } from "./pages/profile/profile-preset-page";
 import { RuntimePage } from "./pages/runtime/runtime-page";
 import { InstanceDetailPage } from "./pages/servers/instance-detail-page";
 import { ServerDetailPage } from "./pages/servers/server-detail-page";
@@ -39,7 +45,7 @@ function App() {
 							path="profiles/presets/:presetId"
 							element={<ProfilePresetPage />}
 						/>
-						<Route path="profiles/:profileId" element={<ProfileSuitDetailPage />} />
+						<Route path="profiles/:profileId" element={<ProfileDetailPage />} />
 						{/* Back-compat: redirect old routes */}
 						<Route
 							path="config"

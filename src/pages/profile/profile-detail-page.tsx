@@ -17,8 +17,7 @@ import {
 	CapsuleStripeList,
 	CapsuleStripeListItem,
 } from "../../components/capsule-stripe-list";
-import { ListItemActions } from "../../components/list-item-actions";
-import { SuitFormDrawer } from "../../components/suit-form-drawer";
+import { ProfileFormDrawer } from "../../components/profile-form-drawer";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -75,7 +74,7 @@ const toTitleCase = (value?: string | null) =>
 	value ||
 	"";
 
-export function ProfileSuitDetailPage() {
+export function ProfileDetailPage() {
 	const { profileId } = useParams<{ profileId: string }>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -1501,7 +1500,7 @@ export function ProfileSuitDetailPage() {
 			)}
 
 			{/* Edit Suit Drawer */}
-			<SuitFormDrawer
+			<ProfileFormDrawer
 				open={isEditDialogOpen}
 				onOpenChange={handleEditDrawerClose}
 				mode="edit"

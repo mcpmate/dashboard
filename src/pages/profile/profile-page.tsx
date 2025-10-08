@@ -13,13 +13,13 @@ import {
 	Wrench,
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
 import { ListGridContainer } from "../../components/list-grid-container";
 import { EmptyState, PageLayout } from "../../components/page-layout";
+import { ProfileFormDrawer } from "../../components/profile-form-drawer";
 import { StatsCards } from "../../components/stats-cards";
-import { SuitFormDrawer } from "../../components/suit-form-drawer";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import {
@@ -45,7 +45,8 @@ const arrangeSuitsWithDefaultAnchor = (items: ConfigSuit[] = []) => {
 	if (!items.length) {
 		return [] as ConfigSuit[];
 	}
-	const isAnchor = (suit: ConfigSuit) => (suit.role ?? "user") === DEFAULT_ANCHOR_ROLE;
+	const isAnchor = (suit: ConfigSuit) =>
+		(suit.role ?? "user") === DEFAULT_ANCHOR_ROLE;
 	const anchors = items.filter(isAnchor);
 	const remaining = items.filter((suit) => !isAnchor(suit));
 	const defaults = remaining.filter((suit) => suit.is_default);
@@ -85,7 +86,11 @@ function formatSuitDisplayName(
 export function ProfilePage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const [searchParams] = useSearchParams();
 	const [isNewSuitDialogOpen, setIsNewSuitDialogOpen] = useState(false);
+
+	// Handle URL parameters for profile creation
+	const profileType = searchParams.get("type");
 	const defaultView = useAppStore(
 		(state) => state.dashboardSettings.defaultView,
 	);
@@ -222,7 +227,10 @@ export function ProfilePage() {
 		}
 	};
 
-	const orderedSuits = useMemo(() => arrangeSuitsWithDefaultAnchor(suits), [suits]);
+	const orderedSuits = useMemo(
+		() => arrangeSuitsWithDefaultAnchor(suits),
+		[suits],
+	);
 
 	const suitStatQueries = useQueries({
 		queries: orderedSuits.map((suit) => ({
@@ -454,19 +462,17 @@ export function ProfilePage() {
 				avatar={{
 					fallback: avatarInitial,
 				}}
-				titleBadges={
-					[
-						isDefaultAnchor ? (
-							<Badge key="default-anchor" variant="outline">
-								Default Anchor
-							</Badge>
-						) : isDefaultMember ? (
-							<Badge key="in-default" variant="outline">
-								In Default
-							</Badge>
-						) : null,
-					].filter(Boolean)
-				}
+				titleBadges={[
+					isDefaultAnchor ? (
+						<Badge key="default-anchor" variant="outline">
+							Default Anchor
+						</Badge>
+					) : isDefaultMember ? (
+						<Badge key="in-default" variant="outline">
+							In Default
+						</Badge>
+					) : null,
+				].filter(Boolean)}
 				stats={[
 					{ label: "Multi-select", value: suit.multi_select ? "Yes" : "No" },
 					{ label: "Priority", value: suit.priority },
@@ -710,8 +716,8 @@ export function ProfilePage() {
 			// 直接更新全局设置
 			setDashboardSetting("defaultView", mode);
 		},
-	onSortedDataChange: (data: ConfigSuit[]) =>
-		setSortedSuits(arrangeSuitsWithDefaultAnchor(data)),
+		onSortedDataChange: (data: ConfigSuit[]) =>
+			setSortedSuits(arrangeSuitsWithDefaultAnchor(data)),
 		onExpandedChange: setExpanded,
 	};
 
@@ -797,10 +803,11 @@ export function ProfilePage() {
 			</ListGridContainer>
 
 			{/* New Suit Drawer */}
-			<SuitFormDrawer
+			<ProfileFormDrawer
 				open={isNewSuitDialogOpen}
 				onOpenChange={setIsNewSuitDialogOpen}
 				mode="create"
+				restrictProfileType={profileType}
 				onSuccess={() => {
 					setIsNewSuitDialogOpen(false);
 					refetchSuits();

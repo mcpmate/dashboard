@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { configSuitsApi } from "../lib/api";
+import { notifyError, notifySuccess } from "../lib/notify";
 import type {
 	ConfigSuit,
 	CreateConfigSuitRequest,
@@ -26,9 +27,8 @@ import {
 } from "./ui/select";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
-import { notifyError, notifySuccess } from "../lib/notify";
 
-interface SuitFormDialogProps {
+interface ProfileFormDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	mode: "create" | "edit";
@@ -36,24 +36,23 @@ interface SuitFormDialogProps {
 	onSuccess?: () => void;
 }
 
-export function SuitFormDialog({
+export function ProfileFormDialog({
 	open,
 	onOpenChange,
 	mode,
 	suit,
 	onSuccess,
-}: SuitFormDialogProps) {
+}: ProfileFormDialogProps) {
 	const queryClient = useQueryClient();
 	const nameId = useId();
 	const descriptionId = useId();
-	const priorityId = useId();
 
 	// Form state - initialize with empty data for create mode
 	const [formData, setFormData] = useState({
 		name: "",
 		description: "",
-		suit_type: "scenario",
-		multi_select: false,
+		suit_type: "shared",
+		multi_select: true,
 		priority: 50,
 		is_active: false,
 		is_default: false,
@@ -79,8 +78,8 @@ export function SuitFormDialog({
 				setFormData({
 					name: "",
 					description: "",
-					suit_type: "scenario",
-					multi_select: false,
+					suit_type: "shared",
+					multi_select: true,
 					priority: 50,
 					is_active: false,
 					is_default: false,
@@ -139,8 +138,8 @@ export function SuitFormDialog({
 		setFormData({
 			name: "",
 			description: "",
-			suit_type: "scenario",
-			multi_select: false,
+			suit_type: "shared",
+			multi_select: true,
 			priority: 50,
 			is_active: false,
 			is_default: false,
@@ -209,7 +208,16 @@ export function SuitFormDialog({
 	};
 
 	const availableSuits =
-		suitsResponse?.suits?.filter((s) => s.id !== suit?.id) || [];
+		suitsResponse?.suits
+			?.filter((s) => s.id !== suit?.id)
+			.filter((s) => s.suit_type === "shared") || [];
+	const selectedCloneProfile = useMemo(
+		() =>
+			formData.clone_from_id && formData.clone_from_id !== "none"
+				? availableSuits.find((s) => s.id === formData.clone_from_id)
+				: undefined,
+		[availableSuits, formData.clone_from_id],
+	);
 	const isLoading = createMutation.isPending || updateMutation.isPending;
 
 	return (
@@ -261,33 +269,10 @@ export function SuitFormDialog({
 							/>
 						</div>
 
-						{/* Suit Type Field */}
-						<div className="space-y-2">
-							<Label htmlFor="suit_type">Suit Type *</Label>
-							<Select
-								value={formData.suit_type}
-								onValueChange={(value) =>
-									setFormData((prev) => ({ ...prev, suit_type: value }))
-								}
-							>
-								<SelectTrigger>
-									<SelectValue placeholder="Select a suit type" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="host_app">Host App</SelectItem>
-									<SelectItem value="scenario">Scenario</SelectItem>
-									<SelectItem value="shared">Shared</SelectItem>
-								</SelectContent>
-							</Select>
-							<p className="text-sm text-muted-foreground">
-								Choose the type that best describes this configuration suit
-							</p>
-						</div>
-
 						{/* Clone From Field (Create mode only) */}
 						{mode === "create" && availableSuits.length > 0 && (
 							<div className="space-y-2">
-								<Label htmlFor="clone_from_id">Clone From (Optional)</Label>
+								<Label htmlFor="clone_from_id">Clone From</Label>
 								<Select
 									value={formData.clone_from_id}
 									onValueChange={(value) =>
@@ -295,43 +280,44 @@ export function SuitFormDialog({
 									}
 								>
 									<SelectTrigger>
-										<SelectValue placeholder="Select a suit to clone from" />
+										<SelectValue placeholder="None">
+											{selectedCloneProfile?.name ?? "None"}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										<SelectItem value="none">None</SelectItem>
-										{availableSuits.map((s) => (
-											<SelectItem key={s.id} value={s.id}>
-												{s.name} ({s.suit_type})
-											</SelectItem>
-										))}
+										{availableSuits.map((s) => {
+											const rawDescription = s.description?.trim() ?? "";
+											const truncatedDescription =
+												rawDescription.length > 80
+													? `${rawDescription.slice(0, 77).trimEnd()}…`
+													: rawDescription;
+											return (
+												<SelectItem key={s.id} value={s.id}>
+													<div className="flex w-full items-center justify-between gap-3">
+														<span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+															{s.name}
+														</span>
+														{rawDescription ? (
+															<span className="hidden text-xs text-muted-foreground sm:block sm:max-w-[220px] sm:truncate sm:text-right">
+																{truncatedDescription}
+															</span>
+														) : (
+															<span className="hidden text-xs text-muted-foreground sm:block sm:text-right">
+																No description
+															</span>
+														)}
+													</div>
+												</SelectItem>
+											);
+										})}
 									</SelectContent>
 								</Select>
-								<p className="text-sm text-muted-foreground">
+								<p className="text-xs text-muted-foreground">
 									Copy servers and tools from an existing suit
 								</p>
 							</div>
 						)}
-
-						{/* Priority Field */}
-						<div className="space-y-2">
-							<Label htmlFor={priorityId}>Priority</Label>
-							<Input
-								id={priorityId}
-								type="number"
-								min="0"
-								max="100"
-								value={formData.priority}
-								onChange={(e) =>
-									setFormData((prev) => ({
-										...prev,
-										priority: parseInt(e.target.value) || 0,
-									}))
-								}
-							/>
-							<p className="text-sm text-muted-foreground">
-								Priority level (0-100, higher values have higher priority)
-							</p>
-						</div>
 
 						{/* Boolean Fields */}
 						<div className="grid gap-4 md:grid-cols-2">

@@ -24,7 +24,6 @@ import {
 } from "./ui/drawer";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Segment } from "./ui/segment";
 import {
 	Select,
 	SelectContent,
@@ -33,7 +32,6 @@ import {
 	SelectValue,
 } from "./ui/select";
 import { Switch } from "./ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
 import { Transfer, type TransferItem } from "./ui/transfer";
 
@@ -70,33 +68,29 @@ const syncSuitServers = async (
 	}
 };
 
-const KNOWN_PROFILE_TYPES: Array<{ value: string; label: string }> = [
-	{ value: "shared", label: "Shared" },
-	{ value: "host_app", label: "Host Application" },
-	{ value: "scenario", label: "Scenario" },
-];
-
 const formatProfileTypeLabel = (value: string) =>
 	value
 		.split(/[\s_]+/)
 		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
 		.join(" ");
 
-interface SuitFormDrawerProps {
+interface ProfileFormDrawerProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	mode: "create" | "edit";
 	suit?: ConfigSuit;
 	onSuccess?: () => void;
+	restrictProfileType?: string; // Restrict to specific profile type
 }
 
-export function SuitFormDrawer({
+export function ProfileFormDrawer({
 	open,
 	onOpenChange,
 	mode,
 	suit,
 	onSuccess,
-}: SuitFormDrawerProps) {
+	restrictProfileType,
+}: ProfileFormDrawerProps) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
@@ -113,8 +107,8 @@ export function SuitFormDrawer({
 	}>({
 		name: "",
 		description: "",
-		suit_type: "scenario",
-		multi_select: false,
+		suit_type: restrictProfileType || "shared",
+		multi_select: true,
 		priority: 50,
 		is_active: false,
 		is_default: false,
@@ -124,14 +118,11 @@ export function SuitFormDrawer({
 	// Generate unique IDs for form elements
 	const nameId = useId();
 	const descriptionId = useId();
-	const suitTypeId = useId();
 	const multiSelectId = useId();
-	const priorityId = useId();
 	const isActiveId = useId();
 	const isDefaultId = useId();
 	const cloneFromId = useId();
 
-	const [activeTab, setActiveTab] = useState<"manual" | "clone">("manual");
 	const [step, setStep] = useState<DrawerStep>("details");
 	const [selectedServerIds, setSelectedServerIds] = useState<string[]>([]);
 	const [selectionInitialized, setSelectionInitialized] = useState(false);
@@ -146,7 +137,6 @@ export function SuitFormDrawer({
 	// 完全重置所有状态的函数
 	const resetAllStates = useCallback(() => {
 		setStep("details");
-		setActiveTab("manual");
 		setSelectionInitialized(false);
 		setServerSelectionTouched(false);
 		setCloneSelectionApplied(false);
@@ -168,15 +158,15 @@ export function SuitFormDrawer({
 			setFormData({
 				name: "",
 				description: "",
-				suit_type: "scenario",
-				multi_select: false,
+				suit_type: restrictProfileType || "shared",
+				multi_select: true,
 				priority: 50,
 				is_active: false,
 				is_default: false,
 				clone_from_id: "none",
 			});
 		}
-	}, [mode, suit]);
+	}, [mode, suit, restrictProfileType]);
 
 	// Overlay close handler (immediate, no delay)
 	const handleOverlayClose = useCallback(() => {
@@ -230,12 +220,6 @@ export function SuitFormDrawer({
 		}
 	}, [open, mode, suit, resetAllStates, queryClient]);
 
-	useEffect(() => {
-		if (activeTab === "manual") {
-			setFormData((prev) => ({ ...prev, clone_from_id: "none" }));
-		}
-	}, [activeTab]);
-
 	// Fetch all suits for cloning option
 	const { data: suitsResponse } = useQuery({
 		queryKey: ["configSuits"],
@@ -263,38 +247,20 @@ export function SuitFormDrawer({
 			staleTime: 15_000,
 		});
 
-	const availableSuits = suitsResponse?.suits || [];
+	const availableSuits = useMemo(
+		() => suitsResponse?.suits ?? [],
+		[suitsResponse],
+	);
 	const defaultSuitId = useMemo(
 		() => availableSuits.find((profile) => profile.is_default)?.id,
 		[availableSuits],
 	);
 
-	const profileTypeOptions = useMemo(() => {
-		const typeMap = new Map<string, string>();
-		KNOWN_PROFILE_TYPES.forEach(({ value, label }) => {
-			typeMap.set(value, label);
-		});
-		availableSuits.forEach((profile) => {
-			if (!typeMap.has(profile.suit_type)) {
-				typeMap.set(
-					profile.suit_type,
-					formatProfileTypeLabel(profile.suit_type),
-				);
-			}
-		});
-		if (formData.suit_type && !typeMap.has(formData.suit_type)) {
-			typeMap.set(
-				formData.suit_type,
-				formatProfileTypeLabel(formData.suit_type),
-			);
-		}
-		return Array.from(typeMap.entries()).map(([value, label]) => ({
-			value,
-			label,
-		}));
-	}, [availableSuits, formData.suit_type]);
-	const clonePreviewEnabled =
-		activeTab === "clone" && formData.clone_from_id !== "none";
+	const cloneableSuits = useMemo(
+		() => availableSuits.filter((profile) => profile.suit_type === "shared"),
+		[availableSuits],
+	);
+	const clonePreviewEnabled = formData.clone_from_id !== "none";
 	const { data: cloneContent, isFetching: clonePreviewLoading } = useQuery<{
 		servers: ConfigSuitServer[];
 		tools: ConfigSuitTool[];
@@ -357,7 +323,7 @@ export function SuitFormDrawer({
 		if (!open || mode !== "create") {
 			return;
 		}
-		if (activeTab !== "clone") {
+		if (formData.clone_from_id === "none") {
 			setCloneSelectionApplied(false);
 			return;
 		}
@@ -375,7 +341,7 @@ export function SuitFormDrawer({
 	}, [
 		open,
 		mode,
-		activeTab,
+		formData.clone_from_id,
 		cloneContent,
 		clonePreviewLoading,
 		serverSelectionTouched,
@@ -609,10 +575,10 @@ export function SuitFormDrawer({
 	}, [showDefaultToggle]);
 
 	const clonePreview = useMemo(() => {
-		if (activeTab !== "clone" || formData.clone_from_id === "none") {
+		if (formData.clone_from_id === "none") {
 			return null;
 		}
-		const selected = availableSuits.find(
+		const selected = cloneableSuits.find(
 			(profile) => profile.id === formData.clone_from_id,
 		);
 		if (!selected) {
@@ -637,7 +603,7 @@ export function SuitFormDrawer({
 
 		return (
 			<div>
-				<div className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+				<div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
 					{details.map(({ label, value }) => (
 						<div
 							key={label}
@@ -646,7 +612,7 @@ export function SuitFormDrawer({
 							<span className="text-xs tracking-wide text-muted-foreground">
 								{label}
 							</span>
-							<span className="text-base text-slate-900 dark:text-slate-100">
+							<span className="text-xs text-slate-900 dark:text-slate-100">
 								{value}
 							</span>
 						</div>
@@ -660,12 +626,21 @@ export function SuitFormDrawer({
 			</div>
 		);
 	}, [
-		activeTab,
-		availableSuits,
+		cloneableSuits,
 		cloneContent,
 		formData.clone_from_id,
 		clonePreviewLoading,
 	]);
+
+	const selectedCloneProfile = useMemo(
+		() =>
+			formData.clone_from_id === "none"
+				? undefined
+				: cloneableSuits.find(
+						(profile) => profile.id === formData.clone_from_id,
+					),
+		[cloneableSuits, formData.clone_from_id],
+	);
 
 	// Transfer 组件的处理函数
 	const handleTransferChange = useCallback((targetKeys: string[]) => {
@@ -682,128 +657,69 @@ export function SuitFormDrawer({
 	);
 
 	const createModeSection = (
-		<Tabs
-			value={activeTab}
-			onValueChange={(value) => setActiveTab(value as "manual" | "clone")}
-			className="space-y-4"
-		>
-			<TabsList className="grid w-full grid-cols-2">
-				<TabsTrigger value="manual">Manual</TabsTrigger>
-				<TabsTrigger value="clone">Clone</TabsTrigger>
-			</TabsList>
-
-			<TabsContent value="manual" className="space-y-4">
-				<div className="flex items-center gap-4">
-					<Label
-						htmlFor={suitTypeId}
-						className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300"
-					>
-						Profile Type
+		<div className="space-y-4">
+			<div className="flex items-center gap-4">
+				<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
+					Allow Multiple
+				</span>
+				<div className="flex items-center gap-2">
+					<Switch
+						id={multiSelectId}
+						checked={formData.multi_select}
+						onCheckedChange={(checked) =>
+							setFormData((prev) => ({
+								...prev,
+								multi_select: checked,
+							}))
+						}
+					/>
+					<Label htmlFor={multiSelectId} className="text-sm">
+						Allow selection of multiple servers
 					</Label>
-					<div className="flex-1">
-						<Segment
-							value={formData.suit_type}
-							onValueChange={(value) =>
-								setFormData((prev) => ({ ...prev, suit_type: value }))
-							}
-							options={profileTypeOptions}
-							showDots
-							className="w-full"
-						/>
-					</div>
 				</div>
+			</div>
 
-				<div className="flex items-start gap-4">
-					<Label
-						htmlFor={priorityId}
-						className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300"
-					>
-						Priority
-					</Label>
-					<div className="flex-1 space-y-1">
-						<Input
-							id={priorityId}
-							type="number"
-							min="0"
-							max="100"
-							value={formData.priority}
-							onChange={(e) =>
-								setFormData((prev) => ({
-									...prev,
-									priority: parseInt(e.target.value, 10) || 0,
-								}))
-							}
-							className="flex-1"
-						/>
-						<p className="text-xs text-muted-foreground">
-							0-100, higher value gets evaluated first
-						</p>
-					</div>
-				</div>
-
-				<div className="flex items-center gap-4">
-					<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
-						Allow Multiple
-					</span>
+			<div className="flex items-center gap-4">
+				<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
+					Status
+				</span>
+				<div className="flex flex-wrap items-center gap-6">
 					<div className="flex items-center gap-2">
 						<Switch
-							id={multiSelectId}
-							checked={formData.multi_select}
+							id={isActiveId}
+							checked={formData.is_active}
 							onCheckedChange={(checked) =>
 								setFormData((prev) => ({
 									...prev,
-									multi_select: checked,
+									is_active: checked,
 								}))
 							}
 						/>
-						<Label htmlFor={multiSelectId} className="text-sm">
-							Allow selection of multiple servers
+						<Label htmlFor={isActiveId} className="text-sm">
+							Activate immediately
 						</Label>
 					</div>
-				</div>
-
-				<div className="flex items-center gap-4">
-					<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
-						Status
-					</span>
-					<div className="flex flex-wrap items-center gap-6">
-						<div className="flex items-center gap-2">
+					{showDefaultToggle && (
+						<div className="flex items-center gap-2 hidden">
 							<Switch
-								id={isActiveId}
-								checked={formData.is_active}
+								id={isDefaultId}
+								checked={formData.is_default}
 								onCheckedChange={(checked) =>
 									setFormData((prev) => ({
 										...prev,
-										is_active: checked,
+										is_default: checked,
 									}))
 								}
 							/>
-							<Label htmlFor={isActiveId} className="text-sm">
-								Activate immediately
+							<Label htmlFor={isDefaultId} className="text-sm">
+								Set as default profile
 							</Label>
 						</div>
-						{showDefaultToggle && (
-							<div className="flex items-center gap-2 hidden">
-								<Switch
-									id={isDefaultId}
-									checked={formData.is_default}
-									onCheckedChange={(checked) =>
-										setFormData((prev) => ({
-											...prev,
-											is_default: checked,
-										}))
-									}
-								/>
-								<Label htmlFor={isDefaultId} className="text-sm">
-									Set as default profile
-								</Label>
-							</div>
-						)}
-					</div>
+					)}
 				</div>
-			</TabsContent>
+			</div>
 
-			<TabsContent value="clone" className="space-y-4">
+			<div className="mt-6 space-y-4">
 				<div className="flex items-center gap-4">
 					<Label
 						htmlFor={cloneFromId}
@@ -821,77 +737,59 @@ export function SuitFormDrawer({
 						}
 					>
 						<SelectTrigger id={cloneFromId} className="flex-1">
-							<SelectValue placeholder="Select a profile" />
+							<SelectValue placeholder="None">
+								{selectedCloneProfile?.name ?? "None"}
+							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="none">None</SelectItem>
-							{availableSuits.map((profile) => (
-								<SelectItem key={profile.id} value={profile.id}>
-									{profile.name} ({profile.suit_type})
-								</SelectItem>
-							))}
+							{cloneableSuits.map((profile) => {
+								const rawDescription = profile.description?.trim() ?? "";
+								const truncatedDescription =
+									rawDescription.length > 80
+										? `${rawDescription.slice(0, 77).trimEnd()}…`
+										: rawDescription;
+								return (
+									<SelectItem key={profile.id} value={profile.id}>
+										<div className="flex w-full items-center justify-between gap-3">
+											<span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
+												{profile.name}
+											</span>
+											{rawDescription ? (
+												<span className="hidden text-xs text-muted-foreground sm:block sm:max-w-[220px] sm:truncate sm:text-right">
+													{truncatedDescription}
+												</span>
+											) : (
+												<span className="hidden text-xs text-muted-foreground sm:block sm:text-right">
+													No description
+												</span>
+											)}
+										</div>
+									</SelectItem>
+								);
+							})}
 						</SelectContent>
 					</Select>
 				</div>
-				{clonePreview}
-				<p className="ml-32 text-sm text-muted-foreground">
-					Cloning copies enabled servers, tools, and resources from the source
-					profile.
-				</p>
-			</TabsContent>
-		</Tabs>
+				{clonePreview && (
+					<div className="flex items-start gap-4">
+						<span className="w-32" />
+						<div className="flex-1">{clonePreview}</div>
+					</div>
+				)}
+				<div className="flex items-start gap-4 pt-0">
+					<span className="w-32" />
+					<p className="flex-1 pl-1 text-xs text-muted-foreground">
+						Cloning copies enabled servers, tools, and resources from the source
+						profile.
+					</p>
+				</div>
+			</div>
+		</div>
 	);
 
 	const editModeSection = (
 		<div className="space-y-4">
-			<div className="flex items-center gap-4">
-				<Label
-					htmlFor={suitTypeId}
-					className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300"
-				>
-					Profile Type
-				</Label>
-				<div className="flex-1">
-					<Segment
-						value={formData.suit_type}
-						onValueChange={(value) =>
-							setFormData((prev) => ({ ...prev, suit_type: value }))
-						}
-						options={profileTypeOptions}
-						showDots
-						className="w-full"
-					/>
-				</div>
-			</div>
-
-			<div className="flex items-start gap-4">
-				<Label
-					htmlFor={priorityId}
-					className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300"
-				>
-					Priority
-				</Label>
-				<div className="flex-1 space-y-1">
-					<Input
-						id={priorityId}
-						type="number"
-						min="0"
-						max="100"
-						value={formData.priority}
-						onChange={(e) =>
-							setFormData((prev) => ({
-								...prev,
-								priority: parseInt(e.target.value, 10) || 0,
-							}))
-						}
-						className="flex-1"
-					/>
-					<p className="text-xs text-muted-foreground">
-						0-100, higher value gets evaluated first
-					</p>
-				</div>
-			</div>
-
 			<div className="flex items-center gap-4">
 				<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
 					Allow Multiple
