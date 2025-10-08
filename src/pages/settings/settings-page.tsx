@@ -32,10 +32,15 @@ import {
 	type DashboardDefaultView,
 	type DashboardLanguage,
 	type DashboardSettings,
+	type MenuBarIconMode,
 	type MarketBlacklistEntry,
 	type DefaultMarket,
 	useAppStore,
 } from "../../lib/store";
+import {
+	detectTauriEnvironment,
+	isTauriEnvironmentSync,
+} from "../../lib/platform";
 import type { OpenSourceDocument } from "../../types/open-source";
 import { AboutLicensesSection } from "./about-licenses-section";
 import { mergePortalOverrides } from "../market/portal-registry";
@@ -67,19 +72,40 @@ const BACKUP_STRATEGY_OPTIONS: SegmentOption[] = [
 	{ value: "none", label: "None" },
 ];
 
+interface ShellPreferencesResponse {
+	menu_bar_icon_mode: MenuBarIconMode;
+	show_dock_icon: boolean;
+}
+
+const MENU_BAR_ICON_OPTIONS: ReadonlyArray<{
+	value: MenuBarIconMode;
+	label: string;
+}> = [
+	{ value: "runtime", label: "Visible When Running" },
+	{ value: "hidden", label: "Hidden" },
+];
+
 export function SettingsPage() {
 	const languageId = useId();
 	const backupLimitId = useId();
+	const menuBarSelectId = useId();
 
 	const theme = useAppStore((state) => state.theme);
 	const setTheme = useAppStore((state) => state.setTheme);
 	const dashboardSettings = useAppStore((state) => state.dashboardSettings);
 	const setDashboardSetting = useAppStore((state) => state.setDashboardSetting);
+	const updateDashboardSettings = useAppStore(
+		(state) => state.updateDashboardSettings,
+	);
 	const removeFromMarketBlacklist = useAppStore(
 		(state) => state.removeFromMarketBlacklist,
 	);
-	const [licenseDocument, setLicenseDocument] = useState<OpenSourceDocument | null>(null);
+	const [licenseDocument, setLicenseDocument] =
+		useState<OpenSourceDocument | null>(null);
 	const [licenseLoaded, setLicenseLoaded] = useState(false);
+	const [isTauriShell, setIsTauriShell] = useState(() =>
+		isTauriEnvironmentSync(),
+	);
 
 	const tabTriggerClass =
 		"justify-start px-3 py-2 text-left text-sm font-medium text-slate-600 data-[state=active]:text-emerald-700 dark:text-slate-300";
@@ -87,11 +113,28 @@ export function SettingsPage() {
 	// Build available portals list for Default Market selector
 	const availablePortals = useMemo(
 		() =>
-			Object.values(
-				mergePortalOverrides(dashboardSettings.marketPortals),
-			).sort((a, b) => a.label.localeCompare(b.label)),
+			Object.values(mergePortalOverrides(dashboardSettings.marketPortals)).sort(
+				(a, b) => a.label.localeCompare(b.label),
+			),
 		[dashboardSettings.marketPortals],
 	);
+
+	useEffect(() => {
+		if (isTauriShell) {
+			return undefined;
+		}
+		let cancelled = false;
+		const detect = async () => {
+			const result = await detectTauriEnvironment();
+			if (!cancelled) {
+				setIsTauriShell(result);
+			}
+		};
+		void detect();
+		return () => {
+			cancelled = true;
+		};
+	}, [isTauriShell]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -108,16 +151,15 @@ export function SettingsPage() {
 				}
 
 				const data = (await response.json()) as OpenSourceDocument;
-				if (
-					!cancelled &&
-					data &&
-					Array.isArray(data.sections)
-				) {
+				if (!cancelled && data && Array.isArray(data.sections)) {
 					setLicenseDocument(data);
 				}
 			} catch (error) {
 				if (import.meta.env.DEV) {
-					console.warn("[SettingsPage] Unable to load open-source notices:", error);
+					console.warn(
+						"[SettingsPage] Unable to load open-source notices:",
+						error,
+					);
 				}
 			} finally {
 				if (!cancelled) {
@@ -132,6 +174,41 @@ export function SettingsPage() {
 			cancelled = true;
 		};
 	}, []);
+
+	useEffect(() => {
+		if (!isTauriShell) {
+			return undefined;
+		}
+
+		let cancelled = false;
+		const apply = async () => {
+			try {
+				const { invoke } = await import("@tauri-apps/api/core");
+				const prefs =
+					(await invoke<ShellPreferencesResponse>(
+						"mcp_shell_read_preferences",
+					)) ?? null;
+				if (!cancelled && prefs) {
+					updateDashboardSettings({
+						menuBarIconMode: prefs.menu_bar_icon_mode,
+						showDockIcon: prefs.show_dock_icon,
+					});
+				}
+			} catch (error) {
+				if (import.meta.env.DEV) {
+					console.warn(
+						"[SettingsPage] Failed to load desktop shell preferences",
+						error,
+					);
+				}
+			}
+		};
+
+		void apply();
+		return () => {
+			cancelled = true;
+		};
+	}, [isTauriShell, updateDashboardSettings]);
 
 	const showLicenseTab = licenseLoaded && licenseDocument !== null;
 
@@ -207,7 +284,7 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											Application Mode (WIP)
+											Application Mode <sup>(WIP)</sup>
 										</h3>
 										<p className="text-sm text-slate-500">
 											Select the interface complexity level.
@@ -232,7 +309,7 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											Language <sup className="text-xs text-slate-400">WIP</sup>
+											Language <sup>(WIP)</sup>
 										</h3>
 										<p className="text-sm text-slate-500">
 											Multi-language support is currently in development.
@@ -304,6 +381,70 @@ export function SettingsPage() {
 											}
 										/>
 									</div>
+
+									{isTauriShell && (
+										<div className="space-y-4 dark:border-slate-800">
+											<div className="flex items-center justify-between gap-4">
+												<div className="space-y-0.5">
+													<h3 className="text-base font-medium">
+														Menu Bar Icon <sup>(WIP)</sup>
+													</h3>
+													<p className="text-sm text-slate-500">
+														Choose when the desktop tray icon should appear.
+													</p>
+												</div>
+												<Select
+													value={dashboardSettings.menuBarIconMode}
+													onValueChange={(value: MenuBarIconMode) =>
+														setDashboardSetting("menuBarIconMode", value)
+													}
+												>
+													<SelectTrigger id={menuBarSelectId} className="w-56">
+														<SelectValue placeholder="Menu bar visibility" />
+													</SelectTrigger>
+													<SelectContent>
+														{MENU_BAR_ICON_OPTIONS.map((option) => (
+															<SelectItem
+																key={option.value}
+																value={option.value}
+																disabled={
+																	option.value === "hidden" &&
+																	!dashboardSettings.showDockIcon
+																}
+															>
+																{option.label}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+
+											<div className="flex items-center justify-between gap-4">
+												<div className="space-y-0.5">
+													<h3 className="text-base font-medium">
+														Dock Icon <sup>(WIP)</sup>
+													</h3>
+													<p className="text-sm text-slate-500">
+														Display MCPMate in the macOS Dock or run silently
+														from the menu bar.
+													</p>
+												</div>
+												<Switch
+													checked={dashboardSettings.showDockIcon}
+													onCheckedChange={(checked) =>
+														setDashboardSetting("showDockIcon", checked)
+													}
+												/>
+											</div>
+
+											{!dashboardSettings.showDockIcon && (
+												<p className="text-xs leading-relaxed text-slate-500">
+													The Dock icon is hidden. The menu bar icon will remain
+													visible so you can reopen MCPMate.
+												</p>
+											)}
+										</div>
+									)}
 								</div>
 							</CardContent>
 						</Card>
@@ -533,10 +674,12 @@ export function SettingsPage() {
 								{/* Show Default Headers (redacted) */}
 								<div className="flex items-center justify-between gap-4">
 									<div>
-										<h3 className="text-base font-medium">Show Default HTTP Headers</h3>
+										<h3 className="text-base font-medium">
+											Show Default HTTP Headers
+										</h3>
 										<p className="text-sm text-slate-500">
-											Display the server's default HTTP headers (values are redacted) in
-											Server Details. Use only for debugging.
+											Display the server's default HTTP headers (values are
+											redacted) in Server Details. Use only for debugging.
 										</p>
 									</div>
 									<Switch

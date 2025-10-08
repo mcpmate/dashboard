@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { isTauriEnvironmentSync } from "./platform";
 import type {
 	MarketPortalDefinition,
 	MarketPortalId,
@@ -14,6 +15,7 @@ export type DashboardAppMode = "express" | "expert";
 export type DashboardLanguage = "en" | "zh-cn" | "ja";
 export type ClientDefaultMode = "hosted" | "transparent";
 export type ClientBackupStrategy = "keep_n" | "keep_last" | "none";
+export type MenuBarIconMode = "runtime" | "hidden";
 export type DefaultMarket = "official" | MarketPortalId;
 
 export type MarketPortalMeta = MarketPortalDefinition;
@@ -45,17 +47,17 @@ function sanitizeMarketPortalMeta(
 	const label =
 		typeof input.label === "string" && input.label.trim()
 			? input.label.trim()
-			: fallback?.label ?? canonical.label;
+			: (fallback?.label ?? canonical.label);
 	const remoteOrigin =
 		typeof (input as Partial<MarketPortalDefinition>).remoteOrigin ===
 			"string" &&
 		(input as Partial<MarketPortalDefinition>).remoteOrigin?.trim()
 			? (input as Partial<MarketPortalDefinition>).remoteOrigin.trim()
-			: fallback?.remoteOrigin ?? canonical.remoteOrigin;
+			: (fallback?.remoteOrigin ?? canonical.remoteOrigin);
 	const proxyPathRaw =
 		typeof input.proxyPath === "string" && input.proxyPath.trim()
 			? input.proxyPath.trim()
-			: fallback?.proxyPath ?? canonical.proxyPath;
+			: (fallback?.proxyPath ?? canonical.proxyPath);
 	if (!label || !proxyPathRaw) return null;
 	const proxyPath = proxyPathRaw.endsWith("/")
 		? proxyPathRaw
@@ -63,16 +65,16 @@ function sanitizeMarketPortalMeta(
 	const favicon =
 		typeof input.favicon === "string" && input.favicon.trim()
 			? input.favicon.trim()
-			: fallback?.favicon ?? canonical.favicon;
+			: (fallback?.favicon ?? canonical.favicon);
 	const proxyFavicon =
 		typeof input.proxyFavicon === "string" && input.proxyFavicon.trim()
 			? input.proxyFavicon.trim()
-			: fallback?.proxyFavicon ?? canonical.proxyFavicon;
+			: (fallback?.proxyFavicon ?? canonical.proxyFavicon);
 	const adapter =
 		typeof (input as Partial<MarketPortalDefinition>).adapter === "string" &&
 		(input as Partial<MarketPortalDefinition>).adapter?.trim()
 			? (input as Partial<MarketPortalDefinition>).adapter!.trim()
-			: fallback?.adapter ?? canonical.adapter ?? "default";
+			: (fallback?.adapter ?? canonical.adapter ?? "default");
 	const locales =
 		Array.isArray((input as Partial<MarketPortalDefinition>).locales) &&
 		((input as Partial<MarketPortalDefinition>).locales?.length ?? 0) > 0
@@ -80,7 +82,7 @@ function sanitizeMarketPortalMeta(
 					(locale): locale is string =>
 						typeof locale === "string" && locale.trim().length > 0,
 				)
-			: fallback?.locales ?? canonical.locales;
+			: (fallback?.locales ?? canonical.locales);
 
 	return {
 		id: targetId,
@@ -101,10 +103,12 @@ export interface DashboardSettings {
 	syncServerStateToClients: boolean;
 	autoAddServerToDefaultProfile: boolean;
 	enableServerDebug: boolean;
-    openDebugInNewWindow: boolean;
-    showRawCapabilityJson: boolean;
-    // Developer: show default HTTP headers (redacted) in Server Details
-    showDefaultHeaders: boolean;
+	openDebugInNewWindow: boolean;
+	showRawCapabilityJson: boolean;
+	// Developer: show default HTTP headers (redacted) in Server Details
+	showDefaultHeaders: boolean;
+	menuBarIconMode: MenuBarIconMode;
+	showDockIcon: boolean;
 	clientDefaultMode: ClientDefaultMode;
 	clientBackupStrategy: ClientBackupStrategy;
 	clientBackupLimit: number;
@@ -143,22 +147,24 @@ interface AppState {
 const DASHBOARD_SETTINGS_KEY = "mcp_dashboard_settings";
 
 const defaultDashboardSettings: DashboardSettings = {
-	defaultView: "list",
-	appMode: "express",
+	defaultView: "grid",
+	appMode: "expert",
 	language: "en",
 	syncServerStateToClients: false,
-	autoAddServerToDefaultProfile: true,
-	enableServerDebug: false,
-    openDebugInNewWindow: false,
-    showRawCapabilityJson: false,
-    showDefaultHeaders: false,
+	autoAddServerToDefaultProfile: false,
+	enableServerDebug: true,
+	openDebugInNewWindow: false,
+	showRawCapabilityJson: false,
+	showDefaultHeaders: true,
+	menuBarIconMode: "runtime",
+	showDockIcon: true,
 	clientDefaultMode: "hosted",
-	clientBackupStrategy: "keep_last",
-	clientBackupLimit: 3,
+	clientBackupStrategy: "keep_n",
+	clientBackupLimit: 5,
 	marketBlacklist: [],
-	enableMarketBlacklist: true,
+	enableMarketBlacklist: false,
 	showApiDocsMenu: false,
-	defaultMarket: "official",
+	defaultMarket: "mcpmarket",
 	marketPortals: cloneMarketPortals(DEFAULT_MARKET_PORTALS),
 };
 
@@ -210,13 +216,28 @@ function normalizeDashboardSettings(
 		next.openDebugInNewWindow = patch.openDebugInNewWindow;
 	}
 
-    if (typeof patch.showRawCapabilityJson === "boolean") {
-        next.showRawCapabilityJson = patch.showRawCapabilityJson;
-    }
+	if (typeof patch.showRawCapabilityJson === "boolean") {
+		next.showRawCapabilityJson = patch.showRawCapabilityJson;
+	}
 
-    if (typeof patch.showDefaultHeaders === "boolean") {
-        next.showDefaultHeaders = patch.showDefaultHeaders;
-    }
+	if (typeof patch.showDefaultHeaders === "boolean") {
+		next.showDefaultHeaders = patch.showDefaultHeaders;
+	}
+
+	if (
+		patch.menuBarIconMode === "runtime" ||
+		patch.menuBarIconMode === "hidden"
+	) {
+		next.menuBarIconMode = patch.menuBarIconMode;
+	}
+
+	if (typeof patch.showDockIcon === "boolean") {
+		next.showDockIcon = patch.showDockIcon;
+	}
+
+	if (!next.showDockIcon) {
+		next.menuBarIconMode = "runtime";
+	}
 
 	if (typeof patch.showApiDocsMenu === "boolean") {
 		next.showApiDocsMenu = patch.showApiDocsMenu;
@@ -226,14 +247,14 @@ function normalizeDashboardSettings(
 		next.enableMarketBlacklist = patch.enableMarketBlacklist;
 	}
 
-    // Accept any known portal id (built-in or merged) in addition to "official"
-    if (patch.defaultMarket) {
-        if (patch.defaultMarket === "official") {
-            next.defaultMarket = "official";
-        } else if (MARKET_PORTAL_MAP[patch.defaultMarket as string]) {
-            next.defaultMarket = patch.defaultMarket as any;
-        }
-    }
+	// Accept any known portal id (built-in or merged) in addition to "official"
+	if (patch.defaultMarket) {
+		if (patch.defaultMarket === "official") {
+			next.defaultMarket = "official";
+		} else if (MARKET_PORTAL_MAP[patch.defaultMarket as string]) {
+			next.defaultMarket = patch.defaultMarket as any;
+		}
+	}
 
 	if (
 		patch.clientDefaultMode === "hosted" ||
@@ -327,6 +348,27 @@ function persistDashboardSettings(settings: DashboardSettings) {
 		}
 	} catch {
 		// Swallow persistence errors to avoid blocking UI updates.
+	}
+	void syncDesktopShellPreferences(settings);
+}
+
+async function syncDesktopShellPreferences(settings: DashboardSettings) {
+	if (!isTauriEnvironmentSync()) {
+		return;
+	}
+
+	try {
+		const { invoke } = await import("@tauri-apps/api/core");
+		await invoke("mcp_shell_apply_preferences", {
+			payload: {
+				menuBarIconMode: settings.menuBarIconMode,
+				showDockIcon: settings.showDockIcon,
+			},
+		});
+	} catch (error) {
+		if (import.meta.env.DEV) {
+			console.warn("[store] Failed to sync desktop shell preferences", error);
+		}
 	}
 }
 

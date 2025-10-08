@@ -103,7 +103,9 @@ export function Sidebar() {
 						)}
 					/>
 					{sidebarOpen && (
-						<span className="font-bold text-xl dark:text-white">MCPMate</span>
+						<span className="font-bold text-xl dark:text-white">
+							MCPMate <sup className="text-[9px] text-red-500">Alpha</sup>
+						</span>
 					)}
 					<Button
 						variant="ghost"

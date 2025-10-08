@@ -1,11 +1,12 @@
 import React from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { useAppStore } from "../../lib/store";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 
 export function Layout() {
 	const { sidebarOpen, theme, setSidebarOpen } = useAppStore();
+	const navigate = useNavigate();
 
 	// Apply theme and react to changes (system/manual)
 	React.useEffect(() => {
@@ -39,6 +40,42 @@ export function Layout() {
 			if (mediaQuery) mediaQuery.removeEventListener("change", onChange);
 		};
 	}, [theme]);
+
+	React.useEffect(() => {
+		let unlistenMain: (() => void) | undefined;
+		let unlistenSettings: (() => void) | undefined;
+		let cancelled = false;
+
+		const bind = async () => {
+			try {
+				const { listen } = await import("@tauri-apps/api/event");
+				if (cancelled) {
+					return;
+				}
+				unlistenMain = await listen("mcpmate://open-main", () => {
+					navigate("/");
+				});
+				unlistenSettings = await listen("mcpmate://open-settings", () => {
+					navigate("/settings");
+				});
+			} catch (error) {
+				if (import.meta.env.DEV) {
+					console.warn("[Layout] Failed to bind desktop shell events", error);
+				}
+			}
+		};
+
+		void bind();
+		return () => {
+			cancelled = true;
+			if (unlistenMain) {
+				void unlistenMain();
+			}
+			if (unlistenSettings) {
+				void unlistenSettings();
+			}
+		};
+	}, [navigate]);
 
 	// Responsive sidebar: auto-collapse on small screens; if it was auto-collapsed,
 	// re-open when returning to large screens. Manual toggles remain respected.
@@ -96,7 +133,7 @@ export function Layout() {
 					</div>
 					<footer className="mt-6 text-[11px] text-slate-500 border-t border-slate-200 dark:border-slate-900 pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 						<div>
-							MCPMate Preview <span className="font-mono">v0.1.0</span>
+							MCPMate Board <span className="font-mono">v0.1.0</span>
 						</div>
 						<div className="flex items-center gap-3">
 							<a
