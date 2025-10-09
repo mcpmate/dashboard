@@ -27,6 +27,7 @@ import {
 	slugifyForConfig,
 	useDebouncedValue,
 } from "./utils";
+import { buildPortalUrlWithLocale } from "./portal-registry";
 
 // Market mode types and interfaces
 interface RemoteOption {
@@ -73,6 +74,11 @@ export function MarketPage() {
 		return portalMap[currentTab.portalId];
 	}, [currentTab, portalMap]);
 	const isOfficialTab = currentTab?.type === "official";
+	const currentPortalId = currentPortal?.id ?? null;
+
+	const dashboardLanguage = useAppStore(
+		(state) => state.dashboardSettings.language,
+	);
 
 	// Search and sort state (only for official tab)
 	const [search, setSearch] = useState("");
@@ -127,9 +133,18 @@ export function MarketPage() {
 		Record<string, number>
 	>({});
 
-	const portalRefreshKey = currentPortal
-		? (portalRefreshMap[currentPortal.id] ?? 0)
+	const portalRefreshKey = currentPortalId
+		? portalRefreshMap[currentPortalId] ?? 0
 		: 0;
+
+	useEffect(() => {
+		if (isOfficialTab) return;
+		if (!currentPortalId) return;
+		setPortalRefreshMap((prev) => ({
+			...prev,
+			[currentPortalId]: (prev[currentPortalId] ?? 0) + 1,
+		}));
+	}, [dashboardLanguage, currentPortalId, isOfficialTab]);
 
 	const handleRefreshClick = useCallback(() => {
 		if (isOfficialTab) {
@@ -529,16 +544,20 @@ export function MarketPage() {
 				) : (
 					/* Third-party portal content */
 					<div className="mt-6 flex flex-col">
-						{currentPortal ? (
-							<MarketIframe
-								key={`${currentPortal.id}-${portalRefreshKey}`}
-								url={currentTab?.url ?? currentPortal.proxyPath}
-								title={currentPortal.label}
-								portalId={currentPortal.id}
-								proxyPath={currentPortal.proxyPath}
-								refreshKey={portalRefreshKey}
-							/>
-						) : (
+		{currentPortal ? (
+			<MarketIframe
+				key={`${currentPortal.id}-${portalRefreshKey}`}
+				url={buildPortalUrlWithLocale(
+					currentPortal,
+					currentTab?.url ?? currentPortal.proxyPath,
+					dashboardLanguage,
+				)}
+				title={currentPortal.label}
+				portalId={currentPortal.id}
+				proxyPath={currentPortal.proxyPath}
+				refreshKey={portalRefreshKey}
+			/>
+		) : (
 							<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
 								<div className="space-y-2">
 									<h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">

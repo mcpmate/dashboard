@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageSquare, Moon, Sun } from "lucide-react";
+import { ArrowLeft, BookOpen, MessageSquare, Moon, Sun } from "lucide-react";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -8,7 +8,7 @@ import { NotificationCenter } from "../notification-center";
 const FEEDBACK_EMAIL = "MCPMate Team <info@mcpmate.io>";
 const FEEDBACK_SUBJECT = encodeURIComponent("MCPMate preview feedback");
 const FEEDBACK_BODY = encodeURIComponent(
-	"Hi MCPMate team,\n\nDescribe your feedback here:\n\n— Sent from MCPMate preview\n",
+	"Hi MCPMate team,\n\nDescribe your feedback here:\n\n\n\n— Sent from MCPMate preview\n",
 );
 const FEEDBACK_MAILTO = `mailto:${FEEDBACK_EMAIL}?subject=${FEEDBACK_SUBJECT}&body=${FEEDBACK_BODY}`;
 
@@ -51,7 +51,7 @@ export function Header() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { theme, setTheme, sidebarOpen } = useAppStore();
-	const { t } = useTranslation();
+	const { t, i18n } = useTranslation();
 
 	const toggleTheme = () => {
 		setTheme(theme === "dark" ? "light" : "dark");
@@ -71,6 +71,14 @@ export function Header() {
 			window.open(FEEDBACK_MAILTO, "_blank", "noopener,noreferrer");
 		}
 	}, []);
+
+	const handleDocsClick = useCallback(() => {
+		const lang = i18n.language?.startsWith("zh") ? "zh" : "en";
+		const targetUrl = `https://docs.mcpmate.io/i18n/${lang}`;
+		if (typeof window !== "undefined") {
+			window.open(targetUrl, "_blank", "noopener,noreferrer");
+		}
+	}, [i18n.language]);
 
 	const isMainRoute = MAIN_ROUTES.includes(location.pathname);
 	const routeKey = ROUTE_KEYS[location.pathname];
@@ -121,6 +129,16 @@ export function Header() {
 						})}
 					>
 						<MessageSquare size={20} />
+					</button>
+					<button
+						type="button"
+						onClick={handleDocsClick}
+						className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+						aria-label={t("header.openDocs", {
+							defaultValue: "Open documentation",
+						})}
+					>
+						<BookOpen size={20} />
 					</button>
 					{/* Theme toggle button */}
 					<button

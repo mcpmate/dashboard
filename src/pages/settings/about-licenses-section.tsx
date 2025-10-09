@@ -63,13 +63,13 @@ function PackageRow({ pkg }: { pkg: OpenSourcePackage }) {
 					)}
 				</p>
 				{pkg.description && (
-					<p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+					<p className="mt-1 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">
 						{pkg.description}
 					</p>
 				)}
 			</div>
-			<div className="flex flex-col items-end justify-center gap-1 text-[11px] leading-tight text-slate-600 dark:text-slate-400">
-				<span className="font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+			<div className="flex min-w-[120px] max-w-[200px] flex-col items-end justify-center gap-1 text-right text-[11px] leading-tight text-slate-600 dark:text-slate-400">
+				<span className="block w-full truncate font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
 					{licenseLabel}
 				</span>
 				{repositoryLink && (
@@ -77,7 +77,7 @@ function PackageRow({ pkg }: { pkg: OpenSourcePackage }) {
 						href={repositoryLink}
 						target="_blank"
 						rel="noreferrer"
-						className="inline-flex items-center gap-1 font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+						className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-emerald-600 hover:underline dark:text-emerald-400"
 					>
 						{linkLabel}
 						<ExternalLink className="h-3 w-3" aria-hidden />

@@ -83,6 +83,46 @@ function sanitizeMarketPortalMeta(
 						typeof locale === "string" && locale.trim().length > 0,
 				)
 			: (fallback?.locales ?? canonical.locales);
+	const localeParamInput =
+		(input as Partial<MarketPortalDefinition>).localeParam ??
+		fallback?.localeParam ??
+		canonical.localeParam;
+	let localeParam: MarketPortalDefinition["localeParam"] | undefined;
+	if (localeParamInput && typeof localeParamInput === "object") {
+		const keyRaw = (localeParamInput as { key?: unknown }).key;
+		const key =
+			typeof keyRaw === "string" && keyRaw.trim().length > 0
+				? keyRaw.trim()
+				: undefined;
+		const mappingRaw = (localeParamInput as { mapping?: unknown }).mapping;
+		const mapping =
+			mappingRaw && typeof mappingRaw === "object"
+				? Object.fromEntries(
+						Object.entries(mappingRaw as Record<string, unknown>).reduce(
+								(acc, [mapKey, mapValue]) => {
+									if (typeof mapKey !== "string") return acc;
+									const trimmedKey = mapKey.trim().toLowerCase();
+									if (!trimmedKey) return acc;
+									if (typeof mapValue !== "string") return acc;
+									const trimmedValue = mapValue.trim();
+									if (!trimmedValue) return acc;
+									acc.push([trimmedKey, trimmedValue]);
+									return acc;
+								}, [] as Array<[string, string]>),
+					)
+				: undefined;
+		const fallbackLocale =
+			typeof (localeParamInput as { fallback?: unknown }).fallback === "string"
+				? ((localeParamInput as { fallback?: string }).fallback ?? "").trim()
+				: undefined;
+		if (key) {
+			localeParam = {
+				key,
+				...(mapping ? { mapping } : {}),
+				...(fallbackLocale ? { fallback: fallbackLocale } : {}),
+			};
+		}
+	}
 
 	return {
 		id: targetId,
@@ -93,6 +133,7 @@ function sanitizeMarketPortalMeta(
 		proxyFavicon,
 		adapter,
 		...(locales ? { locales } : {}),
+		...(localeParam ? { localeParam } : {}),
 	};
 }
 

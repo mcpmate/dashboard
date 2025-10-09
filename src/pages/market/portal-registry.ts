@@ -7,6 +7,11 @@ export interface MarketPortalDefinition {
   favicon?: string;
   proxyFavicon?: string;
   locales?: string[];
+  localeParam?: {
+    key: string;
+    mapping?: Record<string, string>;
+    fallback?: string;
+  };
 }
 
 const ensureTrailingSlash = (value: string) =>
@@ -41,6 +46,15 @@ export const BUILTIN_MARKET_PORTALS: MarketPortalDefinition[] = [
     adapter: "mcpmarket",
     favicon: "https://mcpmarket.cn/static/img/favicon.ico",
     proxyFavicon: `${MARKET_PROXY_BASE}/mcpmarket/static/img/favicon.ico`,
+    localeParam: {
+      key: "lang",
+      mapping: {
+        en: "en",
+        "zh-cn": "zh",
+        ja: "ja",
+      },
+      fallback: "en",
+    },
   },
 ];
 
@@ -92,3 +106,71 @@ export const mergePortalOverrides = (
 };
 
 export type MarketPortalId = keyof typeof MARKET_PORTAL_MAP;
+
+const resolveLanguageValue = (
+  language: string | undefined,
+  mapping: Record<string, string> | undefined,
+  fallback: string | undefined,
+): string | null => {
+  if (!language) {
+    return fallback ?? null;
+  }
+
+  const normalized = language.toLowerCase();
+  if (mapping) {
+    if (mapping[normalized]) {
+      return mapping[normalized];
+    }
+    const prefix = normalized.split(/[._-]/)[0] ?? normalized;
+    if (mapping[prefix]) {
+      return mapping[prefix];
+    }
+  }
+
+  if (fallback) {
+    return fallback;
+  }
+
+  return normalized;
+};
+
+export const buildPortalUrlWithLocale = (
+  portal: MarketPortalDefinition,
+  baseUrl: string,
+  language: string | undefined,
+): string => {
+  const localeParam = portal.localeParam;
+  if (!localeParam || !localeParam.key) {
+    return baseUrl;
+  }
+
+  const value = resolveLanguageValue(
+    language,
+    localeParam.mapping,
+    localeParam.fallback,
+  );
+
+  if (!value) {
+    return baseUrl;
+  }
+
+  try {
+    const absoluteScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+    const target = new URL(
+      baseUrl,
+      typeof window !== "undefined" ? window.location.origin : portal.remoteOrigin,
+    );
+    target.searchParams.set(localeParam.key, value);
+    // Preserve relative URLs when original was relative
+    if (!absoluteScheme.test(baseUrl)) {
+      return `${target.pathname}${target.search}${target.hash}`;
+    }
+    if (absoluteScheme.test(baseUrl)) {
+      return target.toString();
+    }
+    return baseUrl;
+  } catch {
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${separator}${localeParam.key}=${encodeURIComponent(value)}`;
+  }
+};
