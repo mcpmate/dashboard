@@ -148,7 +148,7 @@ export function SettingsPage() {
 	const languageId = useId();
 	const backupLimitId = useId();
 	const menuBarSelectId = useId();
-	const { t } = useTranslation();
+	const { t, i18n } = useTranslation();
 
 	const theme = useAppStore((state) => state.theme);
 	const setTheme = useAppStore((state) => state.setTheme);
@@ -177,7 +177,7 @@ export function SettingsPage() {
 				label: t(labelKey, { defaultValue: fallback }),
 				icon: <Icon className="h-4 w-4" />,
 			})),
-		[t],
+		[t, i18n.language],
 	);
 
 	const defaultViewOptions = useMemo<SegmentOption[]>(
@@ -186,7 +186,7 @@ export function SettingsPage() {
 				value,
 				label: t(labelKey, { defaultValue: fallback }),
 			})),
-		[t],
+		[t, i18n.language],
 	);
 
 	const applicationModeOptions = useMemo<SegmentOption[]>(
@@ -195,7 +195,7 @@ export function SettingsPage() {
 				value,
 				label: t(labelKey, { defaultValue: fallback }),
 			})),
-		[t],
+		[t, i18n.language],
 	);
 
 	const clientModeOptions = useMemo<SegmentOption[]>(
@@ -204,7 +204,7 @@ export function SettingsPage() {
 				value,
 				label: t(labelKey, { defaultValue: fallback }),
 			})),
-		[t],
+		[t, i18n.language],
 	);
 
 	const backupStrategyOptions = useMemo<SegmentOption[]>(
@@ -213,16 +213,16 @@ export function SettingsPage() {
 				value,
 				label: t(labelKey, { defaultValue: fallback }),
 			})),
-		[t],
+		[t, i18n.language],
 	);
 
 	const languageOptions = useMemo(
 		() =>
-			SUPPORTED_LANGUAGES.map(({ store, i18n, fallback }) => ({
+			SUPPORTED_LANGUAGES.map(({ store, i18n: langCode, fallback }) => ({
 				value: store,
-				label: t(`languageNames.${i18n}`, { defaultValue: fallback }),
+				label: t(`languageNames.${langCode}`, { defaultValue: fallback }),
 			})),
-		[t],
+		[t, i18n.language],
 	);
 
 	const menuBarOptions = useMemo(
@@ -233,7 +233,7 @@ export function SettingsPage() {
 					defaultValue: option.fallback,
 				}),
 			})),
-		[t],
+		[t, i18n.language],
 	);
 
 	// Build available portals list for Default Market selector

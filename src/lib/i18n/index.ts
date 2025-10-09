@@ -36,9 +36,8 @@ const baseResources = {
 export const loadTranslations = (namespace: string, translations: any) => {
 	// 为每种语言添加翻译
 	Object.keys(translations).forEach((lang) => {
-		if (!i18n.hasResourceBundle(lang, namespace)) {
-			i18n.addResourceBundle(lang, namespace, translations[lang], true, true);
-		}
+		// 始终添加/更新资源束，deep=true, overwrite=true 确保正确合并
+		i18n.addResourceBundle(lang, namespace, translations[lang], true, true);
 	});
 };
 

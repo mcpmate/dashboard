@@ -80,7 +80,7 @@ export const navigationTranslations = {
 		},
 		notifications: {
 			title: "通知",
-			markAllRead: "全部标记为已读",
+			markAllRead: "全部已读",
 			clear: "清空",
 			noNotifications: "暂无通知",
 		},

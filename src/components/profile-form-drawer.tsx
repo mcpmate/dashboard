@@ -93,7 +93,7 @@ export function ProfileFormDrawer({
 	onSuccess,
 	restrictProfileType,
 }: ProfileFormDrawerProps) {
-	const { t } = useTranslation();
+	const { t, i18n } = useTranslation();
 	usePageTranslations("profiles");
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -581,7 +581,7 @@ export function ProfileFormDrawer({
 		return Array.from(serverMap.values()).sort((a, b) =>
 			a.name.localeCompare(b.name),
 		);
-	}, [allServers, profileServers]);
+	}, [allServers, profileServers, i18n.language]);
 
 	// 获取当前已经纳入管理的服务器 ID 列表
 	const targetServerKeys = useMemo(() => {
@@ -636,15 +636,69 @@ export function ProfileFormDrawer({
 		const resourceCount = cloneContent?.resources?.length ?? 0;
 		const promptCount = cloneContent?.prompts?.length ?? 0;
 
+		const typeValue = selected.suit_type
+			? t(`profiles:suitTypes.${selected.suit_type}`, {
+					defaultValue: formatProfileTypeLabel(selected.suit_type),
+				})
+			: formatProfileTypeLabel(selected.suit_type ?? "");
+
 		const details = [
-			{ label: "Type", value: formatProfileTypeLabel(selected.suit_type) },
-			{ label: "Priority", value: selected.priority ?? "—" },
-			{ label: "Multi-select", value: selected.multi_select ? "Yes" : "No" },
-			{ label: "Status", value: selected.is_active ? "Active" : "Inactive" },
-			{ label: "Servers", value: serverCount },
-			{ label: "Tools", value: toolCount },
-			{ label: "Resources", value: resourceCount },
-			{ label: "Prompts", value: promptCount || "—" },
+			{
+				label: t("profiles:form.clonePreview.labels.type", {
+					defaultValue: "Type",
+				}),
+				value: typeValue,
+			},
+			{
+				label: t("profiles:form.clonePreview.labels.priority", {
+					defaultValue: "Priority",
+				}),
+				value: selected.priority ?? "—",
+			},
+			{
+				label: t("profiles:form.clonePreview.labels.multiSelect", {
+					defaultValue: "Multi-select",
+				}),
+				value: selected.multi_select
+					? t("yes", { defaultValue: "Yes" })
+					: t("no", { defaultValue: "No" }),
+			},
+			{
+				label: t("profiles:form.clonePreview.labels.status", {
+					defaultValue: "Status",
+				}),
+				value: selected.is_active
+					? t("profiles:form.clonePreview.values.active", {
+							defaultValue: "Active",
+						})
+					: t("profiles:form.clonePreview.values.inactive", {
+							defaultValue: "Inactive",
+						}),
+			},
+			{
+				label: t("profiles:form.clonePreview.labels.servers", {
+					defaultValue: "Servers",
+				}),
+				value: serverCount,
+			},
+			{
+				label: t("profiles:form.clonePreview.labels.tools", {
+					defaultValue: "Tools",
+				}),
+				value: toolCount,
+			},
+			{
+				label: t("profiles:form.clonePreview.labels.resources", {
+					defaultValue: "Resources",
+				}),
+				value: resourceCount,
+			},
+			{
+				label: t("profiles:form.clonePreview.labels.prompts", {
+					defaultValue: "Prompts",
+				}),
+				value: promptCount || "—",
+			},
 		];
 
 		return (
@@ -666,7 +720,9 @@ export function ProfileFormDrawer({
 				</div>
 				{clonePreviewLoading && (
 					<p className="mt-3 text-xs text-muted-foreground">
-						Loading capabilities…
+						{t("profiles:form.clonePreview.loading", {
+							defaultValue: "Loading capabilities…",
+						})}
 					</p>
 				)}
 			</div>
@@ -676,6 +732,7 @@ export function ProfileFormDrawer({
 		cloneContent,
 		formData.clone_from_id,
 		clonePreviewLoading,
+		i18n.language,
 	]);
 
 	const selectedCloneProfile = useMemo(

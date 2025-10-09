@@ -3,8 +3,9 @@
 ## Collaboration Rhythm (Discuss → Build → Report)
 - Day-to-day coordination with LLM/AI agents is done in **Chinese**.
 - Source code, doc comments, documentation, and git commit messages stay in **English** for consistency across the repository.
-- Before coding, analyze the context, requirements, and existing docs; propose your approach and proceed. Don’t pause frequently unless information is missing or there’s a major risk.
+- Before coding, analyze the context, requirements, and existing docs; propose your approach and proceed. Don't pause frequently unless information is missing or there's a major risk.
 - Execute continuously during coding/testing; note key assumptions, trade-offs, and dependencies. Provide a single consolidated report on completion (results, decisions, validation, follow-ups).
+- **i18n compliance**: All user-facing strings must be internationalized. Never hardcode UI text. See i18n guidelines below for critical requirements.
 
 ## Project Structure & Module Organization (this repo)
 - Frontend app built with Vite + React 18 + TypeScript + Tailwind + shadcn/ui.
@@ -59,6 +60,24 @@ Backend expectations
 
 ### Overview
 The project uses `react-i18next` for internationalization with support for English (`en`), Simplified Chinese (`zh-CN`), and Japanese (`ja-JP`).
+
+### Critical Requirements
+
+1. **Translation files MUST use nested object structure**
+   - Never use string keys with dots (e.g., `"status.ready"`)
+   - Always use nested objects (e.g., `status: { ready: "Ready" }`)
+   - i18next cannot properly resolve dot-notation string keys
+
+2. **React hooks MUST include i18n.language in dependencies**
+   - When using `useMemo`, `useCallback`, or `useEffect` with translation functions
+   - Extract `i18n` from `useTranslation()` hook: `const { t, i18n } = useTranslation()`
+   - Include `i18n.language` in dependency arrays to ensure re-computation on language change
+   - Without this, translations may appear to "flash" correct then revert to English
+
+3. **Page translation loading MUST happen before first render**
+   - Call `usePageTranslations("pageName")` at the very top of page components
+   - The hook ensures i18n is initialized before loading translations
+   - Delays in loading can cause visual "flashing" of untranslated content
 
 ### Translation File Structure
 ```
@@ -188,6 +207,29 @@ t("settings:about.components", {
 4. **Keep translations complete**: Add all three languages (en, zh-CN, ja-JP) when adding new keys
 5. **Use semantic keys**: Make keys self-documenting (e.g., `enableBlacklistDescription` not `ebd`)
 6. **Test in all languages**: Switch language in Settings and verify all text displays correctly
+7. **React to language changes**: When using `useMemo` with translations, always include `i18n.language` in dependencies
+
+### Debugging i18n Issues
+
+**Symptom: Translations "flash" correct then revert to English**
+- **Root cause**: Missing `i18n.language` in `useMemo`/`useCallback`/`useEffect` dependencies
+- **Fix**: Add `i18n.language` to dependency array
+- **Check**: Search for `useMemo.*\[t\]` pattern without `i18n.language`
+
+**Symptom: Translations don't load at all / always show fallback**
+- **Root cause 1**: Using string keys with dots in translation files (e.g., `"status.ready"`)
+- **Fix**: Change to nested objects (e.g., `status: { ready: "Ready" }`)
+- **Root cause 2**: Wrong namespace prefix or missing namespace
+- **Fix**: Verify page translations are loaded and prefix matches namespace
+
+**Symptom: TypeScript errors about duplicate keys**
+- **Root cause**: Same language key defined twice in translation file
+- **Fix**: Search for duplicate language codes (e.g., `"zh-CN":`) and merge definitions
+
+**Symptom: Console warnings about missing translations**
+- **Check 1**: Verify translation key exists in all three language files
+- **Check 2**: Confirm `usePageTranslations()` is called before using translations
+- **Check 3**: Ensure `defaultValue` is provided as fallback
 
 ### Common Mistakes to Avoid
 
@@ -247,6 +289,52 @@ import type { TFunction } from "i18next";
 function useMyHook(t?: TFunction) {  // CORRECT
   return t("market:title", { defaultValue: "..." });  // Works!
 }
+```
+
+❌ **Missing i18n.language in useMemo dependencies**
+```typescript
+const { t } = useTranslation();
+
+const options = useMemo(
+  () => CONFIG.map(({ labelKey }) => ({
+    label: t(labelKey, { defaultValue: "..." }),
+  })),
+  [t],  // WRONG - translations won't update when language changes
+);
+```
+
+✅ **Include i18n.language in dependencies**
+```typescript
+const { t, i18n } = useTranslation();
+
+const options = useMemo(
+  () => CONFIG.map(({ labelKey }) => ({
+    label: t(labelKey, { defaultValue: "..." }),
+  })),
+  [t, i18n.language],  // CORRECT - will re-compute when language changes
+);
+```
+
+❌ **Using string keys with dots instead of nested objects**
+```typescript
+// In translation file
+export const commonTranslations = {
+  en: {
+    "status.ready": "Ready",  // WRONG - i18next expects nested objects
+  },
+};
+```
+
+✅ **Use nested object structure**
+```typescript
+// In translation file
+export const commonTranslations = {
+  en: {
+    status: {
+      ready: "Ready",  // CORRECT - nested object structure
+    },
+  },
+};
 ```
 
 ### Language Detection
