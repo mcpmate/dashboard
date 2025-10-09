@@ -2,6 +2,7 @@ import { Controller } from "react-hook-form";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import type { ManualServerFormValues } from "../types";
+import { useTranslation } from "react-i18next";
 
 interface CommandFieldProps {
 	kind: ManualServerFormValues["kind"];
@@ -24,6 +25,7 @@ export function CommandField({
 	urlInputRef,
 	viewMode,
 }: CommandFieldProps) {
+	const { t } = useTranslation("servers");
 	if (viewMode !== "form") return null;
 
 	const isStdio = kind === "stdio";
@@ -31,7 +33,7 @@ export function CommandField({
 	return isStdio ? (
 		<div key={`stdio-${kind}`} className="flex items-center gap-4">
 			<Label htmlFor={commandId} className="w-20 text-right">
-				Command
+				{t("manual.fields.command.label", { defaultValue: "Command" })}
 			</Label>
 			<div className="flex-1">
 				<Controller
@@ -45,19 +47,25 @@ export function CommandField({
 								field.ref(el);
 								commandInputRef.current = el;
 							}}
-							placeholder="e.g., uvx my-mcp"
+							placeholder={t("manual.fields.command.placeholder", {
+								defaultValue: "e.g., uvx my-mcp",
+							})}
 						/>
 					)}
 				/>
 				{errors.command && (
-					<p className="text-xs text-red-500">{errors.command.message}</p>
+					<p className="text-xs text-red-500">
+						{t(errors.command.message ?? "", {
+							defaultValue: errors.command.message,
+						})}
+					</p>
 				)}
 			</div>
 		</div>
 	) : (
 		<div key={`url-${kind}`} className="flex items-center gap-4">
 			<Label htmlFor={urlId} className="w-20 text-right">
-				Server URL
+				{t("manual.fields.url.label", { defaultValue: "Server URL" })}
 			</Label>
 			<div className="flex-1">
 				<Controller
@@ -71,12 +79,18 @@ export function CommandField({
 								field.ref(el);
 								urlInputRef.current = el;
 							}}
-							placeholder="https://example.com/mcp"
+							placeholder={t("manual.fields.url.placeholder", {
+								defaultValue: "https://example.com/mcp",
+							})}
 						/>
 					)}
 				/>
 				{errors.url && (
-					<p className="text-xs text-red-500">{errors.url.message}</p>
+					<p className="text-xs text-red-500">
+						{t(errors.url.message ?? "", {
+							defaultValue: errors.url.message,
+						})}
+					</p>
 				)}
 			</div>
 		</div>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Input } from "../../ui/input";
 import { FieldList } from "../field-list";
 
@@ -24,11 +25,14 @@ export function UrlParams({
 	onDeleteClick,
 	onGhostClick,
 }: UrlParamsProps) {
+	const { t } = useTranslation("servers");
 	if (viewMode !== "form" || isStdio) return null;
 
 	return (
 		<FieldList
-			label="URL Parameters"
+			label={t("manual.fields.urlParams.label", {
+				defaultValue: "URL Parameters",
+			})}
 			fields={urlParamFields}
 			onRemove={removeUrlParam}
 			deleteConfirmStates={deleteConfirmStates}
@@ -38,7 +42,9 @@ export function UrlParams({
 					return (
 						<div className="grid grid-cols-2 gap-2">
 							<Input
-								placeholder="Parameter name"
+								placeholder={t("manual.fields.urlParams.ghostKey", {
+									defaultValue: "Parameter name",
+								})}
 								onClick={() =>
 									onGhostClick(() => appendUrlParam({ key: "", value: "" }))
 								}
@@ -46,7 +52,9 @@ export function UrlParams({
 								readOnly
 							/>
 							<Input
-								placeholder="Value"
+								placeholder={t("manual.fields.urlParams.ghostValue", {
+									defaultValue: "Value",
+								})}
 								onClick={() =>
 									onGhostClick(() => appendUrlParam({ key: "", value: "" }))
 								}
@@ -60,11 +68,15 @@ export function UrlParams({
 					<div className="grid grid-cols-2 gap-2">
 						<Input
 							{...register(`urlParams.${index}.key` as const)}
-							placeholder="Parameter"
+							placeholder={t("manual.fields.urlParams.keyPlaceholder", {
+								defaultValue: "Parameter",
+							})}
 						/>
 						<Input
 							{...register(`urlParams.${index}.value` as const)}
-							placeholder="Value"
+							placeholder={t("manual.fields.common.valuePlaceholder", {
+								defaultValue: "Value",
+							})}
 						/>
 					</div>
 				);

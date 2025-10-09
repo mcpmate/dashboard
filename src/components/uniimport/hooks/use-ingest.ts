@@ -13,6 +13,17 @@ interface UseIngestProps {
 	reset: (values?: any, options?: any) => void;
 	onSubmitMultiple?: (drafts: ServerInstallDraft[]) => Promise<void> | void;
 	onClose: () => void;
+	messages?: {
+		defaultMessage?: string;
+		parsingDropped?: string;
+		parsingPasted?: string;
+		success?: string;
+		noneDetectedError?: string;
+		noneDetectedTitle?: string;
+		noneDetectedDescription?: string;
+		parseFailedFallback?: string;
+		parseFailedTitle?: string;
+	};
 }
 
 export function useIngest({
@@ -23,10 +34,24 @@ export function useIngest({
 	reset,
 	onSubmitMultiple,
 	onClose,
+	messages,
 }: UseIngestProps) {
+	const resolvedMessages = {
+		defaultMessage: DEFAULT_INGEST_MESSAGE,
+		parsingDropped: "Parsing dropped text",
+		parsingPasted: "Parsing pasted content",
+		success: "Server configuration loaded successfully",
+		noneDetectedError: "No servers detected in the input",
+		noneDetectedTitle: "No servers detected",
+		noneDetectedDescription:
+			"We could not find any server definitions in the input.",
+		parseFailedFallback: "Failed to parse input",
+		parseFailedTitle: "Parsing failed",
+		...messages,
+	};
 	const [isIngesting, setIsIngesting] = useState(false);
 	const [ingestMessage, setIngestMessage] = useState<string>(
-		DEFAULT_INGEST_MESSAGE,
+		resolvedMessages.defaultMessage,
 	);
 	const [ingestError, setIngestError] = useState<string | null>(null);
 	const [isIngestSuccess, setIsIngestSuccess] = useState(false);
@@ -43,8 +68,8 @@ export function useIngest({
 		setIsIngestSuccess(false);
 		setIsDropZoneCollapsed(!ingestEnabled);
 		setIsDragOver(false);
-		setIngestMessage(DEFAULT_INGEST_MESSAGE);
-	}, [ingestEnabled]);
+		setIngestMessage(resolvedMessages.defaultMessage);
+	}, [ingestEnabled, resolvedMessages.defaultMessage]);
 
 	const applySingleDraftToForm = useCallback(
 		(draft: ServerInstallDraft) => {
@@ -140,10 +165,10 @@ export function useIngest({
 	const finalizeIngest = useCallback(
 		async (drafts: ServerInstallDraft[]) => {
 			if (!drafts.length) {
-				setIngestError("No servers detected in the input");
+				setIngestError(resolvedMessages.noneDetectedError);
 				notifyError(
-					"No servers detected",
-					"We could not find any server definitions in the input.",
+					resolvedMessages.noneDetectedTitle,
+					resolvedMessages.noneDetectedDescription,
 				);
 				return;
 			}
@@ -151,14 +176,22 @@ export function useIngest({
 				applySingleDraftToForm(drafts[0]);
 				setIsIngestSuccess(true);
 				setIsDropZoneCollapsed(true);
-				setIngestMessage("Server configuration loaded successfully");
+				setIngestMessage(resolvedMessages.success);
 				setIngestError(null);
 				return;
 			}
 			onSubmitMultiple?.(drafts);
 			onClose();
 		},
-		[applySingleDraftToForm, onSubmitMultiple, onClose],
+		[
+			applySingleDraftToForm,
+			onSubmitMultiple,
+			onClose,
+			resolvedMessages.noneDetectedError,
+			resolvedMessages.noneDetectedTitle,
+			resolvedMessages.noneDetectedDescription,
+			resolvedMessages.success,
+		],
 	);
 
 	const handleIngestPayload = useCallback(
@@ -175,14 +208,21 @@ export function useIngest({
 				await finalizeIngest(drafts);
 			} catch (error) {
 				const message =
-					error instanceof Error ? error.message : "Failed to parse input";
+					error instanceof Error
+						? error.message
+						: resolvedMessages.parseFailedFallback;
 				setIngestError(message);
-				notifyError("Parsing failed", message);
+				notifyError(resolvedMessages.parseFailedTitle, message);
 			} finally {
 				setIsIngesting(false);
 			}
 		},
-		[canIngestProgrammatically, finalizeIngest],
+		[
+			canIngestProgrammatically,
+			finalizeIngest,
+			resolvedMessages.parseFailedFallback,
+			resolvedMessages.parseFailedTitle,
+		],
 	);
 
 	return {

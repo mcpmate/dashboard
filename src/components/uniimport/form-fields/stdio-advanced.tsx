@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Input } from "../../ui/input";
 import { FieldList } from "../field-list";
 
@@ -30,12 +31,13 @@ export function StdioAdvanced({
 	onDeleteClick,
 	onGhostClick,
 }: StdioAdvancedProps) {
+	const { t } = useTranslation("servers");
 	if (viewMode !== "form" || !isStdio) return null;
 
 	return (
 		<div className="space-y-4">
 			<FieldList
-				label="Arguments"
+				label={t("manual.fields.args.label", { defaultValue: "Arguments" })}
 				fields={argFields}
 				onRemove={removeArg}
 				deleteConfirmStates={deleteConfirmStates}
@@ -44,7 +46,9 @@ export function StdioAdvanced({
 					if (field.id === "ghost") {
 						return (
 							<Input
-								placeholder="Add a new argument"
+								placeholder={t("manual.fields.args.ghost", {
+									defaultValue: "Add a new argument",
+								})}
 								onClick={() => onGhostClick(() => appendArg({ value: "" }))}
 								className="border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 cursor-pointer"
 								readOnly
@@ -54,14 +58,19 @@ export function StdioAdvanced({
 					return (
 						<Input
 							{...register(`args.${index}.value` as const)}
-							placeholder={`Argument ${index + 1}`}
+							placeholder={t("manual.fields.args.placeholder", {
+								defaultValue: `Argument ${index + 1}`,
+								count: index + 1,
+							})}
 							className="pr-8"
 						/>
 					);
 				}}
 			/>
 			<FieldList
-				label="Environment Variables"
+				label={t("manual.fields.env.label", {
+					defaultValue: "Environment Variables",
+				})}
 				fields={envFields}
 				onRemove={removeEnv}
 				deleteConfirmStates={deleteConfirmStates}
@@ -71,7 +80,9 @@ export function StdioAdvanced({
 						return (
 							<div className="grid grid-cols-2 gap-2">
 								<Input
-									placeholder="Add a new key"
+									placeholder={t("manual.fields.env.ghostKey", {
+										defaultValue: "Add a new key",
+									})}
 									onClick={() =>
 										onGhostClick(() => appendEnv({ key: "", value: "" }))
 									}
@@ -79,7 +90,9 @@ export function StdioAdvanced({
 									readOnly
 								/>
 								<Input
-									placeholder="Add a new value"
+									placeholder={t("manual.fields.common.ghostValue", {
+										defaultValue: "Add a new value",
+									})}
 									onClick={() =>
 										onGhostClick(() => appendEnv({ key: "", value: "" }))
 									}
@@ -93,11 +106,15 @@ export function StdioAdvanced({
 						<div className="grid grid-cols-2 gap-2">
 							<Input
 								{...register(`env.${index}.key` as const)}
-								placeholder="KEY"
+								placeholder={t("manual.fields.env.keyPlaceholder", {
+									defaultValue: "KEY",
+								})}
 							/>
 							<Input
 								{...register(`env.${index}.value` as const)}
-								placeholder="Value"
+								placeholder={t("manual.fields.common.valuePlaceholder", {
+									defaultValue: "Value",
+								})}
 							/>
 						</div>
 					);

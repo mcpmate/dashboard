@@ -1,5 +1,6 @@
 import { memo, useCallback } from "react";
 import type { KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 
 export type FormViewMode = "form" | "json";
 
@@ -16,6 +17,7 @@ export const FormViewModeToggle = memo(function FormViewModeToggle({
 	variant = "default",
 	className,
 }: FormViewModeToggleProps) {
+	const { t } = useTranslation("servers");
 	const handleForm = useCallback(() => {
 		onChange("form");
 	}, [onChange]);
@@ -53,7 +55,7 @@ export const FormViewModeToggle = memo(function FormViewModeToggle({
 						: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
 				}`}
 			>
-				Form
+				{t("manual.viewMode.form", { defaultValue: "Form" })}
 			</button>
 			<button
 				type="button"
@@ -65,7 +67,7 @@ export const FormViewModeToggle = memo(function FormViewModeToggle({
 						: "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
 				}`}
 			>
-				JSON
+				{t("manual.viewMode.json", { defaultValue: "JSON" })}
 			</button>
 		</div>
 	);

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Input } from "../../ui/input";
 import { FieldList } from "../field-list";
 
@@ -24,11 +25,12 @@ export function HttpHeaders({
 	onDeleteClick,
 	onGhostClick,
 }: HttpHeadersProps) {
+	const { t } = useTranslation("servers");
 	if (viewMode !== "form" || isStdio) return null;
 
 	return (
 		<FieldList
-			label="HTTP Headers"
+			label={t("manual.fields.headers.label", { defaultValue: "HTTP Headers" })}
 			fields={headerFields}
 			onRemove={removeHeader}
 			deleteConfirmStates={deleteConfirmStates}
@@ -38,7 +40,9 @@ export function HttpHeaders({
 					return (
 						<div className="grid grid-cols-2 gap-2">
 							<Input
-								placeholder="Add a new header"
+								placeholder={t("manual.fields.headers.ghostKey", {
+									defaultValue: "Add a new header",
+								})}
 								onClick={() =>
 									onGhostClick(() => appendHeader({ key: "", value: "" }))
 								}
@@ -46,7 +50,9 @@ export function HttpHeaders({
 								readOnly
 							/>
 							<Input
-								placeholder="Add a new value"
+								placeholder={t("manual.fields.common.ghostValue", {
+									defaultValue: "Add a new value",
+								})}
 								onClick={() =>
 									onGhostClick(() => appendHeader({ key: "", value: "" }))
 								}
@@ -60,11 +66,15 @@ export function HttpHeaders({
 					<div className="grid grid-cols-2 gap-2">
 						<Input
 							{...register(`headers.${index}.key` as const)}
-							placeholder="Header"
+							placeholder={t("manual.fields.headers.keyPlaceholder", {
+								defaultValue: "Header",
+							})}
 						/>
 						<Input
 							{...register(`headers.${index}.value` as const)}
-							placeholder="Value"
+							placeholder={t("manual.fields.common.valuePlaceholder", {
+								defaultValue: "Value",
+							})}
 						/>
 					</div>
 				);

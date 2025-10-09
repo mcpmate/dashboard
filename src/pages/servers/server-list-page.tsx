@@ -9,6 +9,7 @@ import {
 	Target,
 } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { ConfirmDialog } from "../../components/confirm-dialog";
@@ -39,6 +40,7 @@ import {
 import { Switch } from "../../components/ui/switch";
 import { useServerInstallPipeline } from "../../hooks/use-server-install-pipeline";
 import { configSuitsApi, serversApi } from "../../lib/api";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
 import type {
@@ -104,6 +106,8 @@ async function extractPayloadFromDataTransfer(
 }
 
 export function ServerListPage() {
+	usePageTranslations("servers");
+	const { t } = useTranslation("servers");
 	const navigate = useNavigate();
 	const [debugInfo, setDebugInfo] = useState<string | null>(null);
 	const [manualOpen, setManualOpen] = useState(false);
@@ -167,8 +171,8 @@ export function ServerListPage() {
 				return;
 			}
 			setAddDragActive(false);
-		},
-		[],
+	},
+	[],
 	);
 
 	const handleAddDragEnd = useCallback(() => {
@@ -183,16 +187,26 @@ export function ServerListPage() {
 			const dataTransfer = event.dataTransfer;
 			if (!dataTransfer || !canIngestFromDataTransfer(dataTransfer)) {
 				notifyError(
-					"Unsupported content",
-					"Drop text, JSON snippets, URLs, or MCP bundles to use Uni-Import.",
+					t("notifications.importUnsupported.title", {
+						defaultValue: "Unsupported content",
+					}),
+					t("notifications.importUnsupported.message", {
+						defaultValue:
+							"Drop text, JSON snippets, URLs, or MCP bundles to use Uni-Import.",
+					}),
 				);
 				return;
 			}
 			const payload = await extractPayloadFromDataTransfer(dataTransfer);
 			if (!payload) {
 				notifyError(
-					"Nothing to import",
-					"We could not detect any usable configuration from the dropped content.",
+					t("notifications.importEmpty.title", {
+						defaultValue: "Nothing to import",
+					}),
+					t("notifications.importEmpty.message", {
+						defaultValue:
+							"We could not detect any usable configuration from the dropped content.",
+					}),
 				);
 				return;
 			}
@@ -200,8 +214,8 @@ export function ServerListPage() {
 			requestAnimationFrame(() => {
 				manualRef.current?.ingest(payload);
 			});
-		},
-		[],
+	},
+	[t],
 	);
 
 	// View mode and developer toggles
@@ -227,7 +241,7 @@ export function ServerListPage() {
 		queryKey: ["servers"],
 		queryFn: async () => {
 			try {
-				// Add debug information
+				// Append inspect information
 				console.log("Fetching servers...");
 				const result = await serversApi.getAll();
 				console.log("Servers fetched:", result);
@@ -294,27 +308,45 @@ export function ServerListPage() {
 		sync?: boolean,
 	) {
 		setPending((p) => ({ ...p, [serverId]: true }));
-		try {
-			if (enable) await serversApi.enableServer(serverId, sync);
-			else await serversApi.disableServer(serverId, sync);
-			notifySuccess(
-				enable ? "Server enabled" : "Server disabled",
-				`Server ${serverId}`,
-			);
-			queryClient.invalidateQueries({ queryKey: ["servers"] });
-			setTimeout(
-				() => queryClient.invalidateQueries({ queryKey: ["servers"] }),
-				1000,
-			);
-		} catch (error) {
-			notifyError(
-				"Operation failed",
-				`Unable to ${enable ? "enable" : "disable"} server: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		} finally {
-			setPending((p) => ({ ...p, [serverId]: false }));
-		}
+	try {
+		if (enable) await serversApi.enableServer(serverId, sync);
+		else await serversApi.disableServer(serverId, sync);
+		const successTitle = enable
+			? t("notifications.toggle.enabledTitle", {
+				defaultValue: "Server enabled",
+			})
+			: t("notifications.toggle.disabledTitle", {
+				defaultValue: "Server disabled",
+			});
+		const successMessage = t("notifications.toggle.message", {
+			serverId,
+			defaultValue: "Server {{serverId}}",
+		});
+		notifySuccess(successTitle, successMessage);
+		queryClient.invalidateQueries({ queryKey: ["servers"] });
+		setTimeout(
+			() => queryClient.invalidateQueries({ queryKey: ["servers"] }),
+			1000,
+		);
+	} catch (error) {
+		const actionLabel = enable
+			? t("notifications.toggle.enableAction", { defaultValue: "enable" })
+			: t("notifications.toggle.disableAction", { defaultValue: "disable" });
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		notifyError(
+			t("notifications.genericError.title", {
+				defaultValue: "Operation failed",
+			}),
+			t("notifications.toggle.error", {
+				action: actionLabel,
+				message: errorMessage,
+				defaultValue: "Unable to {{action}} server: {{message}}",
+			}),
+		);
+	} finally {
+		setPending((p) => ({ ...p, [serverId]: false }));
 	}
+}
 
 	// Note: Reconnect functionality is moved to instance-level pages
 
@@ -330,13 +362,28 @@ export function ServerListPage() {
 			return await serversApi.updateServer(serverId, config);
 		},
 		onSuccess: (_, variables) => {
-			notifySuccess("Server updated", `Server ${variables.serverId}`);
+			notifySuccess(
+				t("notifications.update.title", {
+					defaultValue: "Server updated",
+				}),
+				t("notifications.update.message", {
+					serverId: variables.serverId,
+					defaultValue: "Server {{serverId}}",
+				}),
+			);
 			queryClient.invalidateQueries({ queryKey: ["servers"] });
 		},
 		onError: (error, variables) => {
 			notifyError(
-				"Update failed",
-				`Unable to update ${variables.serverId}: ${error instanceof Error ? error.message : String(error)}`,
+				t("notifications.update.errorTitle", {
+					defaultValue: "Update failed",
+				}),
+				t("notifications.update.errorMessage", {
+					serverId: variables.serverId,
+					message: error instanceof Error ? error.message : String(error),
+					defaultValue:
+						"Unable to update {{serverId}}: {{message}}",
+				}),
 			);
 		},
 	});
@@ -366,44 +413,75 @@ export function ServerListPage() {
 		setIsDeleteLoading(true);
 		setDeleteError(null);
 
-		try {
-			await serversApi.deleteServer(deletingServer);
-			notifySuccess("Server deleted", `Server ${deletingServer}`);
-			queryClient.invalidateQueries({ queryKey: ["servers"] });
-			setIsDeleteConfirmOpen(false);
-			setDeletingServer(null);
-		} catch (error) {
-			setDeleteError(
-				error instanceof Error ? error.message : "Error deleting server",
-			);
-		} finally {
-			setIsDeleteLoading(false);
-		}
-	};
+	try {
+		await serversApi.deleteServer(deletingServer);
+		notifySuccess(
+			t("notifications.delete.title", {
+				defaultValue: "Server deleted",
+			}),
+			t("notifications.delete.message", {
+				serverId: deletingServer,
+				defaultValue: "Server {{serverId}}",
+			}),
+		);
+		queryClient.invalidateQueries({ queryKey: ["servers"] });
+		setIsDeleteConfirmOpen(false);
+		setDeletingServer(null);
+	} catch (error) {
+		setDeleteError(
+			error instanceof Error
+				? error.message
+				: t("notifications.delete.errorFallback", {
+					defaultValue: "Error deleting server",
+				}),
+		);
+	} finally {
+		setIsDeleteLoading(false);
+	}
+};
 
 	const handleServerToggle = async (serverId: string, enabled: boolean) => {
 		setIsTogglePending(true);
-		try {
-			if (enabled) {
-				await serversApi.enableServer(serverId);
-				notifySuccess("Server enabled", `Server ${serverId} has been enabled`);
-			} else {
-				await serversApi.disableServer(serverId);
-				notifySuccess(
-					"Server disabled",
-					`Server ${serverId} has been disabled`,
-				);
-			}
-			queryClient.invalidateQueries({ queryKey: ["servers"] });
-		} catch (error) {
-			notifyError(
-				"Failed to toggle server",
-				error instanceof Error ? error.message : "Unknown error",
+	try {
+		if (enabled) {
+			await serversApi.enableServer(serverId);
+			notifySuccess(
+				t("notifications.toggle.enabledTitle", {
+					defaultValue: "Server enabled",
+				}),
+				t("notifications.toggle.enabledDetail", {
+					serverId,
+					defaultValue: "Server {{serverId}} has been enabled",
+				}),
 			);
-		} finally {
-			setIsTogglePending(false);
+		} else {
+			await serversApi.disableServer(serverId);
+			notifySuccess(
+				t("notifications.toggle.disabledTitle", {
+					defaultValue: "Server disabled",
+				}),
+				t("notifications.toggle.disabledDetail", {
+					serverId,
+					defaultValue: "Server {{serverId}} has been disabled",
+				}),
+			);
 		}
-	};
+		queryClient.invalidateQueries({ queryKey: ["servers"] });
+	} catch (error) {
+		notifyError(
+			t("notifications.toggle.failedTitle", {
+				defaultValue: "Failed to toggle server",
+			}),
+			error instanceof Error
+				? error.message
+				: t("notifications.genericError.unknown", {
+					defaultValue: "Unknown error",
+				}),
+		);
+	} finally {
+		setIsTogglePending(false);
+	}
+};
 
 	const getServerDescription = (server: ServerSummary) => {
 		const profileRefs = profileUsage?.[server.id] ?? [];
@@ -418,9 +496,12 @@ export function ServerListPage() {
 			technicalLine = `http://localhost:3000/${server.id}`;
 		} else if (serverType.includes("sse")) {
 			technicalLine = `sse://localhost:3000/${server.id}`;
-		} else {
-			technicalLine = `Server: ${server.name || server.id}`;
-		}
+	} else {
+		technicalLine = t("entity.description.serverLabel", {
+			name: server.name || server.id,
+			defaultValue: "Server: {{name}}",
+		});
+	}
 
 		const metaDescription = server.meta?.description?.trim();
 		const firstLine = metaDescription
@@ -428,16 +509,19 @@ export function ServerListPage() {
 			: technicalLine;
 
 		// 第二行：关联的 profiles，使用 title case
-		const profileNames =
-			profileRefs.length > 0
-				? profileRefs
-						.map(
-							(name) =>
-								name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
-						)
-						.join(", ")
-				: " - ";
-		const secondLine = `Profiles: ${profileNames}`;
+	const profileNames =
+		profileRefs.length > 0
+			? profileRefs
+					.map(
+						(name) =>
+							name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
+					)
+					.join(", ")
+			: t("entity.description.profilesNone", { defaultValue: "-" });
+	const secondLine = t("entity.description.profilesLabel", {
+		profiles: profileNames,
+		defaultValue: "Profiles: {{profiles}}",
+	});
 
 		// 返回两行显示的 React 元素
 		return (
@@ -463,67 +547,67 @@ export function ServerListPage() {
 		const serverType = server.server_type || "";
 
 		// 根据服务器类型判断连接方式
-		if (
-			serverType.toLowerCase().includes("stdio") ||
-			serverType.toLowerCase().includes("process")
-		) {
-			tags.push(
-				<span
-					key="stdio"
-					className="flex items-center gap-1 text-xs"
-					data-decorative
-				>
-					<Plug className="h-3 w-3" />
-					STDIO
-				</span>,
-			);
-		}
+	if (
+		serverType.toLowerCase().includes("stdio") ||
+		serverType.toLowerCase().includes("process")
+	) {
+		tags.push(
+			<span
+				key="stdio"
+				className="flex items-center gap-1 text-xs"
+				data-decorative
+			>
+				<Plug className="h-3 w-3" />
+				{t("entity.connectionTags.stdio", { defaultValue: "STDIO" })}
+			</span>,
+		);
+	}
 
-		if (
-			serverType.toLowerCase().includes("http") ||
-			serverType.toLowerCase().includes("rest")
-		) {
-			tags.push(
-				<span
-					key="http"
-					className="flex items-center gap-1 text-xs"
-					data-decorative
-				>
-					<Plug className="h-3 w-3" />
-					HTTP
-				</span>,
-			);
-		}
+	if (
+		serverType.toLowerCase().includes("http") ||
+		serverType.toLowerCase().includes("rest")
+	) {
+		tags.push(
+			<span
+				key="http"
+				className="flex items-center gap-1 text-xs"
+				data-decorative
+			>
+				<Plug className="h-3 w-3" />
+				{t("entity.connectionTags.http", { defaultValue: "HTTP" })}
+			</span>,
+		);
+	}
 
-		if (
-			serverType.toLowerCase().includes("sse") ||
-			serverType.toLowerCase().includes("stream")
-		) {
-			tags.push(
-				<span
-					key="sse"
-					className="flex items-center gap-1 text-xs"
-					data-decorative
-				>
-					<Plug className="h-3 w-3" />
-					SSE
-				</span>,
-			);
-		}
+	if (
+		serverType.toLowerCase().includes("sse") ||
+		serverType.toLowerCase().includes("stream")
+	) {
+		tags.push(
+			<span
+				key="sse"
+				className="flex items-center gap-1 text-xs"
+				data-decorative
+			>
+				<Plug className="h-3 w-3" />
+				{t("entity.connectionTags.sse", { defaultValue: "SSE" })}
+			</span>,
+		);
+	}
 
 		// 如果没有匹配到特定类型，默认显示 HTTP
-		if (tags.length === 0) {
-			tags.push(
-				<span
-					key="default"
-					className="flex items-center gap-1 text-xs"
-					data-decorative
-				>
-					<Plug className="h-3 w-3" />
-					HTTP
-				</span>,
-			);
-		}
+	if (tags.length === 0) {
+		tags.push(
+			<span
+				key="default"
+				className="flex items-center gap-1 text-xs"
+				data-decorative
+			>
+				<Plug className="h-3 w-3" />
+				{t("entity.connectionTags.http", { defaultValue: "HTTP" })}
+			</span>,
+		);
+	}
 
 		return tags;
 	};
@@ -534,23 +618,59 @@ export function ServerListPage() {
 			.slice(0, 1)
 			.toUpperCase();
 		const iconSrc = server.icons?.[0]?.src;
-		const iconAlt = server.name ? `${server.name} icon` : "Server icon";
+		const iconAlt = server.name
+			? t("entity.iconAlt.named", {
+				name: server.name,
+				defaultValue: "{{name}} icon",
+			})
+			: t("entity.iconAlt.fallback", { defaultValue: "Server icon" });
 		const capabilitySummary = getCapabilitySummary(server);
 		const capabilityStats = capabilitySummary
 			? [
-					{ label: "Tools", value: capabilitySummary.tools_count },
-					{ label: "Prompts", value: capabilitySummary.prompts_count },
-					{ label: "Resources", value: capabilitySummary.resources_count },
 					{
-						label: "Templates",
+						label: t("entity.stats.tools", { defaultValue: "Tools" }),
+						value: capabilitySummary.tools_count,
+					},
+					{
+						label: t("entity.stats.prompts", {
+							defaultValue: "Prompts",
+						}),
+						value: capabilitySummary.prompts_count,
+					},
+					{
+						label: t("entity.stats.resources", {
+							defaultValue: "Resources",
+						}),
+						value: capabilitySummary.resources_count,
+					},
+					{
+						label: t("entity.stats.templates", {
+							defaultValue: "Templates",
+						}),
 						value: capabilitySummary.resource_templates_count,
 					},
 				]
 			: [
-					{ label: "Tools", value: 0 },
-					{ label: "Prompts", value: 0 },
-					{ label: "Resources", value: 0 },
-					{ label: "Templates", value: 0 },
+					{
+						label: t("entity.stats.tools", { defaultValue: "Tools" }),
+						value: 0,
+					},
+					{
+						label: t("entity.stats.prompts", { defaultValue: "Prompts" }),
+						value: 0,
+					},
+					{
+						label: t("entity.stats.resources", {
+							defaultValue: "Resources",
+						}),
+						value: 0,
+					},
+					{
+						label: t("entity.stats.templates", {
+							defaultValue: "Templates",
+						}),
+						value: 0,
+					},
 				];
 
 		return (
@@ -570,11 +690,19 @@ export function ServerListPage() {
 				}}
 				titleBadges={[]}
 				stats={capabilityStats}
-				bottomTags={[
-					<span key="profiles">
-						Profiles: {profileRefs.length > 0 ? profileRefs.join(", ") : "-"}
-					</span>,
-				]}
+			bottomTags={[
+				<span key="profiles">
+					{t("entity.bottomTags.profiles", {
+						profiles:
+							profileRefs.length > 0
+								? profileRefs.join(", ")
+								: t("entity.description.profilesNone", {
+									defaultValue: "-",
+								}),
+						defaultValue: "Profiles: {{profiles}}",
+					})}
+				</span>,
+			]}
 				statusBadge={
 					<StatusBadge
 						status={server.status}
@@ -612,7 +740,9 @@ export function ServerListPage() {
 										}
 										navigate(url);
 									}}
-									title="Open debug view"
+									title={t("actions.debug.open", {
+										defaultValue: "Open inspect view",
+									})}
 								>
 									<Bug className="h-4 w-4" />
 								</Button>,
@@ -629,23 +759,57 @@ export function ServerListPage() {
 			.slice(0, 1)
 			.toUpperCase();
 		const iconSrc = server.icons?.[0]?.src;
-		const iconAlt = server.name ? `${server.name} icon` : "Server icon";
+		const iconAlt = server.name
+			? t("entity.iconAlt.named", {
+				name: server.name,
+				defaultValue: "{{name}} icon",
+			})
+			: t("entity.iconAlt.fallback", { defaultValue: "Server icon" });
 		const capabilitySummary = getCapabilitySummary(server);
 		const cardStats = capabilitySummary
 			? [
-					{ label: "Tools", value: capabilitySummary.tools_count },
-					{ label: "Prompts", value: capabilitySummary.prompts_count },
-					{ label: "Resources", value: capabilitySummary.resources_count },
 					{
-						label: "Templates",
+						label: t("entity.stats.tools", { defaultValue: "Tools" }),
+						value: capabilitySummary.tools_count,
+					},
+					{
+						label: t("entity.stats.prompts", { defaultValue: "Prompts" }),
+						value: capabilitySummary.prompts_count,
+					},
+					{
+						label: t("entity.stats.resources", {
+							defaultValue: "Resources",
+						}),
+						value: capabilitySummary.resources_count,
+					},
+					{
+						label: t("entity.stats.templates", {
+							defaultValue: "Templates",
+						}),
 						value: capabilitySummary.resource_templates_count,
 					},
 				]
 			: [
-					{ label: "Tools", value: 0 },
-					{ label: "Prompts", value: 0 },
-					{ label: "Resources", value: 0 },
-					{ label: "Templates", value: 0 },
+					{
+						label: t("entity.stats.tools", { defaultValue: "Tools" }),
+						value: 0,
+					},
+					{
+						label: t("entity.stats.prompts", { defaultValue: "Prompts" }),
+						value: 0,
+					},
+					{
+						label: t("entity.stats.resources", {
+							defaultValue: "Resources",
+						}),
+						value: 0,
+					},
+					{
+						label: t("entity.stats.templates", {
+							defaultValue: "Templates",
+						}),
+						value: 0,
+					},
 				];
 
 		return (
@@ -690,17 +854,18 @@ export function ServerListPage() {
 		);
 	};
 
-	// Add debug button handler
+	// Add inspect button handler
 	const toggleDebugInfo = () => {
 		if (debugInfo) {
 			setDebugInfo(null);
 		} else {
-			setDebugInfo(
-				`API Base URL: ${window.location.origin}\n` +
-					`Current Time: ${new Date().toISOString()}\n` +
-					`Error: ${error instanceof Error ? error.message : String(error)}\n` +
-					`Servers Data: ${JSON.stringify(serverListResponse, null, 2)}`,
-			);
+			const debugLines = [
+				`${t("debug.info.baseUrl", { defaultValue: "API Base URL" })}: ${window.location.origin}`,
+				`${t("debug.info.currentTime", { defaultValue: "Current Time" })}: ${new Date().toISOString()}`,
+				`${t("debug.info.error", { defaultValue: "Error" })}: ${error instanceof Error ? error.message : String(error)}`,
+				`${t("debug.info.data", { defaultValue: "Servers Data" })}: ${JSON.stringify(serverListResponse, null, 2)}`,
+			];
+			setDebugInfo(debugLines.join("\n"));
 		}
 	};
 
@@ -709,35 +874,52 @@ export function ServerListPage() {
 		return sortedServers;
 	}, [sortedServers]);
 
-	// Prepare stats cards data
-	const statsCards = [
-		{
-			title: "Total Servers",
-			value: serverListResponse?.servers?.length || 0,
-			description: "registered",
-		},
-		{
-			title: "Enabled",
-			value: (serverListResponse?.servers || []).filter((s) => s.enabled)
-				.length,
-			description: "feature toggled",
-		},
-		{
-			title: "Connected",
-			value: (serverListResponse?.servers || []).filter(
-				(s) => String(s.status || "").toLowerCase() === "connected",
-			).length,
-			description: "active connections",
-		},
-		{
-			title: "Instances",
-			value: (serverListResponse?.servers || []).reduce(
-				(sum, s) => sum + (s.instances?.length || 0),
-				0,
-			),
-			description: "total across servers",
-		},
-	];
+	const statsCards = useMemo(() => {
+		const list = serverListResponse?.servers ?? [];
+		return [
+			{
+				title: t("statsCards.total.title", {
+					defaultValue: "Total Servers",
+				}),
+				value: list.length,
+				description: t("statsCards.total.description", {
+					defaultValue: "registered",
+				}),
+			},
+			{
+				title: t("statsCards.enabled.title", {
+					defaultValue: "Enabled",
+				}),
+				value: list.filter((s) => s.enabled).length,
+				description: t("statsCards.enabled.description", {
+					defaultValue: "feature toggled",
+				}),
+			},
+			{
+				title: t("statsCards.connected.title", {
+					defaultValue: "Connected",
+				}),
+				value: list.filter(
+					(s) => String(s.status || "").toLowerCase() === "connected",
+				).length,
+				description: t("statsCards.connected.description", {
+					defaultValue: "active connections",
+				}),
+			},
+			{
+				title: t("statsCards.instances.title", {
+					defaultValue: "Instances",
+				}),
+				value: list.reduce(
+					(sum, s) => sum + (s.instances?.length || 0),
+					0,
+				),
+				description: t("statsCards.instances.description", {
+					defaultValue: "total across servers",
+				}),
+			},
+		];
+	}, [serverListResponse, t]);
 
 	// Prepare loading skeleton
 	const loadingSkeleton =
@@ -780,10 +962,22 @@ export function ServerListPage() {
 	const toolbarConfig: PageToolbarConfig<ToolbarServer> = {
 		data: (serverListResponse?.servers || []) as ToolbarServer[],
 		search: {
-			placeholder: "Search servers...",
+			placeholder: t("toolbar.search.placeholder", {
+				defaultValue: "Search servers...",
+			}),
 			fields: [
-				{ key: "name", label: "Name", weight: 10 },
-				{ key: "description", label: "Description", weight: 8 },
+				{
+					key: "name",
+					label: t("toolbar.search.fields.name", { defaultValue: "Name" }),
+					weight: 10,
+				},
+				{
+					key: "description",
+					label: t("toolbar.search.fields.description", {
+						defaultValue: "Description",
+					}),
+					weight: 8,
+				},
 			],
 			debounceMs: 300,
 		},
@@ -796,12 +990,14 @@ export function ServerListPage() {
 			options: [
 				{
 					value: "name",
-					label: "Name",
+					label: t("toolbar.sort.options.name", { defaultValue: "Name" }),
 					defaultDirection: "asc" as const,
 				},
 				{
 					value: "enabled",
-					label: "Enable Status",
+					label: t("toolbar.sort.options.enabled", {
+						defaultValue: "Enable Status",
+					}),
 					defaultDirection: "desc" as const,
 				},
 			],
@@ -837,7 +1033,7 @@ export function ServerListPage() {
 					variant="outline"
 					size="sm"
 					className="h-9 w-9 p-0"
-					title="Debug"
+					title={t("actions.debug.title", { defaultValue: "Inspect" })}
 				>
 					<AlertCircle className="h-4 w-4" />
 				</Button>
@@ -848,7 +1044,7 @@ export function ServerListPage() {
 				variant="outline"
 				size="sm"
 				className="h-9 w-9 p-0"
-				title="Refresh"
+				title={t("actions.refresh.title", { defaultValue: "Refresh" })}
 			>
 				<RefreshCw
 					className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
@@ -871,7 +1067,7 @@ export function ServerListPage() {
 							? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
 							: ""
 					}`}
-					title="Add Server"
+					title={t("actions.add.title", { defaultValue: "Add Server" })}
 					onClick={() => setManualOpen(true)}
 				>
 					{isAddDragActive ? (
@@ -890,8 +1086,10 @@ export function ServerListPage() {
 			<CardContent className="flex flex-col items-center justify-center p-6">
 				<EmptyState
 					icon={<Server className="h-12 w-12" />}
-					title="No servers found"
-					description="Add your first MCP server to get started"
+					title={t("emptyState.title", { defaultValue: "No servers found" })}
+					description={t("emptyState.description", {
+						defaultValue: "Add your first MCP server to get started",
+					})}
 					action={
 						<Button
 							onClick={() => setManualOpen(true)}
@@ -899,7 +1097,9 @@ export function ServerListPage() {
 							className="mt-4"
 						>
 							<Plus className="mr-2 h-4 w-4" />
-							Add First Server
+							{t("emptyState.action", {
+								defaultValue: "Add First Server",
+							})}
 						</Button>
 					}
 				/>
@@ -909,7 +1109,7 @@ export function ServerListPage() {
 
 	return (
 		<PageLayout
-			title="Servers"
+			title={t("title", { defaultValue: "Servers" })}
 			headerActions={
 				<PageToolbar<ToolbarServer>
 					config={toolbarConfig}
@@ -923,31 +1123,37 @@ export function ServerListPage() {
 			{isError && enableServerDebug && (
 				<Button onClick={toggleDebugInfo} variant="outline" size="sm">
 					<AlertCircle className="mr-2 h-4 w-4" />
-					{debugInfo ? "Hide Debug" : "Debug"}
+					{debugInfo
+						? t("actions.debug.hide", { defaultValue: "Hide Inspect" })
+						: t("actions.debug.show", { defaultValue: "Inspect" })}
 				</Button>
 			)}
 
 			{/* Display error information */}
 			{isError && (
 				<ErrorDisplay
-					title="Failed to load servers"
+					title={t("errors.loadFailed", {
+						defaultValue: "Failed to load servers",
+					})}
 					error={error as Error}
 					onRetry={() => refetch()}
 				/>
 			)}
 
-			{/* Display debug information */}
+			{/* Display inspect information */}
 			{debugInfo && (
 				<Card className="overflow-hidden">
 					<CardHeader className="bg-slate-100 dark:bg-slate-800 p-4">
 						<CardTitle className="text-lg flex justify-between">
-							Debug Information
+							{t("debug.cardTitle", {
+								defaultValue: "Inspect Details",
+							})}
 							<Button
 								onClick={() => setDebugInfo(null)}
 								variant="ghost"
 								size="sm"
 							>
-								Close
+								{t("debug.close", { defaultValue: "Close" })}
 							</Button>
 						</CardTitle>
 					</CardHeader>
@@ -998,10 +1204,14 @@ export function ServerListPage() {
 					setDeleteError(null);
 				}}
 				onConfirm={handleDeleteServer}
-				title="Delete Server"
-				description={`Are you sure you want to delete the server "${deletingServer}"? This action cannot be undone.`}
-				confirmLabel="Delete"
-				cancelLabel="Cancel"
+				title={t("confirmDelete.title", { defaultValue: "Delete Server" })}
+				description={t("confirmDelete.description", {
+					serverId: deletingServer ?? "",
+					defaultValue:
+						"Are you sure you want to delete the server \"{{serverId}}\"? This action cannot be undone.",
+				})}
+				confirmLabel={t("confirmDelete.confirm", { defaultValue: "Delete" })}
+				cancelLabel={t("confirmDelete.cancel", { defaultValue: "Cancel" })}
 				variant="destructive"
 				isLoading={isDeleteLoading}
 				error={deleteError}

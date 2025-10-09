@@ -4,7 +4,7 @@ import type { SegmentOption } from "../ui/segment";
 
 // Constants
 export const DEFAULT_INGEST_MESSAGE =
-	"Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin";
+	"Drop JSON/TOML/Text or MCP bundles (WIP) to begin";
 
 // Server type options for Segment component
 export const SERVER_TYPE_OPTIONS: SegmentOption[] = [
@@ -49,12 +49,16 @@ export const urlParamSchema = z.object({
 
 export const manualServerSchema = z
 	.object({
-		name: z.string().min(1, "Name is required"),
+		name: z.string().min(1, "manual.errors.nameRequired"),
 		kind: z.enum(["stdio", "sse", "streamable_http"], {
-			required_error: "Select a server type",
+			required_error: "manual.errors.kindRequired",
 		}),
 		command: z.string().optional(),
-		url: z.string().url("Provide a valid URL").optional().or(z.literal("")),
+		url: z
+			.string()
+			.url("manual.errors.urlInvalid")
+			.optional()
+			.or(z.literal("")),
 		args: z.array(argSchema).optional(),
 		env: z.array(envSchema).optional(),
 		headers: z.array(headerSchema).optional(),
@@ -63,12 +67,12 @@ export const manualServerSchema = z
 		meta_version: z.string().optional(),
 		meta_website_url: z
 			.string()
-			.url("Provide a valid URL")
+			.url("manual.errors.urlInvalid")
 			.optional()
 			.or(z.literal("")),
 		meta_repository_url: z
 			.string()
-			.url("Provide a valid URL")
+			.url("manual.errors.urlInvalid")
 			.optional()
 			.or(z.literal("")),
 		meta_repository_source: z.string().optional(),
@@ -82,14 +86,14 @@ export const manualServerSchema = z
 		if (kind === "stdio" && !command) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: "Command is required for stdio servers",
+				message: "manual.errors.commandRequired",
 				path: ["command"],
 			});
 		}
 		if (kind !== "stdio" && !url) {
 			ctx.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: "URL is required for non-stdio servers",
+				message: "manual.errors.urlRequired",
 				path: ["url"],
 			});
 		}

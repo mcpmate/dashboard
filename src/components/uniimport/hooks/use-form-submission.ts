@@ -15,6 +15,27 @@ interface UseFormSubmissionProps {
 	jsonEditingEnabled: boolean;
 	setJsonError: (error: string | null) => void;
 	setViewMode: (mode: "form" | "json") => void;
+	messages: {
+		commandRequiredTitle: string;
+		commandRequiredBody: string;
+		endpointRequiredTitle: string;
+		endpointRequiredBody: string;
+		jsonNoServers: string;
+		jsonMultipleServers: string;
+		jsonParseFailedTitle: string;
+		jsonParseFailedFallback: string;
+		invalidJsonTitle: string;
+		submit: {
+			edit: string;
+			market: string;
+			create: string;
+		};
+		pending: {
+			edit: string;
+			market: string;
+			create: string;
+		};
+	};
 }
 
 export function useFormSubmission({
@@ -28,6 +49,7 @@ export function useFormSubmission({
 	jsonEditingEnabled: _jsonEditingEnabled,
 	setJsonError,
 	setViewMode,
+	messages,
 }: UseFormSubmissionProps) {
 	const buildDraftFromValues = useCallback(
 		(values: ManualServerFormValues): ServerInstallDraft => {
@@ -137,13 +159,16 @@ export function useFormSubmission({
 			const draft = buildDraftFromValues(values);
 
 			if (draft.kind === "stdio" && !draft.command) {
-				notifyError("Command required", "Provide a command for stdio servers.");
+				notifyError(
+					messages.commandRequiredTitle,
+					messages.commandRequiredBody,
+				);
 				return;
 			}
 			if (draft.kind !== "stdio" && !draft.url) {
 				notifyError(
-					"Endpoint required",
-					"Provide a URL for non-stdio servers.",
+					messages.endpointRequiredTitle,
+					messages.endpointRequiredBody,
 				);
 				return;
 			}
@@ -159,11 +184,11 @@ export function useFormSubmission({
 		try {
 			const drafts = parseJsonDrafts(jsonText);
 			if (!drafts.length) {
-				setJsonError("No servers found in JSON payload");
+				setJsonError(messages.jsonNoServers);
 				return;
 			}
 			if (drafts.length > 1) {
-				setJsonError("Manual entry accepts exactly one server in JSON mode");
+				setJsonError(messages.jsonMultipleServers);
 				return;
 			}
 			setJsonError(null);
@@ -173,22 +198,24 @@ export function useFormSubmission({
 			setViewMode("form");
 		} catch (error) {
 			const message =
-				error instanceof Error ? error.message : "Failed to parse JSON";
+				error instanceof Error
+					? error.message
+					: messages.jsonParseFailedFallback;
 			setJsonError(message);
-			notifyError("Invalid JSON", message);
+			notifyError(messages.invalidJsonTitle, message);
 		}
 	}, [jsonText, onSubmit, onClose, reset, setViewMode, setJsonError]);
 
 	const submitButtonLabel = isEditMode
-		? "Save changes"
+		? messages.submit.edit
 		: isMarketMode
-			? "Import server"
-			: "Preview";
+			? messages.submit.market
+			: messages.submit.create;
 	const pendingButtonLabel = isEditMode
-		? "Saving..."
+		? messages.pending.edit
 		: isMarketMode
-			? "Importing..."
-			: "Processing...";
+			? messages.pending.market
+			: messages.pending.create;
 
 	return {
 		buildDraftFromValues,
