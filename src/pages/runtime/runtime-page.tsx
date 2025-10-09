@@ -12,6 +12,7 @@ import {
 	CardTitle,
 } from "../../components/ui/card";
 import { capabilitiesApi, runtimeApi } from "../../lib/api";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import type {
 	CapabilitiesStatsResponse,
@@ -23,6 +24,7 @@ import type {
 import { formatBytes, formatRelativeTime } from "../../lib/utils";
 
 export function RuntimePage() {
+	usePageTranslations("runtime");
 	const { t, i18n } = useTranslation();
 	const qc = useQueryClient();
 	const [confirm, setConfirm] = React.useState<
@@ -104,7 +106,7 @@ export function RuntimePage() {
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-					{t("runtime.title")}
+					{t("runtime:title")}
 				</h2>
 				<div className="flex items-center gap-2">
 					<Button
@@ -116,7 +118,7 @@ export function RuntimePage() {
 						<RefreshCw
 							className={`mr-2 h-4 w-4 ${resetAllM.isPending ? "animate-spin" : ""}`}
 						/>
-						{t("runtime.buttons.resetAllCaches")}
+						{t("runtime:buttons.resetAllCaches")}
 					</Button>
 				</div>
 			</div>
@@ -169,7 +171,7 @@ export function RuntimePage() {
 									<div className="flex items-center gap-2">
 										<Wrench className="h-4 w-4 text-slate-500" />
 										<div className="font-semibold uppercase">
-											{t(`runtime.types.${key}`)}
+											{t(`runtime:types.${key}`)}
 										</div>
 									</div>
 									<StatusBadge status={statusStr} />
@@ -178,14 +180,14 @@ export function RuntimePage() {
 								<div className="space-y-1 text-sm">
 									<div className="flex items-center justify-between">
 										<span className="text-slate-500">
-											{t("runtime.labels.version")}
+											{t("runtime:labels.version")}
 										</span>
 										<span>{st?.version || "N/A"}</span>
 									</div>
 									{folder ? (
 										<div className="flex items-center justify-between">
 											<span className="text-slate-500">
-												{t("runtime.labels.folder")}
+												{t("runtime:labels.folder")}
 											</span>
 											<span className="truncate max-w-[60%]" title={folder}>
 												{folder}
@@ -194,7 +196,7 @@ export function RuntimePage() {
 									) : null}
 									<div className="flex items-center justify-between">
 										<span className="text-slate-500">
-											{t("runtime.labels.message")}
+											{t("runtime:labels.message")}
 										</span>
 										<span
 											className="truncate max-w-[60%]"
@@ -205,23 +207,23 @@ export function RuntimePage() {
 									</div>
 
 									<div className="mt-3 font-medium">
-										{t("runtime.labels.cache")}
+										{t("runtime:labels.cache")}
 									</div>
 									<div className="flex items-center justify-between">
 										<span className="text-slate-500">
-											{t("runtime.labels.size")}
+											{t("runtime:labels.size")}
 										</span>
 										<span>{formatBytes(c?.size_bytes || 0)}</span>
 									</div>
 									<div className="flex items-center justify-between">
 										<span className="text-slate-500">
-											{t("runtime.labels.packages")}
+											{t("runtime:labels.packages")}
 										</span>
 										<span>{c?.package_count ?? 0}</span>
 									</div>
 									<div className="flex items-center justify-between">
 										<span className="text-slate-500">
-											{t("runtime.labels.lastModified")}
+											{t("runtime:labels.lastModified")}
 										</span>
 										<span>
 											{c?.last_modified
@@ -240,7 +242,7 @@ export function RuntimePage() {
 										<Wrench
 											className={`mr-2 h-4 w-4 ${installM.isPending ? "animate-spin" : ""}`}
 										/>
-										{t("runtime.buttons.installRepair")}
+										{t("runtime:buttons.installRepair")}
 									</Button>
 									<Button
 										variant="outline"
@@ -251,7 +253,7 @@ export function RuntimePage() {
 										<RefreshCw
 											className={`mr-2 h-4 w-4 ${resetOneM.isPending ? "animate-spin" : ""}`}
 										/>
-										{t("runtime.buttons.resetCache")}
+										{t("runtime:buttons.resetCache")}
 									</Button>
 								</div>
 							</div>
@@ -263,7 +265,7 @@ export function RuntimePage() {
 			{/* Capabilities Cache */}
 			<Card>
 				<CardHeader>
-					<CardTitle>{t("runtime.capabilities.title")}</CardTitle>
+					<CardTitle>{t("runtime:capabilities.title")}</CardTitle>
 				</CardHeader>
 				<CardContent>
 					{capabilitiesStatsQ.isLoading ? (
@@ -277,7 +279,7 @@ export function RuntimePage() {
 							<div className="grid gap-2 md:grid-cols-2">
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.dbPath")}
+										{t("runtime:capabilities.labels.dbPath")}
 									</span>
 									<span
 										className="truncate max-w-[60%]"
@@ -288,13 +290,13 @@ export function RuntimePage() {
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.cacheSize")}
+										{t("runtime:capabilities.labels.cacheSize")}
 									</span>
 									<span>{formatBytes(capStats.storage.cache_size_bytes)}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.lastCleanup")}
+										{t("runtime:capabilities.labels.lastCleanup")}
 									</span>
 									<span>
 										{capStats.storage.last_cleanup
@@ -307,7 +309,7 @@ export function RuntimePage() {
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.generated")}
+										{t("runtime:capabilities.labels.generated")}
 									</span>
 									<span>
 										{formatRelativeTime(capStats.generatedAt, i18n.language)}
@@ -318,31 +320,31 @@ export function RuntimePage() {
 							<div className="mt-2 grid gap-2 md:grid-cols-3">
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.servers")}
+										{t("runtime:capabilities.labels.servers")}
 									</span>
 									<span>{capStats.storage.tables.servers}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.tools")}
+										{t("runtime:capabilities.labels.tools")}
 									</span>
 									<span>{capStats.storage.tables.tools}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.resources")}
+										{t("runtime:capabilities.labels.resources")}
 									</span>
 									<span>{capStats.storage.tables.resources}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.prompts")}
+										{t("runtime:capabilities.labels.prompts")}
 									</span>
 									<span>{capStats.storage.tables.prompts}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.resourceTemplates")}
+										{t("runtime:capabilities.labels.resourceTemplates")}
 									</span>
 									<span>{capStats.storage.tables.resourceTemplates}</span>
 								</div>
@@ -351,43 +353,43 @@ export function RuntimePage() {
 							<div className="mt-4 grid gap-2 md:grid-cols-3">
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.totalQueries")}
+										{t("runtime:capabilities.labels.totalQueries")}
 									</span>
 									<span>{capStats.metrics.totalQueries}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.cacheHits")}
+										{t("runtime:capabilities.labels.cacheHits")}
 									</span>
 									<span>{capStats.metrics.cacheHits}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.cacheMisses")}
+										{t("runtime:capabilities.labels.cacheMisses")}
 									</span>
 									<span>{capStats.metrics.cacheMisses}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.hitRatio")}
+										{t("runtime:capabilities.labels.hitRatio")}
 									</span>
 									<span>{capStats.metrics.hitRatio.toFixed(2)}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.reads")}
+										{t("runtime:capabilities.labels.reads")}
 									</span>
 									<span>{capStats.metrics.readOperations}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.writes")}
+										{t("runtime:capabilities.labels.writes")}
 									</span>
 									<span>{capStats.metrics.writeOperations}</span>
 								</div>
 								<div className="flex items-center justify-between">
 									<span className="text-slate-500">
-										{t("runtime.capabilities.labels.invalidations")}
+										{t("runtime:capabilities.labels.invalidations")}
 									</span>
 									<span>{capStats.metrics.cacheInvalidations}</span>
 								</div>
@@ -397,7 +399,7 @@ export function RuntimePage() {
 						</div>
 					) : (
 						<p className="text-sm text-slate-500">
-							{t("runtime.capabilities.noData")}
+							{t("runtime:capabilities.noData")}
 						</p>
 					)}
 				</CardContent>
@@ -418,36 +420,36 @@ export function RuntimePage() {
 				}}
 				title={
 					confirm?.type === "resetAll"
-						? t("runtime.dialogs.resetAllTitle")
+						? t("runtime:dialogs.resetAllTitle")
 						: confirm?.type === "resetOne"
-							? t("runtime.dialogs.resetOneTitle", {
+							? t("runtime:dialogs.resetOneTitle", {
 									key: confirm.key.toUpperCase(),
 								})
 							: confirm?.type === "install"
-								? t("runtime.dialogs.installTitle", {
+								? t("runtime:dialogs.installTitle", {
 										key: confirm.key.toUpperCase(),
 									})
-								: t("runtime.dialogs.confirm")
+								: t("runtime:dialogs.confirm")
 				}
 				description={
 					confirm?.type === "resetAll"
-						? t("runtime.dialogs.resetAllDescription")
+						? t("runtime:dialogs.resetAllDescription")
 						: confirm?.type === "resetOne"
-							? t("runtime.dialogs.resetOneDescription", {
+							? t("runtime:dialogs.resetOneDescription", {
 									key: confirm.key.toUpperCase(),
 								})
 							: confirm?.type === "install"
-								? t("runtime.dialogs.installDescription", {
+								? t("runtime:dialogs.installDescription", {
 										key: confirm.key.toUpperCase(),
 									})
 								: ""
 				}
 				confirmLabel={
 					confirm?.type === "install"
-						? t("runtime.dialogs.installRepair")
-						: t("runtime.dialogs.confirm")
+						? t("runtime:dialogs.installRepair")
+						: t("runtime:dialogs.confirm")
 				}
-				cancelLabel={t("runtime.dialogs.cancel")}
+				cancelLabel={t("runtime:dialogs.cancel")}
 				variant={confirm?.type === "install" ? "default" : "destructive"}
 				isLoading={
 					confirm?.type === "resetAll"

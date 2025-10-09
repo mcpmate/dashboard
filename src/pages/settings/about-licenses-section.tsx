@@ -46,10 +46,10 @@ function PackageRow({ pkg }: { pkg: OpenSourcePackage }) {
 	const { t } = useTranslation();
 	const repositoryLink = pkg.repository ?? pkg.homepage ?? "";
 	const linkLabel = pkg.repository
-		? t("settings.about.repository", { defaultValue: "Repository" })
+		? t("settings:about.repository", { defaultValue: "Repository" })
 		: pkg.homepage
-			? t("settings.about.homepage", { defaultValue: "Homepage" })
-			: t("settings.about.repository", { defaultValue: "Repository" });
+			? t("settings:about.homepage", { defaultValue: "Homepage" })
+			: t("settings:about.repository", { defaultValue: "Repository" });
 	const licenseLabel = pkg.license ?? "UNKNOWN";
 	return (
 		<CapsuleStripeListItem className="items-center py-1.5">
@@ -90,7 +90,7 @@ function PackageRow({ pkg }: { pkg: OpenSourcePackage }) {
 
 function Section({ section }: { section: OpenSourceSection }) {
 	const { t } = useTranslation();
-	
+
 	return (
 		<section className="space-y-3">
 			<header>
@@ -98,9 +98,9 @@ function Section({ section }: { section: OpenSourceSection }) {
 					{section.label}
 				</h3>
 				<p className="text-xs text-slate-500 dark:text-slate-400">
-					{t("settings.about.components", { 
-						defaultValue: "{{count}} components", 
-						count: section.packages.length 
+					{t("settings:about.components", {
+						defaultValue: "{{count}} components",
+						count: section.packages.length,
 					})}
 				</p>
 			</header>
@@ -118,7 +118,7 @@ function Section({ section }: { section: OpenSourceSection }) {
 
 export function AboutLicensesSection({ document }: AboutLicensesSectionProps) {
 	const { t } = useTranslation();
-	
+
 	const generatedAtDisplay = useMemo(
 		() => formatGeneratedAt(document.generatedAt),
 		[document.generatedAt],
@@ -133,24 +133,33 @@ export function AboutLicensesSection({ document }: AboutLicensesSectionProps) {
 		<Card className="flex h-full flex-col">
 			<CardHeader className="space-y-0">
 				<CardTitle>
-					{t("settings.about.title", { defaultValue: "About MCPMate" })}{" "}
+					{t("settings:about.title", { defaultValue: "About MCPMate" })}{" "}
 					<sup className="text-sm font-normal text-slate-500 dark:text-slate-400">
-						{t("common.wip", { defaultValue: "preview" })}
+						{t("wip", { defaultValue: "WIP" })}
 					</sup>
 				</CardTitle>
 				<CardDescription>
-					{t("settings.about.description", { defaultValue: "Open-source acknowledgements for the MCPMate preview build." })}
+					{t("settings:about.description", {
+						defaultValue:
+							"Open-source acknowledgements for the MCPMate preview build.",
+					})}
 				</CardDescription>
 				{generatedAtDisplay && (
 					<p className="text-xs text-slate-500 dark:text-slate-400">
-						{t("settings.about.lastUpdated", { defaultValue: "Last updated: {{date}}", date: generatedAtDisplay })}
+						{t("settings:about.lastUpdated", {
+							defaultValue: "Last updated: {{date}}",
+							date: generatedAtDisplay,
+						})}
 					</p>
 				)}
 			</CardHeader>
 			<CardContent className="flex-1 p-4 pt-0">
 				{nonEmptySections.length === 0 ? (
 					<p className="text-sm text-slate-500 dark:text-slate-400">
-						{t("settings.about.noPackages", { defaultValue: "No third-party packages detected during the latest update." })}
+						{t("settings:about.noPackages", {
+							defaultValue:
+								"No third-party packages detected during the latest update.",
+						})}
 					</p>
 				) : (
 					<div className="border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50 h-[500px] overflow-hidden">

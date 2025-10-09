@@ -55,6 +55,208 @@ Backend expectations
 - Clients: list ordering must be stable (by `display_name`, then `identifier`) and must not jump when toggling state.
 - Server Detail: two primary tabs – Overview (configuration + instances) and Capabilities (with nested tabs Tools/Resources/Prompts/Resource Templates). Data loads lazily per tab.
 
+## Internationalization (i18n) Guidelines
+
+### Overview
+The project uses `react-i18next` for internationalization with support for English (`en`), Simplified Chinese (`zh-CN`), and Japanese (`ja-JP`).
+
+### Translation File Structure
+```
+src/lib/i18n/
+├── index.ts                 # i18n initialization and resource loading
+├── common.ts               # Common translations (shared across all pages)
+├── navigation.ts           # Navigation-specific translations
+└── usePageTranslations.ts  # Hook for loading page-specific translations
+
+src/pages/{page}/i18n/
+└── index.ts                # Page-specific translations
+```
+
+### Namespace Organization
+
+#### Base Namespace (no prefix)
+Common translations are merged into the default `translation` namespace and accessed **WITHOUT** any prefix:
+
+```typescript
+// ✅ CORRECT - No prefix for common translations
+t("wipTag", { defaultValue: "(WIP)" })
+t("placeholders.searchHiddenServers", { defaultValue: "Search..." })
+t("sort.recent", { defaultValue: "Most Recently Hidden" })
+t("status.ready", { defaultValue: "Ready" })
+```
+
+```typescript
+// ❌ WRONG - Do NOT use "common." prefix
+t("common.wipTag", { defaultValue: "(WIP)" })
+t("common.placeholders.searchHiddenServers", { defaultValue: "Search..." })
+```
+
+#### Page-Specific Namespaces (with prefix)
+Page-specific translations require the namespace prefix (e.g., `settings:`, `dashboard:`, `market:`):
+
+```typescript
+// ✅ CORRECT - Use namespace prefix for page-specific translations
+t("settings:market.title", { defaultValue: "MCP Market" })
+t("dashboard:overview.welcome", { defaultValue: "Welcome" })
+t("market:filters.category", { defaultValue: "Category" })
+```
+
+### Translation Key Conventions
+
+1. **Always provide `defaultValue`**: Ensures fallback text displays if translation is missing
+2. **Use descriptive keys**: Prefer `settings:market.enableBlacklistTitle` over `settings:market.ebTitle`
+3. **Nest related keys**: Group related translations (e.g., `appearance.themeTitle`, `appearance.themeDescription`)
+4. **Common patterns**:
+   - Titles: `{section}.title`
+   - Descriptions: `{section}.description`
+   - Placeholders: `placeholders.{field}`
+   - Sort options: `sort.{option}`
+   - Status values: `status.{state}`
+   - Options: `options.{category}.{value}`
+
+### Adding New Translations
+
+#### Step 1: Add to translation resources
+```typescript
+// src/pages/settings/i18n/index.ts
+export const settingsTranslations = {
+  en: {
+    market: {
+      newFeatureTitle: "New Feature",
+      newFeatureDescription: "Description here",
+    },
+  },
+  "zh-CN": {
+    market: {
+      newFeatureTitle: "新功能",
+      newFeatureDescription: "描述文本",
+    },
+  },
+  "ja-JP": {
+    market: {
+      newFeatureTitle: "新機能",
+      newFeatureDescription: "説明テキスト",
+    },
+  },
+};
+```
+
+#### Step 2: Use in component
+```typescript
+// In your component
+const { t } = useTranslation();
+usePageTranslations("settings"); // Load page translations
+
+// Use the translation
+<h3>{t("settings:market.newFeatureTitle", { defaultValue: "New Feature" })}</h3>
+<p>{t("settings:market.newFeatureDescription", { defaultValue: "Description here" })}</p>
+```
+
+### Common Translations Reference
+
+Available in all components without namespace prefix:
+
+- **WIP indicators**: `wip`, `wipTag`
+- **Common labels**: `yes`, `no`, `user`
+- **Status**: `status.ready`, `status.error`, `status.disconnected`, `status.initializing`, `status.idle`, `status.unknown`, `status.enabled`, `status.disabled`
+- **Placeholders**: `placeholders.menuBarVisibility`, `placeholders.searchHiddenServers`, `placeholders.selectLanguage`, `placeholders.selectMarket`
+- **Sort options**: `sort.recent`, `sort.name`
+- **Roles**: `roles.user`, `roles.admin`, `roles.defaultAnchor`
+
+### Interpolation Example
+```typescript
+// With variables
+t("settings:market.hiddenOn", {
+  defaultValue: "Hidden on {{value}}",
+  value: dateString
+})
+
+// With count (pluralization)
+t("settings:about.components", {
+  defaultValue: "{{count}} components",
+  count: packages.length,
+})
+```
+
+### Best Practices
+
+1. **Never hardcode user-facing strings**: Always use `t()` function
+2. **Check namespace carefully**:
+   - Common translations → no prefix
+   - Page-specific → use namespace prefix (`settings:`, `dashboard:`, etc.)
+3. **Load page translations**: Call `usePageTranslations("pageName")` at the top of page components
+4. **Keep translations complete**: Add all three languages (en, zh-CN, ja-JP) when adding new keys
+5. **Use semantic keys**: Make keys self-documenting (e.g., `enableBlacklistDescription` not `ebd`)
+6. **Test in all languages**: Switch language in Settings and verify all text displays correctly
+
+### Common Mistakes to Avoid
+
+❌ **Hardcoded strings**
+```typescript
+<span>Restore</span>  // WRONG
+```
+
+✅ **Use translation**
+```typescript
+<span>{t("settings:market.restore", { defaultValue: "Restore" })}</span>
+```
+
+❌ **Wrong namespace prefix for common translations**
+```typescript
+t("common.wipTag")  // WRONG - common translations don't need prefix
+```
+
+✅ **Correct usage for common translations**
+```typescript
+t("wipTag", { defaultValue: "(WIP)" })  // CORRECT
+```
+
+❌ **Missing namespace prefix for page translations**
+```typescript
+t("market.search.placeholder")  // WRONG - missing "market:" prefix
+t("settings.title")              // WRONG - missing "settings:" prefix
+```
+
+✅ **Always use namespace prefix for page translations**
+```typescript
+t("market:search.placeholder", { defaultValue: "Search..." })    // CORRECT
+t("settings:market.title", { defaultValue: "MCP Market" })       // CORRECT
+```
+
+❌ **Missing defaultValue**
+```typescript
+t("settings:market.title")  // WRONG - missing fallback
+```
+
+✅ **Always provide defaultValue**
+```typescript
+t("settings:market.title", { defaultValue: "MCP Market" })  // CORRECT
+```
+
+❌ **Incorrect TFunction type in hooks**
+```typescript
+function useMyHook(t?: (key: string) => string) {  // WRONG - too simplified
+  return t("market:title", { defaultValue: "..." });  // Won't work!
+}
+```
+
+✅ **Use proper TFunction type**
+```typescript
+import type { TFunction } from "i18next";
+
+function useMyHook(t?: TFunction) {  // CORRECT
+  return t("market:title", { defaultValue: "..." });  // Works!
+}
+```
+
+### Language Detection
+The app automatically detects user language from:
+1. `localStorage` (persisted choice)
+2. Browser navigator language
+3. HTML tag language
+
+Users can manually switch languages in Settings → General → Language.
+
 ## Coding Style Expectations
 - TypeScript, functional React components, hooks-first approach, composition over inheritance.
 - Keep logic in hooks/utilities; keep components presentational where possible.

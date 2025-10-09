@@ -93,19 +93,19 @@ export function StatusBadge({
 			"fetch",
 		].includes(statusStr)
 	) {
-		displayText = t("common.status.ready");
+		displayText = t("status.ready");
 	} else if (["error", "unhealthy", "failed"].includes(statusStr)) {
-		displayText = t("common.status.error");
+		displayText = t("status.error");
 	} else if (
 		["shutdown", "disconnected", "stopped", "disabled"].includes(statusStr)
 	) {
-		displayText = t("common.status.disconnected");
+		displayText = t("status.disconnected");
 	} else if (["initializing", "starting", "connecting"].includes(statusStr)) {
-		displayText = t("common.status.initializing");
+		displayText = t("status.initializing");
 	} else if (statusStr === "idle") {
-		displayText = t("common.status.idle");
+		displayText = t("status.idle");
 	} else {
-		displayText = t("common.status.unknown");
+		displayText = t("status.unknown");
 	}
 
 	return (

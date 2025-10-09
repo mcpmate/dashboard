@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import {
+	ensureI18n,
+	resolveI18nLanguage,
+	SUPPORTED_LANGUAGES,
+} from "../lib/i18n/index";
 import { useAppStore } from "../lib/store";
-import { ensureI18n, resolveI18nLanguage, SUPPORTED_LANGUAGES } from "../lib/i18n";
 
 const FALLBACK_STORE_LANGUAGE = "en";
 
@@ -20,9 +24,7 @@ export function LanguageSynchronizer() {
 	const dashboardLanguage = useAppStore(
 		(state) => state.dashboardSettings.language,
 	);
-	const setDashboardSetting = useAppStore(
-		(state) => state.setDashboardSetting,
-	);
+	const setDashboardSetting = useAppStore((state) => state.setDashboardSetting);
 	const { i18n } = useTranslation();
 	const initialisedRef = useRef(false);
 

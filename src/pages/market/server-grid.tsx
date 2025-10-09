@@ -64,7 +64,10 @@ export function ServerGrid({
 			{/* Empty State */}
 			{isEmpty ? (
 				<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-					{t("market.emptyState.noEntriesMatched")}
+					{t("market:emptyState.noEntriesMatched", {
+						defaultValue:
+							"No entries matched your filters. Try another name or clear the search above.",
+					})}
 				</div>
 			) : null}
 
@@ -76,7 +79,7 @@ export function ServerGrid({
 							<div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-lg dark:bg-slate-800">
 								<Loader2 className="h-4 w-4 animate-spin" />
 								<span className="text-sm font-medium">
-									{t("market.emptyState.loading")}
+									{t("market:emptyState.loading", { defaultValue: "Loading..." })}
 								</span>
 							</div>
 						</div>

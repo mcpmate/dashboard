@@ -2,30 +2,31 @@ import { ArrowUp, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ErrorDisplay } from "../../components/error-display";
+import { Button } from "../../components/ui/button";
 import { ServerInstallWizard } from "../../components/uniimport/server-install-wizard";
 import type { ServerInstallManualFormHandle } from "../../components/uniimport/types";
-import { Button } from "../../components/ui/button";
+import type { ServerInstallDraft } from "../../hooks/use-server-install-pipeline";
 import { useServerInstallPipeline } from "../../hooks/use-server-install-pipeline";
-import { notifyError, notifyInfo } from "../../lib/notify";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { parseJsonDrafts, parseTomlDrafts } from "../../lib/install-normalizer";
+import { notifyError, notifyInfo } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
 import type { RegistryServerEntry } from "../../lib/types";
-import {
-	useDebouncedValue,
-	getRegistryIdentity,
-	formatServerName,
-	slugifyForConfig,
-	normalizeRemoteKind,
-	getRemoteTypeLabel,
-	buildDraftFromRemoteOption,
-} from "./utils";
+import { useMarketData, useMarketTabs } from "./hooks";
 import { MarketIframe } from "./market-iframe";
 import { MarketSearch } from "./market-search";
 import { MarketTabs } from "./market-tabs";
 import { ServerGrid } from "./server-grid";
-import { useMarketData, useMarketTabs } from "./hooks";
 import type { SortOption } from "./types";
-import type { ServerInstallDraft } from "../../hooks/use-server-install-pipeline";
+import {
+	buildDraftFromRemoteOption,
+	formatServerName,
+	getRegistryIdentity,
+	getRemoteTypeLabel,
+	normalizeRemoteKind,
+	slugifyForConfig,
+	useDebouncedValue,
+} from "./utils";
 
 // Market mode types and interfaces
 interface RemoteOption {
@@ -50,6 +51,7 @@ interface RemoteOption {
 
 export function MarketPage() {
 	const { t } = useTranslation();
+	usePageTranslations("market");
 	// Use custom hooks for data and tab management
 	const {
 		tabs,
@@ -152,7 +154,7 @@ export function MarketPage() {
 			hiddenAt: Date.now(),
 		});
 		notifyInfo(
-			t("market.notifications.serverHidden"),
+			t("market:notifications.serverHidden", { defaultValue: "Server hidden" }),
 			`${label} will be excluded from Market.`,
 		);
 	};
@@ -411,14 +413,21 @@ export function MarketPage() {
 					formRef.current?.loadDraft({ ...currentDraft, meta: mergedMeta });
 				}
 				notifyInfo(
-					t("market.notifications.configurationDetected"),
-					t("market.notifications.reviewImportedSnippet"),
+					t("market:notifications.configurationDetected", {
+						defaultValue: "Configuration detected",
+					}),
+					t("market:notifications.reviewImportedSnippet", {
+						defaultValue:
+							"Review the imported snippet before completing the setup.",
+					}),
 				);
 			} catch (error) {
 				pendingImportRef.current = { ...snippet };
 				setPendingImportTick((tick) => tick + 1);
 				notifyError(
-					t("market.notifications.importFailed"),
+					t("market:notifications.importFailed", {
+						defaultValue: "Import failed",
+					}),
 					String(
 						error instanceof Error ? error.message : (error ?? "Unknown error"),
 					),
@@ -446,9 +455,9 @@ export function MarketPage() {
 					<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 						<div className="space-y-1">
 							<h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-								{t("market.title")}
+								{t("market:title", { defaultValue: "Market" })}
 								<sup className="ml-2 align-super text-xs font-normal text-slate-500 dark:text-slate-400">
-									{t("market.alpha")}
+									{t("market:alpha", { defaultValue: "alpha" })}
 								</sup>
 							</h2>
 						</div>
@@ -475,7 +484,7 @@ export function MarketPage() {
 									<Loader2
 										className={`h-4 w-4 ${isPageLoading ? "animate-spin" : ""}`}
 									/>
-									{t("market.buttons.refresh")}
+									{t("market:buttons.refresh", { defaultValue: "Refresh" })}
 								</Button>
 							</div>
 						)}
@@ -497,7 +506,9 @@ export function MarketPage() {
 				{isOfficialTab ? (
 					<>
 						<ErrorDisplay
-							title={t("market.errors.failedToLoadRegistry")}
+							title={t("market:errors.failedToLoadRegistry", {
+								defaultValue: "Failed to load registry",
+							})}
 							error={fetchError ?? null}
 							onRetry={handleRefreshClick}
 						/>
@@ -531,12 +542,23 @@ export function MarketPage() {
 							<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
 								<div className="space-y-2">
 									<h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
-										{currentTab?.label || t("market.thirdParty.portal")}
+										{currentTab?.label ||
+											t("market:thirdParty.portal", {
+												defaultValue: "Third-Party Portal",
+											})}
 									</h3>
-									<p>{t("market.thirdParty.contentWillDisplay")}</p>
+									<p>
+										{t("market:thirdParty.contentWillDisplay", {
+											defaultValue:
+												"Third-party portal content will be displayed here",
+										})}
+									</p>
 									<p className="text-xs text-slate-400">
 										URL:{" "}
-										{currentTab?.url || t("market.thirdParty.urlNotConfigured")}
+										{currentTab?.url ||
+											t("market:thirdParty.urlNotConfigured", {
+												defaultValue: "Not configured",
+											})}
 									</p>
 								</div>
 							</div>
@@ -552,7 +574,7 @@ export function MarketPage() {
 						className="fixed bottom-16 right-14 z-30 shadow-lg"
 					>
 						<ArrowUp className="mr-2 h-4 w-4" />
-						{t("market.buttons.top")}
+						{t("market:buttons.top", { defaultValue: "Top" })}
 					</Button>
 				) : null}
 			</div>
@@ -573,7 +595,9 @@ export function MarketPage() {
 					/>
 					<div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-slate-800">
 						<h3 className="text-lg font-semibold mb-4">
-							{t("market.transport.selectOption")}
+							{t("market:transport.selectOption", {
+								defaultValue: "Select Transport Option",
+							})}
 						</h3>
 						<div className="space-y-2">
 							{remoteOptions.map((option) => (
@@ -593,8 +617,12 @@ export function MarketPage() {
 									<div className="font-medium">{option.label}</div>
 									<div className="text-sm text-slate-500 dark:text-slate-400">
 										{option.source === "remote"
-											? t("market.transport.remoteEndpoint")
-											: t("market.transport.packageInstallation")}
+											? t("market:transport.remoteEndpoint", {
+													defaultValue: "Remote endpoint",
+												})
+											: t("market:transport.packageInstallation", {
+													defaultValue: "Package installation",
+												})}
 									</div>
 								</button>
 							))}

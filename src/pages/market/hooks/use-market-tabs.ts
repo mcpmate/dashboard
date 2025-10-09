@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { TFunction } from "i18next";
 import { type MarketPortalMeta, useAppStore } from "../../../lib/store";
 import { mergePortalOverrides } from "../portal-registry";
 import type { TabItem, UseMarketTabsReturn } from "../types";
 
 export function useMarketTabs(
-	t?: (key: string) => string,
+	t?: TFunction,
 ): UseMarketTabsReturn {
 	// Get default market setting
 	const defaultMarket = useAppStore(
@@ -43,7 +44,11 @@ export function useMarketTabs(
 	const officialTab = useMemo<TabItem>(
 		() => ({
 			id: "official",
-			label: t ? t("market.officialRegistry") : "Official MCP Registry",
+			label: t
+				? t("market:officialRegistry", {
+						defaultValue: "Official MCP Registry",
+					})
+				: "Official MCP Registry",
 			type: "official",
 			closable: defaultMarket !== "official",
 		}),

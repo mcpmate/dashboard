@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
@@ -81,11 +82,15 @@ function formatSuitDisplayName(
 			)
 			.join(" ");
 	}
-	return fallback ?? "Untitled Profile";
+	return (
+		fallback ??
+		t("profiles:untitledProfile", { defaultValue: "Untitled Profile" })
+	);
 }
 
 export function ProfilePage() {
 	const { t } = useTranslation();
+	usePageTranslations("profiles");
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [searchParams] = useSearchParams();
@@ -190,14 +195,20 @@ export function ProfilePage() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
-				t("profiles.messages.profileActivated"),
-				t("profiles.messages.profileActivatedDescription"),
+				t("profiles:messages.profileActivated", {
+					defaultValue: "Profile activated",
+				}),
+				t("profiles:messages.profileActivatedDescription", {
+					defaultValue: "Profile has been successfully activated",
+				}),
 			);
 		},
 		onError: (error) => {
 			notifyError(
-				t("profiles.messages.activationFailed"),
-				`${t("profiles.messages.activationFailedDescription")}: ${error instanceof Error ? error.message : String(error)}`,
+				t("profiles:messages.activationFailed", {
+					defaultValue: "Activation failed",
+				}),
+				`${t("profiles:messages.activationFailedDescription", { defaultValue: "Failed to activate profile" })}: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		},
 	});
@@ -208,14 +219,20 @@ export function ProfilePage() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
-				t("profiles.messages.profileDeactivated"),
-				t("profiles.messages.profileDeactivatedDescription"),
+				t("profiles:messages.profileDeactivated", {
+					defaultValue: "Profile deactivated",
+				}),
+				t("profiles:messages.profileDeactivatedDescription", {
+					defaultValue: "Profile has been successfully deactivated",
+				}),
 			);
 		},
 		onError: (error) => {
 			notifyError(
-				t("profiles.messages.deactivationFailed"),
-				`${t("profiles.messages.deactivationFailedDescription")}: ${error instanceof Error ? error.message : String(error)}`,
+				t("profiles:messages.deactivationFailed", {
+					defaultValue: "Deactivation failed",
+				}),
+				`${t("profiles:messages.deactivationFailedDescription", { defaultValue: "Failed to deactivate profile" })}: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		},
 	});
@@ -467,42 +484,51 @@ export function ProfilePage() {
 				titleBadges={[
 					isDefaultAnchor ? (
 						<Badge key="default-anchor" variant="outline">
-							{t("profiles.badges.defaultAnchor")}
+							{t("profiles:badges.defaultAnchor", {
+								defaultValue: "Default Anchor",
+							})}
 						</Badge>
 					) : isDefaultMember ? (
 						<Badge key="in-default" variant="outline">
-							{t("profiles.badges.inDefault")}
+							{t("profiles:badges.inDefault", { defaultValue: "In Default" })}
 						</Badge>
 					) : null,
 				].filter(Boolean)}
 				stats={[
 					{
-						label: t("profiles.badges.multiSelect"),
-						value: suit.multi_select ? t("common.yes") : t("common.no"),
+						label: t("profiles:badges.multiSelect", {
+							defaultValue: "Multi-select",
+						}),
+						value: suit.multi_select ? t("yes", { defaultValue: "Yes" }) : t("no", { defaultValue: "No" }),
 					},
-					{ label: t("profiles.badges.priority"), value: suit.priority },
+					{
+						label: t("profiles:badges.priority", { defaultValue: "Priority" }),
+						value: suit.priority,
+					},
 				]}
 				bottomTags={[
 					<span key="servers">
-						{t("profiles.badges.servers")}:{" "}
+						{t("profiles:badges.servers", { defaultValue: "Servers" })}:{" "}
 						{formatCount(stats?.enabledServers, stats?.totalServers)}
 					</span>,
 					<span key="tools">
-						{t("profiles.badges.tools")}:{" "}
+						{t("profiles:badges.tools", { defaultValue: "Tools" })}:{" "}
 						{formatCount(stats?.enabledTools, stats?.totalTools)}
 					</span>,
 					<span key="resources">
-						{t("profiles.badges.resources")}:{" "}
+						{t("profiles:badges.resources", { defaultValue: "Resources" })}:{" "}
 						{formatCount(stats?.enabledResources, stats?.totalResources)}
 					</span>,
 					<span key="prompts">
-						{t("profiles.badges.prompts")}:{" "}
+						{t("profiles:badges.prompts", { defaultValue: "Prompts" })}:{" "}
 						{formatCount(stats?.enabledPrompts, stats?.totalPrompts)}
 					</span>,
 				]}
 				statusBadge={
 					<Badge variant={suit.is_active ? "default" : "secondary"}>
-						{t(`profiles.suitTypes.${suit.suit_type}`)}
+						{t(`profiles:suitTypes.${suit.suit_type}`, {
+							defaultValue: suit.suit_type,
+						})}
 					</Badge>
 				}
 				enableSwitch={{
@@ -523,19 +549,19 @@ export function ProfilePage() {
 		const isDefaultAnchor = suitRole === "default_anchor";
 		const statItems = [
 			{
-				label: t("profiles.badges.servers"),
+				label: t("profiles:badges.servers", { defaultValue: "Servers" }),
 				value: formatCount(stats?.enabledServers, stats?.totalServers),
 			},
 			{
-				label: t("profiles.badges.tools"),
+				label: t("profiles:badges.tools", { defaultValue: "Tools" }),
 				value: formatCount(stats?.enabledTools, stats?.totalTools),
 			},
 			{
-				label: t("profiles.badges.resources"),
+				label: t("profiles:badges.resources", { defaultValue: "Resources" }),
 				value: formatCount(stats?.enabledResources, stats?.totalResources),
 			},
 			{
-				label: t("profiles.badges.prompts"),
+				label: t("profiles:badges.prompts", { defaultValue: "Prompts" }),
 				value: formatCount(stats?.enabledPrompts, stats?.totalPrompts),
 			},
 		];
@@ -552,18 +578,22 @@ export function ProfilePage() {
 				topRightBadge={
 					isDefaultAnchor ? (
 						<Badge variant="outline" className="shrink-0">
-							{t("profiles.badges.defaultAnchor")}
+							{t("profiles:badges.defaultAnchor", {
+								defaultValue: "Default Anchor",
+							})}
 						</Badge>
 					) : suit.is_default ? (
 						<Badge variant="outline" className="shrink-0">
-							{t("profiles.badges.inDefault")}
+							{t("profiles:badges.inDefault", { defaultValue: "In Default" })}
 						</Badge>
 					) : undefined
 				}
 				stats={statItems}
 				bottomLeft={
 					<Badge variant={suit.is_active ? "default" : "secondary"}>
-						{t(`profiles.suitTypes.${suit.suit_type}`)}
+						{t(`profiles:suitTypes.${suit.suit_type}`, {
+							defaultValue: suit.suit_type,
+						})}
 					</Badge>
 				}
 				bottomRight={
@@ -588,40 +618,42 @@ export function ProfilePage() {
 	// Prepare stats cards data
 	const statsCards = [
 		{
-			title: t("profiles.stats.profiles"),
+			title: t("profiles:stats.profiles", { defaultValue: "Profiles" }),
 			value: isLoadingSuits ? "..." : `${activeSuits.length}/${suits.length}`,
-			description: t("profiles.stats.activeProfiles"),
+			description: t("profiles:stats.activeProfiles", {
+				defaultValue: "active profiles",
+			}),
 			icon: <Settings className="h-4 w-4 text-emerald-600" />,
 		},
 		{
-			title: t("profiles.stats.servers"),
+			title: t("profiles:stats.servers", { defaultValue: "Servers" }),
 			value:
 				activeSuitServersQueries.some((query) => query.isLoading) ||
 				isLoadingSuits
 					? "..."
 					: `${enabledServersCount}/${totalServersInSuit}`,
-			description: t("profiles.stats.running"),
+			description: t("profiles:stats.running", { defaultValue: "running" }),
 			icon: <Server className="h-4 w-4 text-blue-600" />,
 		},
 		{
-			title: t("profiles.stats.tools"),
+			title: t("profiles:stats.tools", { defaultValue: "Tools" }),
 			value:
 				activeSuitToolsQueries.some((query) => query.isLoading) ||
 				isLoadingSuits
 					? "..."
 					: `${enabledToolsCount}/${totalToolsInSuit}`,
-			description: t("profiles.stats.enabled"),
+			description: t("profiles:stats.enabled", { defaultValue: "enabled" }),
 			icon: <Wrench className="h-4 w-4 text-purple-600" />,
 		},
 		{
-			title: t("profiles.stats.instances"),
+			title: t("profiles:stats.instances", { defaultValue: "Instances" }),
 			value:
 				isLoadingAllServers ||
 				activeSuitServersQueries.some((query) => query.isLoading) ||
 				isLoadingSuits
 					? "..."
 					: `${readyInstances}/${totalInstances}`,
-			description: t("profiles.stats.ready"),
+			description: t("profiles:stats.ready", { defaultValue: "ready" }),
 			icon: <Activity className="h-4 w-4 text-orange-600" />,
 		},
 	];
@@ -692,12 +724,20 @@ export function ProfilePage() {
 	const toolbarConfig = {
 		data: (suitsResponse?.suits || []) as ConfigSuit[],
 		search: {
-			placeholder: t("profiles.searchPlaceholder"),
+			placeholder: t("profiles:searchPlaceholder", {
+				defaultValue: "Search profiles...",
+			}),
 			fields: [
-				{ key: "name", label: t("profiles.fields.name"), weight: 10 },
+				{
+					key: "name",
+					label: t("profiles:fields.name", { defaultValue: "Name" }),
+					weight: 10,
+				},
 				{
 					key: "description",
-					label: t("profiles.fields.description"),
+					label: t("profiles:fields.description", {
+						defaultValue: "Description",
+					}),
 					weight: 8,
 				},
 			],
@@ -712,12 +752,14 @@ export function ProfilePage() {
 			options: [
 				{
 					value: "name",
-					label: t("profiles.fields.name"),
+					label: t("profiles:fields.name", { defaultValue: "Name" }),
 					defaultDirection: "asc" as const,
 				},
 				{
 					value: "is_active",
-					label: t("profiles.sort.activeStatus"),
+					label: t("profiles:sort.activeStatus", {
+						defaultValue: "Active Status",
+					}),
 					defaultDirection: "desc" as const,
 				},
 			],
@@ -754,7 +796,7 @@ export function ProfilePage() {
 				variant="outline"
 				size="sm"
 				className="h-9 w-9 p-0"
-				title={t("profiles.buttons.refresh")}
+				title={t("profiles:buttons.refresh", { defaultValue: "Refresh" })}
 			>
 				<RefreshCw
 					className={`h-4 w-4 ${isRefetchingSuits ? "animate-spin" : ""}`}
@@ -764,7 +806,9 @@ export function ProfilePage() {
 				size="sm"
 				className="h-9 w-9 p-0"
 				onClick={() => setIsNewSuitDialogOpen(true)}
-				title={t("profiles.buttons.newProfile")}
+				title={t("profiles:buttons.newProfile", {
+					defaultValue: "New Profile",
+				})}
 			>
 				<Plus className="h-4 w-4" />
 			</Button>
@@ -777,8 +821,13 @@ export function ProfilePage() {
 			<CardContent className="flex flex-col items-center justify-center p-6">
 				<EmptyState
 					icon={<Settings className="h-12 w-12" />}
-					title={t("profiles.emptyState.title")}
-					description={t("profiles.emptyState.description")}
+					title={t("profiles:emptyState.title", {
+						defaultValue: "No profiles found",
+					})}
+					description={t("profiles:emptyState.description", {
+						defaultValue:
+							"Profiles help organize and manage your MCP servers, tools, and resources",
+					})}
 					action={
 						<Button
 							onClick={() => setIsNewSuitDialogOpen(true)}
@@ -786,7 +835,9 @@ export function ProfilePage() {
 							className="mt-4"
 						>
 							<Plus className="mr-2 h-4 w-4" />
-							{t("profiles.buttons.createFirst")}
+							{t("profiles:buttons.createFirst", {
+								defaultValue: "Create First Profile",
+							})}
 						</Button>
 					}
 				/>
@@ -796,7 +847,7 @@ export function ProfilePage() {
 
 	return (
 		<PageLayout
-			title={t("profiles.title")}
+			title={t("profiles:title", { defaultValue: "Profiles" })}
 			headerActions={
 				<PageToolbar
 					config={toolbarConfig as any}
@@ -810,7 +861,9 @@ export function ProfilePage() {
 			{suitsError && (
 				<div className="bg-red-50 border border-red-200 rounded-md p-4">
 					<h3 className="text-red-800 font-medium">
-						{t("profiles.errors.loadingFailed")}
+						{t("profiles:errors.loadingFailed", {
+							defaultValue: "Error loading profiles:",
+						})}
 					</h3>
 					<p className="text-red-600 text-sm mt-1">{String(suitsError)}</p>
 				</div>

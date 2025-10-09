@@ -1,6 +1,7 @@
 import { Moon, RotateCcw, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEffect, useId, useMemo, useState } from "react";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { Button } from "../../components/ui/button";
 import {
 	Card,
@@ -42,7 +43,7 @@ import {
 	detectTauriEnvironment,
 	isTauriEnvironmentSync,
 } from "../../lib/platform";
-import { SUPPORTED_LANGUAGES } from "../../lib/i18n";
+import { SUPPORTED_LANGUAGES } from "../../lib/i18n/index";
 import type { OpenSourceDocument } from "../../types/open-source";
 import { AboutLicensesSection } from "./about-licenses-section";
 import { mergePortalOverrides } from "../market/portal-registry";
@@ -52,13 +53,13 @@ const THEME_CONFIG = [
 	{
 		value: "light" as const,
 		icon: Sun,
-		labelKey: "settings.options.theme.light",
+		labelKey: "settings:options.theme.light",
 		fallback: "Light",
 	},
 	{
 		value: "dark" as const,
 		icon: Moon,
-		labelKey: "settings.options.theme.dark",
+		labelKey: "settings:options.theme.dark",
 		fallback: "Dark",
 	},
 ];
@@ -66,12 +67,12 @@ const THEME_CONFIG = [
 const DEFAULT_VIEW_CONFIG = [
 	{
 		value: "list" as const,
-		labelKey: "settings.options.defaultView.list",
+		labelKey: "settings:options.defaultView.list",
 		fallback: "List",
 	},
 	{
 		value: "grid" as const,
-		labelKey: "settings.options.defaultView.grid",
+		labelKey: "settings:options.defaultView.grid",
 		fallback: "Grid",
 	},
 ];
@@ -79,12 +80,12 @@ const DEFAULT_VIEW_CONFIG = [
 const APPLICATION_MODE_CONFIG = [
 	{
 		value: "express" as const,
-		labelKey: "settings.options.appMode.express",
+		labelKey: "settings:options.appMode.express",
 		fallback: "Express",
 	},
 	{
 		value: "expert" as const,
-		labelKey: "settings.options.appMode.expert",
+		labelKey: "settings:options.appMode.expert",
 		fallback: "Expert",
 	},
 ];
@@ -92,12 +93,12 @@ const APPLICATION_MODE_CONFIG = [
 const CLIENT_MODE_CONFIG = [
 	{
 		value: "hosted" as const,
-		labelKey: "settings.options.clientMode.hosted",
+		labelKey: "settings:options.clientMode.hosted",
 		fallback: "Hosted",
 	},
 	{
 		value: "transparent" as const,
-		labelKey: "settings.options.clientMode.transparent",
+		labelKey: "settings:options.clientMode.transparent",
 		fallback: "Transparent",
 	},
 ];
@@ -105,17 +106,17 @@ const CLIENT_MODE_CONFIG = [
 const BACKUP_STRATEGY_CONFIG = [
 	{
 		value: "keep_n" as const,
-		labelKey: "settings.options.backup.keepN",
+		labelKey: "settings:options.backup.keepN",
 		fallback: "Keep N",
 	},
 	{
 		value: "keep_last" as const,
-		labelKey: "settings.options.backup.keepLast",
+		labelKey: "settings:options.backup.keepLast",
 		fallback: "Keep Last",
 	},
 	{
 		value: "none" as const,
-		labelKey: "settings.options.backup.none",
+		labelKey: "settings:options.backup.none",
 		fallback: "None",
 	},
 ];
@@ -132,17 +133,18 @@ const MENU_BAR_ICON_OPTIONS: ReadonlyArray<{
 }> = [
 	{
 		value: "runtime",
-		labelKey: "settings.options.menuBar.runtime",
+		labelKey: "settings:options.menuBar.runtime",
 		fallback: "Visible When Running",
 	},
 	{
 		value: "hidden",
-		labelKey: "settings.options.menuBar.hidden",
+		labelKey: "settings:options.menuBar.hidden",
 		fallback: "Hidden",
 	},
 ];
 
 export function SettingsPage() {
+	usePageTranslations("settings");
 	const languageId = useId();
 	const backupLimitId = useId();
 	const menuBarSelectId = useId();
@@ -339,7 +341,7 @@ export function SettingsPage() {
 	return (
 		<div className="space-y-4">
 			<h2 className="text-3xl font-bold tracking-tight">
-				{t("settings.title", { defaultValue: "Settings" })}
+				{t("settings:title", { defaultValue: "Settings" })}
 			</h2>
 
 			<Tabs
@@ -349,30 +351,30 @@ export function SettingsPage() {
 			>
 				<TabsList className="flex w-full flex-row flex-wrap gap-2 overflow-x-auto rounded-lg p-2 xl:w-64 xl:flex-col xl:overflow-visible xl:p-3 xl:self-start">
 					<TabsTrigger value="general" className={tabTriggerClass}>
-						{t("settings.tabs.general", { defaultValue: "General" })}
+						{t("settings:tabs.general", { defaultValue: "General" })}
 					</TabsTrigger>
 					<TabsTrigger value="appearance" className={tabTriggerClass}>
-						{t("settings.tabs.appearance", { defaultValue: "Appearance" })}
+						{t("settings:tabs.appearance", { defaultValue: "Appearance" })}
 					</TabsTrigger>
 					<TabsTrigger value="servers" className={tabTriggerClass}>
-						{t("settings.tabs.serverControls", {
+						{t("settings:tabs.serverControls", {
 							defaultValue: "Server Controls",
 						})}
 					</TabsTrigger>
 					<TabsTrigger value="clients" className={tabTriggerClass}>
-						{t("settings.tabs.clientDefaults", {
+						{t("settings:tabs.clientDefaults", {
 							defaultValue: "Client Defaults",
 						})}
 					</TabsTrigger>
 					<TabsTrigger value="market" className={tabTriggerClass}>
-						{t("settings.tabs.market", { defaultValue: "MCP Market" })}
+						{t("settings:tabs.market", { defaultValue: "MCP Market" })}
 					</TabsTrigger>
 					<TabsTrigger value="develop" className={tabTriggerClass}>
-						{t("settings.tabs.developer", { defaultValue: "Developer" })}
+						{t("settings:tabs.developer", { defaultValue: "Developer" })}
 					</TabsTrigger>
 					{showLicenseTab && (
 						<TabsTrigger value="about" className={tabTriggerClass}>
-							{t("settings.tabs.about", { defaultValue: "About & Licenses" })}
+							{t("settings:tabs.about", { defaultValue: "About & Licenses" })}
 						</TabsTrigger>
 					)}
 				</TabsList>
@@ -382,10 +384,10 @@ export function SettingsPage() {
 						<Card className="h-full">
 							<CardHeader>
 								<CardTitle>
-									{t("settings.general.title", { defaultValue: "General" })}
+									{t("settings:general.title", { defaultValue: "General" })}
 								</CardTitle>
 								<CardDescription>
-									{t("settings.general.description", {
+									{t("settings:general.description", {
 										defaultValue:
 											"Baseline preferences for the main workspace views.",
 									})}
@@ -396,12 +398,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											{t("settings.general.defaultView", {
+											{t("settings:general.defaultView", {
 												defaultValue: "Default View",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.general.defaultViewDescription", {
+											{t("settings:general.defaultViewDescription", {
 												defaultValue:
 													"Choose the default layout for displaying items.",
 											})}
@@ -426,13 +428,13 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											{t("settings.general.appMode", {
+											{t("settings:general.appMode", {
 												defaultValue: "Application Mode",
 											})}{" "}
-											<sup>{t("common.wipTag", { defaultValue: "(WIP)" })}</sup>
+											<sup>{t("wipTag", { defaultValue: "(WIP)" })}</sup>
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.general.appModeDescription", {
+											{t("settings:general.appModeDescription", {
 												defaultValue: "Select the interface complexity level.",
 											})}
 										</p>
@@ -456,13 +458,13 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											{t("settings.general.language", {
+											{t("settings:general.language", {
 												defaultValue: "Language",
 											})}{" "}
-											<sup>{t("common.wipTag", { defaultValue: "(WIP)" })}</sup>
+											<sup>{t("wipTag", { defaultValue: "(WIP)" })}</sup>
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.general.languageDescription", {
+											{t("settings:general.languageDescription", {
 												defaultValue:
 													"Multi-language support is currently in development.",
 											})}
@@ -476,7 +478,7 @@ export function SettingsPage() {
 									>
 										<SelectTrigger id={languageId} className="w-48">
 											<SelectValue
-												placeholder={t("settings.general.languagePlaceholder", {
+												placeholder={t("settings:general.languagePlaceholder", {
 													defaultValue: "Select language",
 												})}
 											/>
@@ -498,12 +500,12 @@ export function SettingsPage() {
 						<Card className="h-full">
 							<CardHeader>
 								<CardTitle>
-									{t("settings.appearance.title", {
+									{t("settings:appearance.title", {
 										defaultValue: "Appearance",
 									})}
 								</CardTitle>
 								<CardDescription>
-									{t("settings.appearance.description", {
+									{t("settings:appearance.description", {
 										defaultValue:
 											"Customize the look and feel of the dashboard.",
 									})}
@@ -514,12 +516,12 @@ export function SettingsPage() {
 									<div className="flex items-center justify-between gap-4">
 										<div className="space-y-0.5">
 											<h3 className="text-base font-medium">
-												{t("settings.appearance.themeTitle", {
+												{t("settings:appearance.themeTitle", {
 													defaultValue: "Theme",
 												})}
 											</h3>
 											<p className="text-sm text-slate-500">
-												{t("settings.appearance.themeDescription", {
+												{t("settings:appearance.themeDescription", {
 													defaultValue: "Switch between light and dark mode.",
 												})}
 											</p>
@@ -539,12 +541,12 @@ export function SettingsPage() {
 									<div className="flex items-center justify-between gap-4">
 										<div className="space-y-0.5">
 											<h3 className="text-base font-medium">
-												{t("settings.appearance.systemPreferenceTitle", {
+												{t("settings:appearance.systemPreferenceTitle", {
 													defaultValue: "System Preference",
 												})}
 											</h3>
 											<p className="text-sm text-slate-500">
-												{t("settings.appearance.systemPreferenceDescription", {
+												{t("settings:appearance.systemPreferenceDescription", {
 													defaultValue:
 														"Follow the operating system preference automatically.",
 												})}
@@ -563,15 +565,13 @@ export function SettingsPage() {
 											<div className="flex items-center justify-between gap-4">
 												<div className="space-y-0.5">
 													<h3 className="text-base font-medium">
-														{t("settings.appearance.menuBarTitle", {
+														{t("settings:appearance.menuBarTitle", {
 															defaultValue: "Menu Bar Icon",
 														})}{" "}
-														<sup>
-															{t("common.wipTag", { defaultValue: "(WIP)" })}
-														</sup>
+														<sup>{t("wipTag", { defaultValue: "(WIP)" })}</sup>
 													</h3>
 													<p className="text-sm text-slate-500">
-														{t("settings.appearance.menuBarDescription", {
+														{t("settings:appearance.menuBarDescription", {
 															defaultValue:
 																"Choose when the desktop tray icon should appear.",
 														})}
@@ -585,10 +585,9 @@ export function SettingsPage() {
 												>
 													<SelectTrigger id={menuBarSelectId} className="w-56">
 														<SelectValue
-															placeholder={t(
-																"common.placeholders.menuBarVisibility",
-																{ defaultValue: "Menu bar visibility" },
-															)}
+															placeholder={t("placeholders.menuBarVisibility", {
+																defaultValue: "Menu bar visibility",
+															})}
 														/>
 													</SelectTrigger>
 													<SelectContent>
@@ -611,15 +610,13 @@ export function SettingsPage() {
 											<div className="flex items-center justify-between gap-4">
 												<div className="space-y-0.5">
 													<h3 className="text-base font-medium">
-														{t("settings.appearance.dockTitle", {
+														{t("settings:appearance.dockTitle", {
 															defaultValue: "Dock Icon",
 														})}{" "}
-														<sup>
-															{t("common.wipTag", { defaultValue: "(WIP)" })}
-														</sup>
+														<sup>{t("wipTag", { defaultValue: "(WIP)" })}</sup>
 													</h3>
 													<p className="text-sm text-slate-500">
-														{t("settings.appearance.dockDescription", {
+														{t("settings:appearance.dockDescription", {
 															defaultValue:
 																"Display MCPMate in the macOS Dock or run silently from the menu bar.",
 														})}
@@ -635,8 +632,10 @@ export function SettingsPage() {
 
 											{!dashboardSettings.showDockIcon && (
 												<p className="text-xs leading-relaxed text-slate-500">
-													The Dock icon is hidden. The menu bar icon will remain
-													visible so you can reopen MCPMate.
+													{t("settings:appearance.dockHiddenNotice", {
+														defaultValue:
+															"The Dock icon is hidden. The menu bar icon will remain visible so you can reopen MCPMate.",
+													})}
 												</p>
 											)}
 										</div>
@@ -650,12 +649,12 @@ export function SettingsPage() {
 						<Card className="h-full">
 							<CardHeader>
 								<CardTitle>
-									{t("settings.servers.title", {
+									{t("settings:servers.title", {
 										defaultValue: "Server Controls",
 									})}
 								</CardTitle>
 								<CardDescription>
-									{t("settings.servers.description", {
+									{t("settings:servers.description", {
 										defaultValue:
 											"Decide how server operations propagate across clients.",
 									})}
@@ -665,12 +664,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											{t("settings.servers.syncTitle", {
+											{t("settings:servers.syncTitle", {
 												defaultValue: "Sync Global Start/Stop",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.servers.syncDescription", {
+											{t("settings:servers.syncDescription", {
 												defaultValue:
 													"Push global enable state to managed clients instantly.",
 											})}
@@ -687,12 +686,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											{t("settings.servers.autoAddTitle", {
+											{t("settings:servers.autoAddTitle", {
 												defaultValue: "Auto Add To Default Profile",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.servers.autoAddDescription", {
+											{t("settings:servers.autoAddDescription", {
 												defaultValue:
 													"Include new servers in the default profile automatically.",
 											})}
@@ -716,28 +715,28 @@ export function SettingsPage() {
 						<Card className="h-full">
 							<CardHeader>
 								<CardTitle>
-									{t("settings.clients.title", {
+									{t("settings:clients.title", {
 										defaultValue: "Client Defaults",
 									})}
 								</CardTitle>
 								<CardDescription>
-									{t("settings.clients.description", {
+									{t("settings:clients.description", {
 										defaultValue:
 											"Configure default rollout and backup behavior for client apps.",
 									})}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
-								{/* {t("settings.clients.modeTitle", { defaultValue: "Client Application Mode" })} */}
+								{/* {t("settings:clients.modeTitle", { defaultValue: "Client Application Mode" })} */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											{t("settings.clients.modeTitle", {
+											{t("settings:clients.modeTitle", {
 												defaultValue: "Client Application Mode",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.clients.modeDescription", {
+											{t("settings:clients.modeDescription", {
 												defaultValue:
 													"Choose how client applications should operate by default.",
 											})}
@@ -758,16 +757,16 @@ export function SettingsPage() {
 									</div>
 								</div>
 
-								{/* {t("settings.clients.backupStrategyTitle", { defaultValue: "Client Backup Strategy" })} */}
+								{/* {t("settings:clients.backupStrategyTitle", { defaultValue: "Client Backup Strategy" })} */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											{t("settings.clients.backupStrategyTitle", {
+											{t("settings:clients.backupStrategyTitle", {
 												defaultValue: "Client Backup Strategy",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.clients.backupStrategyDescription", {
+											{t("settings:clients.backupStrategyDescription", {
 												defaultValue:
 													"Define how client configurations should be backed up.",
 											})}
@@ -788,16 +787,16 @@ export function SettingsPage() {
 									</div>
 								</div>
 
-								{/* {t("settings.clients.backupLimitTitle", { defaultValue: "Maximum Backup Copies" })} */}
+								{/* {t("settings:clients.backupLimitTitle", { defaultValue: "Maximum Backup Copies" })} */}
 								<div className="flex items-center justify-between gap-4">
 									<div className="space-y-0.5">
 										<h3 className="text-base font-medium">
-											{t("settings.clients.backupLimitTitle", {
+											{t("settings:clients.backupLimitTitle", {
 												defaultValue: "Maximum Backup Copies",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.clients.backupLimitDescription", {
+											{t("settings:clients.backupLimitDescription", {
 												defaultValue:
 													"Set the maximum number of backup copies to keep. Applied when the strategy is set to Keep N. Values below 1 are rounded up.",
 											})}
@@ -828,10 +827,10 @@ export function SettingsPage() {
 						<Card className="h-full">
 							<CardHeader>
 								<CardTitle>
-									{t("settings.developer.title", { defaultValue: "Developer" })}
+									{t("settings:developer.title", { defaultValue: "Developer" })}
 								</CardTitle>
 								<CardDescription>
-									{t("settings.developer.description", {
+									{t("settings:developer.description", {
 										defaultValue:
 											"Experimental toggles for internal debugging and navigation visibility.",
 									})}
@@ -841,12 +840,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											{t("settings.developer.enableServerDebugTitle", {
+											{t("settings:developer.enableServerDebugTitle", {
 												defaultValue: "Enable Server Debug",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.developer.enableServerDebugDescription", {
+											{t("settings:developer.enableServerDebugDescription", {
 												defaultValue:
 													"Expose debug instrumentation for newly added servers.",
 											})}
@@ -863,12 +862,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											{t("settings.developer.openDebugInNewWindowTitle", {
+											{t("settings:developer.openDebugInNewWindowTitle", {
 												defaultValue: "Open Debug Views In New Window",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.developer.openDebugInNewWindowDescription", {
+											{t("settings:developer.openDebugInNewWindowDescription", {
 												defaultValue:
 													"When enabled, Debug buttons launch a separate tab instead of navigating the current view.",
 											})}
@@ -885,12 +884,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											{t("settings.developer.showApiDocsTitle", {
+											{t("settings:developer.showApiDocsTitle", {
 												defaultValue: "Show API Docs Menu",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.developer.showApiDocsDescription", {
+											{t("settings:developer.showApiDocsDescription", {
 												defaultValue:
 													"Reveal the API Docs shortcut in the sidebar navigation.",
 											})}
@@ -907,12 +906,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											{t("settings.developer.showRawJsonTitle", {
+											{t("settings:developer.showRawJsonTitle", {
 												defaultValue: "Show Raw Capability JSON",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.developer.showRawJsonDescription", {
+											{t("settings:developer.showRawJsonDescription", {
 												defaultValue:
 													"Display raw JSON payloads under Details in capability lists (Server details and Uni‑Import preview).",
 											})}
@@ -930,12 +929,12 @@ export function SettingsPage() {
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
-											{t("settings.developer.showDefaultHeadersTitle", {
+											{t("settings:developer.showDefaultHeadersTitle", {
 												defaultValue: "Show Default HTTP Headers",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
-											{t("settings.developer.showDefaultHeadersDescription", {
+											{t("settings:developer.showDefaultHeadersDescription", {
 												defaultValue:
 													"Display the server's default HTTP headers (values are redacted) in Server Details. Use only for debugging.",
 											})}
@@ -1027,10 +1026,10 @@ function MarketBlacklistCard({
 		<Card className="h-full">
 			<CardHeader>
 				<CardTitle>
-					{t("settings.market.title", { defaultValue: "MCP Market" })}
+					{t("settings:market.title", { defaultValue: "MCP Market" })}
 				</CardTitle>
 				<CardDescription>
-					{t("settings.market.description", {
+					{t("settings:market.description", {
 						defaultValue:
 							"Configure default market and manage hidden marketplace servers.",
 					})}
@@ -1041,12 +1040,12 @@ function MarketBlacklistCard({
 				<div className="flex items-center justify-between gap-4">
 					<div className="space-y-0.5">
 						<h3 className="text-base font-medium">
-							{t("settings.market.defaultMarketTitle", {
+							{t("settings:market.defaultMarketTitle", {
 								defaultValue: "Default Market",
 							})}
 						</h3>
 						<p className="text-sm text-slate-500">
-							{t("settings.market.defaultMarketDescription", {
+							{t("settings:market.defaultMarketDescription", {
 								defaultValue:
 									"Choose which market appears first and cannot be closed.",
 							})}
@@ -1063,7 +1062,7 @@ function MarketBlacklistCard({
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="official">
-								{t("settings.market.officialPortal", {
+								{t("settings:market.officialPortal", {
 									defaultValue: "Official MCP Registry",
 								})}
 							</SelectItem>
@@ -1080,12 +1079,12 @@ function MarketBlacklistCard({
 				<div className="flex items-center justify-between gap-4">
 					<div className="space-y-0.5">
 						<h3 className="text-base font-medium">
-							{t("settings.market.enableBlacklistTitle", {
+							{t("settings:market.enableBlacklistTitle", {
 								defaultValue: "Enable Blacklist",
 							})}
 						</h3>
 						<p className="text-sm text-slate-500">
-							{t("settings.market.enableBlacklistDescription", {
+							{t("settings:market.enableBlacklistDescription", {
 								defaultValue:
 									"Hide quality-poor or unavailable content from the market to keep it clean",
 							})}
@@ -1104,13 +1103,13 @@ function MarketBlacklistCard({
 					<div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-3">
 						<div className="grow">
 							<Label htmlFor="market-blacklist-search" className="sr-only">
-								{t("settings.market.searchHiddenServers", {
+								{t("settings:market.searchHiddenServers", {
 									defaultValue: "Search hidden servers",
 								})}
 							</Label>
 							<Input
 								id={searchId}
-								placeholder={t("common.placeholders.searchHiddenServers", {
+								placeholder={t("placeholders.searchHiddenServers", {
 									defaultValue: "Search hidden servers...",
 								})}
 								value={searchTerm}
@@ -1119,7 +1118,7 @@ function MarketBlacklistCard({
 						</div>
 						<div className="w-full md:ml-auto md:w-52">
 							<Label htmlFor="market-blacklist-sort" className="sr-only">
-								{t("settings.market.sortHiddenServers", {
+								{t("settings:market.sortHiddenServers", {
 									defaultValue: "Sort hidden servers",
 								})}
 							</Label>
@@ -1131,19 +1130,19 @@ function MarketBlacklistCard({
 							>
 								<SelectTrigger id={sortId}>
 									<SelectValue
-										placeholder={t("settings.market.sortPlaceholder", {
+										placeholder={t("settings:market.sortPlaceholder", {
 											defaultValue: "Sort",
 										})}
 									/>
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="recent">
-										{t("common.sort.recent", {
+										{t("sort.recent", {
 											defaultValue: "Most Recently Hidden",
 										})}
 									</SelectItem>
 									<SelectItem value="name">
-										{t("common.sort.name", { defaultValue: "Name (A-Z)" })}
+										{t("sort.name", { defaultValue: "Name (A-Z)" })}
 									</SelectItem>
 								</SelectContent>
 							</Select>
@@ -1154,12 +1153,12 @@ function MarketBlacklistCard({
 				{filteredEntries.length === 0 ? (
 					<div className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
 						<p>
-							{t("settings.market.emptyTitle", {
+							{t("settings:market.emptyTitle", {
 								defaultValue: "No hidden servers currently.",
 							})}
 						</p>
 						<p className="mt-1 text-xs text-slate-400">
-							{t("settings.market.emptyDescription", {
+							{t("settings:market.emptyDescription", {
 								defaultValue:
 									"Hide servers from the Market list to keep this space tidy. They will appear here for recovery.",
 							})}
@@ -1183,12 +1182,12 @@ function MarketBlacklistCard({
 										</p>
 										<p className="text-xs text-slate-500">
 											{entry.description?.trim() ||
-												t("settings.market.noNotes", {
+												t("settings:market.noNotes", {
 													defaultValue: "No notes added.",
 												})}
 										</p>
 										<p className="text-xs text-slate-400">
-											{t("settings.market.hiddenOn", {
+											{t("settings:market.hiddenOn", {
 												defaultValue: "Hidden on {{value}}",
 												value: hiddenLabel,
 											})}
@@ -1201,7 +1200,11 @@ function MarketBlacklistCard({
 										className="flex items-center gap-2"
 									>
 										<RotateCcw className="h-4 w-4" />
-										<span>Restore</span>
+										<span>
+											{t("settings:market.restore", {
+												defaultValue: "Restore",
+											})}
+										</span>
 									</Button>
 								</div>
 							);

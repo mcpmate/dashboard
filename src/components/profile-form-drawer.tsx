@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { usePageTranslations } from "../lib/i18n/usePageTranslations";
 import { useNavigate } from "react-router-dom";
 import { configSuitsApi, serversApi } from "../lib/api";
 import { notifyError, notifySuccess } from "../lib/notify";
@@ -93,6 +94,7 @@ export function ProfileFormDrawer({
 	restrictProfileType,
 }: ProfileFormDrawerProps) {
 	const { t } = useTranslation();
+	usePageTranslations("profiles");
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
@@ -134,13 +136,13 @@ export function ProfileFormDrawer({
 	const steps: Array<{ id: DrawerStep; label: string; hint: string }> = [
 		{
 			id: "details",
-			label: t("profiles.form.steps.profile"),
-			hint: t("profiles.form.steps.hints.basics"),
+			label: t("profiles:form.steps.profile", { defaultValue: "Profile" }),
+			hint: t("profiles:form.steps.hints.basics", { defaultValue: "Basics" }),
 		},
 		{
 			id: "servers",
-			label: t("profiles.form.steps.servers"),
-			hint: t("profiles.form.steps.hints.assign"),
+			label: t("profiles:form.steps.servers", { defaultValue: "Servers" }),
+			hint: t("profiles:form.steps.hints.assign", { defaultValue: "Assign" }),
 		},
 	];
 
@@ -383,16 +385,23 @@ export function ProfileFormDrawer({
 				});
 			}
 			notifySuccess(
-				t("profiles.form.messages.created"),
-				t("profiles.form.messages.createdDescription"),
+				t("profiles:form.messages.created", { defaultValue: "Created" }),
+				t("profiles:form.messages.createdDescription", {
+					defaultValue: "Profile created successfully",
+				}),
 			);
 			closeDrawer();
 			onSuccess?.();
 		},
 		onError: (error: Error) => {
 			notifyError(
-				t("profiles.form.messages.createFailed"),
-				error.message || t("profiles.form.messages.createFailed"),
+				t("profiles:form.messages.createFailed", {
+					defaultValue: "Create failed",
+				}),
+				error.message ||
+					t("profiles:form.messages.createFailed", {
+						defaultValue: "Create failed",
+					}),
 			);
 		},
 	});
@@ -428,16 +437,23 @@ export function ProfileFormDrawer({
 				});
 			}
 			notifySuccess(
-				t("profiles.form.messages.updated"),
-				t("profiles.form.messages.updatedDescription"),
+				t("profiles:form.messages.updated", { defaultValue: "Updated" }),
+				t("profiles:form.messages.updatedDescription", {
+					defaultValue: "Profile updated successfully",
+				}),
 			);
 			closeDrawer();
 			onSuccess?.();
 		},
 		onError: (error: Error) => {
 			notifyError(
-				t("profiles.form.messages.updateFailed"),
-				error.message || t("profiles.form.messages.updateFailed"),
+				t("profiles:form.messages.updateFailed", {
+					defaultValue: "Update failed",
+				}),
+				error.message ||
+					t("profiles:form.messages.updateFailed", {
+						defaultValue: "Update failed",
+					}),
 			);
 		},
 	});
@@ -448,8 +464,12 @@ export function ProfileFormDrawer({
 
 		if (!formData.name.trim()) {
 			notifyError(
-				t("profiles.form.messages.validationFailed"),
-				t("profiles.form.messages.nameRequired"),
+				t("profiles:form.messages.validationFailed", {
+					defaultValue: "Validation failed",
+				}),
+				t("profiles:form.messages.nameRequired", {
+					defaultValue: "Name is required",
+				}),
 			);
 			return;
 		}
@@ -535,11 +555,12 @@ export function ProfileFormDrawer({
 
 		// 首先处理所有可用的服务器
 		allServers.forEach((server) => {
-			const serverType = server.server_type || t("common.status.unknown");
+			const serverType =
+				server.server_type || t("status.unknown", { defaultValue: "Unknown" });
 			serverMap.set(server.id, {
 				id: server.id,
 				name: server.name || server.id,
-				description: `${serverType} • ${t("common.status.status")}: ${server.status || t("common.status.unknown")}`,
+				description: `${serverType} • ${t("status.status", { defaultValue: "Status" })}: ${server.status || t("status.unknown", { defaultValue: "Unknown" })}`,
 				type: serverType,
 				status: server.status,
 			});
@@ -551,7 +572,7 @@ export function ProfileFormDrawer({
 				serverMap.set(server.id, {
 					id: server.id,
 					name: server.name || server.id,
-					description: `${t("common.status.status")}: ${server.enabled ? t("common.status.enabled") : t("common.status.disabled")}`,
+					description: `${t("status.status", { defaultValue: "Status" })}: ${server.enabled ? t("status.enabled", { defaultValue: "Enabled" }) : t("status.disabled", { defaultValue: "Disabled" })}`,
 					status: server.enabled ? "enabled" : "disabled",
 				});
 			}
@@ -579,12 +600,12 @@ export function ProfileFormDrawer({
 		(step === "details" && !detailsStepValid) ||
 		(step === "servers" && isServersStepLoading);
 	const primaryLabel = isMutating
-		? t("profiles.form.buttons.saving")
+		? t("profiles:form.buttons.saving", { defaultValue: "Saving..." })
 		: step === "details"
-			? t("profiles.form.buttons.next")
+			? t("profiles:form.buttons.next", { defaultValue: "Next" })
 			: mode === "create"
-				? t("profiles.form.buttons.create")
-				: t("profiles.form.buttons.save");
+				? t("profiles:form.buttons.create", { defaultValue: "Create Profile" })
+				: t("profiles:form.buttons.save", { defaultValue: "Save Changes" });
 
 	const showDefaultToggle =
 		mode === "edit"
@@ -685,7 +706,9 @@ export function ProfileFormDrawer({
 		<div className="space-y-4">
 			<div className="flex items-center gap-4">
 				<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
-					{t("profiles.form.fields.concurrentActivation")}
+					{t("profiles:form.fields.concurrentActivation", {
+						defaultValue: "Concurrent Activation",
+					})}
 				</span>
 				<div className="flex items-center gap-2">
 					<Switch
@@ -699,14 +722,16 @@ export function ProfileFormDrawer({
 						}
 					/>
 					<Label htmlFor={multiSelectId} className="text-sm">
-						{t("profiles.form.labels.concurrentActivationDescription")}
+						{t("profiles:form.labels.concurrentActivationDescription", {
+							defaultValue: "Allow concurrent activation with other profiles",
+						})}
 					</Label>
 				</div>
 			</div>
 
 			<div className="flex items-center gap-4">
 				<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
-					{t("profiles.form.fields.status")}
+					{t("profiles:form.fields.status", { defaultValue: "Status" })}
 				</span>
 				<div className="flex flex-wrap items-center gap-6">
 					<div className="flex items-center gap-2">
@@ -721,7 +746,9 @@ export function ProfileFormDrawer({
 							}
 						/>
 						<Label htmlFor={isActiveId} className="text-sm">
-							{t("profiles.form.labels.activateImmediately")}
+							{t("profiles:form.labels.activateImmediately", {
+								defaultValue: "Activate immediately",
+							})}
 						</Label>
 					</div>
 					{showDefaultToggle && (
@@ -737,7 +764,9 @@ export function ProfileFormDrawer({
 								}
 							/>
 							<Label htmlFor={isDefaultId} className="text-sm">
-								{t("profiles.form.labels.setAsDefault")}
+								{t("profiles:form.labels.setAsDefault", {
+									defaultValue: "Set as default profile",
+								})}
 							</Label>
 						</div>
 					)}
@@ -750,7 +779,9 @@ export function ProfileFormDrawer({
 						htmlFor={cloneFromId}
 						className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300"
 					>
-						{t("profiles.form.fields.cloneFrom")}
+						{t("profiles:form.fields.cloneFrom", {
+							defaultValue: "Clone From",
+						})}
 					</Label>
 					<Select
 						value={formData.clone_from_id}
@@ -762,13 +793,18 @@ export function ProfileFormDrawer({
 						}
 					>
 						<SelectTrigger id={cloneFromId} className="flex-1">
-							<SelectValue placeholder={t("profiles.form.labels.none")}>
-								{selectedCloneProfile?.name ?? t("profiles.form.labels.none")}
+							<SelectValue
+								placeholder={t("profiles:form.labels.none", {
+									defaultValue: "None",
+								})}
+							>
+								{selectedCloneProfile?.name ??
+									t("profiles:form.labels.none", { defaultValue: "None" })}
 							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="none">
-								{t("profiles.form.labels.none")}
+								{t("profiles:form.labels.none", { defaultValue: "None" })}
 							</SelectItem>
 							{cloneableSuits.map((profile) => {
 								const rawDescription = profile.description?.trim() ?? "";
@@ -807,7 +843,10 @@ export function ProfileFormDrawer({
 				<div className="flex items-start gap-4 pt-0">
 					<span className="w-32" />
 					<p className="flex-1 pl-1 text-xs text-muted-foreground">
-						{t("profiles.form.clonePreview.description")}
+						{t("profiles:form.clonePreview.description", {
+							defaultValue:
+								"Cloning copies enabled servers, tools, and resources from the source profile.",
+						})}
 					</p>
 				</div>
 			</div>
@@ -818,7 +857,9 @@ export function ProfileFormDrawer({
 		<div className="space-y-4">
 			<div className="flex items-center gap-4">
 				<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
-					{t("profiles.form.fields.concurrentActivation")}
+					{t("profiles:form.fields.concurrentActivation", {
+						defaultValue: "Concurrent Activation",
+					})}
 				</span>
 				<div className="flex items-center gap-2">
 					<Switch
@@ -832,14 +873,16 @@ export function ProfileFormDrawer({
 						}
 					/>
 					<Label htmlFor={multiSelectId} className="text-sm">
-						{t("profiles.form.labels.concurrentActivationDescription")}
+						{t("profiles:form.labels.concurrentActivationDescription", {
+							defaultValue: "Allow concurrent activation with other profiles",
+						})}
 					</Label>
 				</div>
 			</div>
 
 			<div className="flex items-center gap-4">
 				<span className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300">
-					{t("profiles.form.fields.status")}
+					{t("profiles:form.fields.status", { defaultValue: "Status" })}
 				</span>
 				<div className="flex flex-wrap items-center gap-6">
 					<div className="flex items-center gap-2">
@@ -854,7 +897,9 @@ export function ProfileFormDrawer({
 							}
 						/>
 						<Label htmlFor={isActiveId} className="text-sm">
-							{t("profiles.form.labels.activateImmediately")}
+							{t("profiles:form.labels.activateImmediately", {
+								defaultValue: "Activate immediately",
+							})}
 						</Label>
 					</div>
 					{showDefaultToggle && (
@@ -870,7 +915,9 @@ export function ProfileFormDrawer({
 								}
 							/>
 							<Label htmlFor={isDefaultId} className="text-sm">
-								{t("profiles.form.labels.setAsDefault")}
+								{t("profiles:form.labels.setAsDefault", {
+									defaultValue: "Set as default profile",
+								})}
 							</Label>
 						</div>
 					)}
@@ -895,13 +942,20 @@ export function ProfileFormDrawer({
 				<DrawerHeader>
 					<DrawerTitle>
 						{mode === "create"
-							? t("profiles.form.title.create")
-							: t("profiles.form.title.edit")}
+							? t("profiles:form.title.create", {
+									defaultValue: "Create New Profile",
+								})
+							: t("profiles:form.title.edit", { defaultValue: "Edit Profile" })}
 					</DrawerTitle>
 					<DrawerDescription>
 						{mode === "create"
-							? t("profiles.form.description.create")
-							: t("profiles.form.description.edit")}
+							? t("profiles:form.description.create", {
+									defaultValue:
+										"Create a new profile to organize your MCP servers and tools.",
+								})
+							: t("profiles:form.description.edit", {
+									defaultValue: "Update the profile settings.",
+								})}
 					</DrawerDescription>
 				</DrawerHeader>
 
@@ -975,7 +1029,9 @@ export function ProfileFormDrawer({
 										htmlFor={nameId}
 										className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300"
 									>
-										{t("profiles.form.fields.nameRequired")}
+										{t("profiles:form.fields.nameRequired", {
+											defaultValue: "Name *",
+										})}
 									</Label>
 									<Input
 										id={nameId}
@@ -983,7 +1039,9 @@ export function ProfileFormDrawer({
 										onChange={(e) =>
 											setFormData((prev) => ({ ...prev, name: e.target.value }))
 										}
-										placeholder={t("profiles.form.placeholders.profileName")}
+										placeholder={t("profiles:form.placeholders.profileName", {
+											defaultValue: "Enter profile name",
+										})}
 										required
 										className="flex-1"
 									/>
@@ -994,7 +1052,9 @@ export function ProfileFormDrawer({
 										htmlFor={descriptionId}
 										className="w-32 text-sm font-medium text-slate-600 dark:text-slate-300"
 									>
-										{t("profiles.form.fields.description")}
+										{t("profiles:form.fields.description", {
+											defaultValue: "Description",
+										})}
 									</Label>
 									<Textarea
 										id={descriptionId}
@@ -1006,7 +1066,8 @@ export function ProfileFormDrawer({
 											}))
 										}
 										placeholder={t(
-											"profiles.form.placeholders.profileDescription",
+											"profiles:form.placeholders.profileDescription",
+											{ defaultValue: "Provide a short summary" },
 										)}
 										rows={3}
 										className="flex-1"
@@ -1020,11 +1081,18 @@ export function ProfileFormDrawer({
 							<div className="flex flex-col flex-1 space-y-4">
 								<div>
 									<p className="text-xs text-muted-foreground">
-										{t("profiles.form.serverSelection.title")}{" "}
+										{t("profiles:form.serverSelection.title", {
+											defaultValue:
+												"Choose which servers belong to this profile. Server enable/disable status is managed separately.",
+										})}{" "}
 										{selectedServerCount}{" "}
-										{t("profiles.form.serverSelection.assigned")},{" "}
-										{totalServerCount}{" "}
-										{t("profiles.form.serverSelection.available")}
+										{t("profiles:form.serverSelection.assigned", {
+											defaultValue: "servers assigned",
+										})}
+										, {totalServerCount}{" "}
+										{t("profiles:form.serverSelection.available", {
+											defaultValue: "available servers",
+										})}
 									</p>
 								</div>
 
@@ -1033,12 +1101,16 @@ export function ProfileFormDrawer({
 										<div className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-slate-200 text-sm text-muted-foreground dark:border-slate-800">
 											<div className="flex items-center gap-2">
 												<Loader2 className="h-4 w-4 animate-spin" />
-												{t("profiles.form.serverSelection.loading")}
+												{t("profiles:form.serverSelection.loading", {
+													defaultValue: "Loading server list…",
+												})}
 											</div>
 										</div>
 									) : totalServerCount === 0 ? (
 										<div className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-slate-200 text-center text-sm text-muted-foreground dark:border-slate-800">
-											{t("profiles.form.serverSelection.noAvailable")}
+											{t("profiles:form.serverSelection.noAvailable", {
+												defaultValue: "No available servers",
+											})}
 										</div>
 									) : (
 										<Transfer
@@ -1047,15 +1119,20 @@ export function ProfileFormDrawer({
 											onChange={handleTransferChange}
 											onItemInfo={handleServerInfo}
 											leftTitle={t(
-												"profiles.form.serverSelection.availableServers",
+												"profiles:form.serverSelection.availableServers",
+												{ defaultValue: "Available Servers" },
 											)}
 											rightTitle={t(
-												"profiles.form.serverSelection.profileServers",
+												"profiles:form.serverSelection.profileServers",
+												{ defaultValue: "Profile Servers" },
 											)}
 											searchPlaceholder={t(
-												"profiles.form.placeholders.searchServers",
+												"profiles:form.placeholders.searchServers",
+												{ defaultValue: "Search servers..." },
 											)}
-											emptyText={t("profiles.form.serverSelection.noData")}
+											emptyText={t("profiles:form.serverSelection.noData", {
+												defaultValue: "No data",
+											})}
 											disabled={isMutating}
 											loading={isServersStepLoading}
 											className="flex-1"
@@ -1082,8 +1159,10 @@ export function ProfileFormDrawer({
 									disabled={isMutating}
 								>
 									{step === "details"
-										? t("profiles.form.buttons.cancel")
-										: t("profiles.form.buttons.back")}
+										? t("profiles:form.buttons.cancel", {
+												defaultValue: "Cancel",
+											})
+										: t("profiles:form.buttons.back", { defaultValue: "Back" })}
 								</Button>
 								{step === "servers" && (
 									<Button
@@ -1092,7 +1171,9 @@ export function ProfileFormDrawer({
 										onClick={closeDrawer}
 										disabled={isMutating}
 									>
-										{t("profiles.form.buttons.cancel")}
+										{t("profiles:form.buttons.cancel", {
+											defaultValue: "Cancel",
+										})}
 									</Button>
 								)}
 							</div>

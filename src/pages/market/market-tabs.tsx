@@ -1,5 +1,6 @@
 import { Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { Button } from "../../components/ui/button";
 import {
 	DropdownMenu,
@@ -19,6 +20,7 @@ export function MarketTabs({
 	onAddPortal,
 }: MarketTabsProps) {
 	const { t } = useTranslation();
+	usePageTranslations("market");
 	const activePortalIds = new Set(
 		tabs
 			.filter((tab) => tab.type === "third-party" && tab.portalId)
@@ -98,7 +100,9 @@ export function MarketTabs({
 										aria-hidden="true"
 									/>
 								</span>
-								{t("market.officialRegistry")}
+								{t("market:officialRegistry", {
+									defaultValue: "Official MCP Registry",
+								})}
 							</DropdownMenuItem>
 							{availablePortals.map((portal) => (
 								<DropdownMenuItem
