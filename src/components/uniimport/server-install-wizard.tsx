@@ -19,6 +19,7 @@ import {
 	useState,
 } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
 	type InstallSource,
@@ -26,6 +27,8 @@ import {
 	useServerInstallPipeline,
 	type WizardStep,
 } from "../../hooks/use-server-install-pipeline";
+import { readClipboardText } from "../../lib/clipboard";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { useAppStore } from "../../lib/store";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Badge } from "../ui/badge";
@@ -53,6 +56,7 @@ import {
 import { useFormState, useFormSync, useIngest } from "./hooks";
 import {
 	breathingAnimation,
+	DEFAULT_INGEST_MESSAGE,
 	type ManualServerFormValues,
 	manualServerSchema,
 	SERVER_TYPE_OPTIONS,
@@ -62,11 +66,7 @@ import { FormViewModeToggle } from "./view-mode-toggle";
 
 // Step definitions
 
-const steps: Array<{ id: WizardStep; label: string; hint: string }> = [
-	{ id: "form", label: "Configuration", hint: "Setup" },
-	{ id: "preview", label: "Preview", hint: "Review" },
-	{ id: "result", label: "Import & Profile", hint: "Complete" },
-];
+const STEP_ORDER: WizardStep[] = ["form", "preview", "result"];
 
 interface ServerInstallWizardProps {
 	isOpen: boolean;
@@ -95,6 +95,8 @@ export const ServerInstallWizard = forwardRef(
 		}: ServerInstallWizardProps,
 		ref: React.Ref<ServerInstallManualFormHandle>,
 	) => {
+		usePageTranslations("servers");
+		const { t } = useTranslation("servers");
 		// Normalize modes: "create"->"new", "market"->"import"
 		const normalizedMode =
 			mode === "create" ? "new" : mode === "market" ? "import" : mode;
@@ -106,6 +108,29 @@ export const ServerInstallWizard = forwardRef(
 		// Wizard state
 		const [isClosing, setIsClosing] = useState(false);
 		const [uiActiveTab, setUiActiveTab] = useState<"core" | "meta">("core");
+		const steps = useMemo(
+			() =>
+				STEP_ORDER.map((id) => ({
+					id,
+					label: t(`wizard.steps.${id}.label`, {
+						defaultValue:
+							id === "form"
+								? "Configuration"
+								: id === "preview"
+									? "Preview"
+									: "Import & Profile",
+					}),
+					hint: t(`wizard.steps.${id}.hint`, {
+						defaultValue:
+							id === "form"
+								? "Setup"
+								: id === "preview"
+									? "Review"
+									: "Complete",
+					}),
+				})),
+			[t],
+		);
 
 		// Install pipeline (prefer external shared instance to keep state in sync with parent page)
 		const installPipeline = externalPipeline ?? useServerInstallPipeline();
@@ -300,6 +325,39 @@ export const ServerInstallWizard = forwardRef(
 		const watchedArgs = watch("args");
 		const watchedEnv = watch("env");
 		const watchedHeaders = watch("headers");
+		const ingestMessages = useMemo(
+			() => ({
+				defaultMessage: t("manual.ingest.default", {
+					defaultValue: DEFAULT_INGEST_MESSAGE,
+				}),
+				parsingDropped: t("manual.ingest.parsingDropped", {
+					defaultValue: "Parsing dropped text",
+				}),
+				parsingPasted: t("manual.ingest.parsingPasted", {
+					defaultValue: "Parsing pasted content",
+				}),
+				success: t("manual.ingest.success", {
+					defaultValue: "Server configuration loaded successfully",
+				}),
+				noneDetectedError: t("manual.ingest.noneDetectedError", {
+					defaultValue: "No servers detected in the input",
+				}),
+				noneDetectedTitle: t("manual.ingest.noneDetectedTitle", {
+					defaultValue: "No servers detected",
+				}),
+				noneDetectedDescription: t("manual.ingest.noneDetectedDescription", {
+					defaultValue:
+						"We could not find any server definitions in the input.",
+				}),
+				parseFailedFallback: t("manual.ingest.parseFailedFallback", {
+					defaultValue: "Failed to parse input",
+				}),
+				parseFailedTitle: t("manual.ingest.parseFailedTitle", {
+					defaultValue: "Parsing failed",
+				}),
+			}),
+			[t],
+		);
 		const previewInFlightRef = useRef(false);
 
 		const toKeyValueRecord = useCallback(
@@ -486,6 +544,7 @@ export const ServerInstallWizard = forwardRef(
 				}
 			},
 			onClose,
+			messages: ingestMessages,
 		});
 
 		// Drag & drop/paste handlers for the top drop zone (new mode only)
@@ -529,6 +588,22 @@ export const ServerInstallWizard = forwardRef(
 			}
 			return null;
 		};
+
+		const ingestClipboardPayload = useCallback(
+			async (initialText?: string | null) => {
+				if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
+					return false;
+				}
+				const seeded = initialText?.trim() ? initialText : null;
+				const text = seeded ?? (await readClipboardText());
+				if (!text || !text.trim()) {
+					return false;
+				}
+				await handleIngestPayload({ text });
+				return true;
+			},
+			[handleIngestPayload, ingestEnabled, isDropZoneCollapsed, isIngesting],
+		);
 
 		const handleDropZoneActivate = useCallback(() => {
 			if (!ingestEnabled) return;
@@ -711,20 +786,6 @@ export const ServerInstallWizard = forwardRef(
 			handlePreview,
 		]);
 
-		// Handle import action
-		const handleImport = useCallback(async () => {
-			if (onImport) {
-				const formValues = getValues();
-				const draft = toDraftFromValues(formValues);
-				onImport([draft]);
-			} else {
-				// Use install pipeline for import
-				installPipeline.confirmImport();
-			}
-
-			// The pipeline will handle step changes automatically
-		}, [getValues, onImport, installPipeline]);
-
 		const handleStepChange = useCallback(
 			(step: WizardStep) => {
 				if (isSubmitting) return;
@@ -756,6 +817,29 @@ export const ServerInstallWizard = forwardRef(
 				installPipeline.reset();
 			}
 		}, [onClose, isClosing, installPipeline]);
+
+		// Handle import action
+		const handleImport = useCallback(async () => {
+			if (onImport) {
+				const formValues = getValues();
+				const draft = toDraftFromValues(formValues);
+				await Promise.resolve(onImport([draft]));
+				handleOverlayClose();
+				return;
+			}
+
+			// Use install pipeline for import; close drawer on success
+			const didSucceed = await installPipeline.confirmImport();
+			if (didSucceed) {
+				handleOverlayClose();
+			}
+		}, [
+			getValues,
+			onImport,
+			toDraftFromValues,
+			handleOverlayClose,
+			installPipeline,
+		]);
 
 		// Cancel close handler (with delay for complete reset)
 		const handleCancelClose = useCallback(() => {
@@ -1001,11 +1085,12 @@ export const ServerInstallWizard = forwardRef(
 									}}
 									onPaste={async (e) => {
 										if (isDropZoneCollapsed) return;
-										const txt = e.clipboardData?.getData("text");
-										if (txt?.trim()) {
-											e.preventDefault();
-											await handleIngestPayload({ text: txt });
-										}
+										e.preventDefault();
+										await ingestClipboardPayload(
+											e.clipboardData?.getData("text/plain") ??
+												e.clipboardData?.getData("text") ??
+												null,
+										);
 									}}
 									className="w-full"
 								>
@@ -1062,11 +1147,17 @@ export const ServerInstallWizard = forwardRef(
 										</p>
 										{!isDropZoneCollapsed && !ingestError && (
 											<p className="mt-0 text-xs text-slate-400">
-												Tip: press{" "}
+												{t("manual.ingest.tipPrefix", {
+													defaultValue: "Tip: press",
+												})}{" "}
 												<kbd className="rounded bg-slate-200 px-1 text-[10px]">
-													Ctrl/Cmd + V
+													{t("manual.ingest.shortcut", {
+														defaultValue: "Ctrl/Cmd + V",
+													})}
 												</kbd>{" "}
-												to paste instantly.
+												{t("manual.ingest.tipSuffix", {
+													defaultValue: "to paste instantly.",
+												})}
 											</p>
 										)}
 									</div>
@@ -1084,9 +1175,18 @@ export const ServerInstallWizard = forwardRef(
 								className="h-full flex flex-col"
 							>
 								<TabsList className="grid w-full grid-cols-2">
-									<TabsTrigger value="core">Core configuration</TabsTrigger>
+									<TabsTrigger value="core">
+										{t("manual.tabs.core", {
+											defaultValue: "Core configuration",
+										})}
+									</TabsTrigger>
 									<TabsTrigger value="meta">
-										Meta information <sup>(WIP)</sup>
+										{t("manual.tabs.meta", {
+											defaultValue: "Meta information",
+										})}{" "}
+										<sup>
+											({t("manual.tabs.metaWip", { defaultValue: "WIP" })})
+										</sup>
 									</TabsTrigger>
 								</TabsList>
 
@@ -1110,18 +1210,28 @@ export const ServerInstallWizard = forwardRef(
 												<div className="space-y-4">
 													<div className="flex items-center gap-4">
 														<Label htmlFor={nameId} className="w-20 text-right">
-															Name
+															{t("manual.fields.name.label", {
+																defaultValue: "Name",
+															})}
 														</Label>
 														<div className="flex-1">
 															<Input
 																id={nameId}
 																{...register("name")}
-																placeholder="e.g., local-mcp"
+																placeholder={t(
+																	"manual.fields.name.placeholder",
+																	{
+																		defaultValue: "e.g., local-mcp",
+																	},
+																)}
 																readOnly={isEditMode}
 																aria-readonly={isEditMode}
 																title={
 																	isEditMode
-																		? "Editing server names is disabled"
+																		? t("manual.fields.name.readOnlyTitle", {
+																				defaultValue:
+																					"Editing server names is disabled",
+																			})
 																		: undefined
 																}
 																className={
@@ -1139,7 +1249,9 @@ export const ServerInstallWizard = forwardRef(
 													</div>
 													<div className="flex items-center gap-4">
 														<Label htmlFor={kindId} className="w-20 text-right">
-															Type
+															{t("manual.fields.type.label", {
+																defaultValue: "Type",
+															})}
 														</Label>
 														<div className="flex-1">
 															<Segment
@@ -1226,7 +1338,9 @@ export const ServerInstallWizard = forwardRef(
 														htmlFor={manualJsonId}
 														className="w-20 text-right pt-3 flex-shrink-0"
 													>
-														Server JSON
+														{t("manual.fields.json.label", {
+															defaultValue: "Server JSON",
+														})}
 													</Label>
 													<div className="flex-1 flex flex-col">
 														<div className="flex-1 min-h-[400px] border border-input rounded-md flex flex-col">
@@ -1382,8 +1496,10 @@ export const ServerInstallWizard = forwardRef(
 
 						{isPreviewLoading ? (
 							<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-								<Loader2 className="h-4 w-4 animate-spin" /> Generating
-								capability preview…
+								<Loader2 className="h-4 w-4 animate-spin" />{" "}
+								{t("wizard.preview.generating", {
+									defaultValue: "Generating capability preview…",
+								})}
 							</div>
 						) : null}
 
@@ -1411,19 +1527,19 @@ export const ServerInstallWizard = forwardRef(
 								const summaryParts = [] as string[];
 								if (tools.length)
 									summaryParts.push(
-										`${tools.length} ${tools.length === 1 ? "tool" : "tools"}`,
+										`${tools.length} ${tools.length === 1 ? t("wizard.preview.capabilities.tool", { defaultValue: "tool" }) : t("wizard.preview.capabilities.tools", { defaultValue: "tools" })}`,
 									);
 								if (resources.length)
 									summaryParts.push(
-										`${resources.length} ${resources.length === 1 ? "resource" : "resources"}`,
+										`${resources.length} ${resources.length === 1 ? t("wizard.preview.capabilities.resource", { defaultValue: "resource" }) : t("wizard.preview.capabilities.resources", { defaultValue: "resources" })}`,
 									);
 								if (templates.length)
 									summaryParts.push(
-										`${templates.length} ${templates.length === 1 ? "template" : "templates"}`,
+										`${templates.length} ${templates.length === 1 ? t("wizard.preview.capabilities.template", { defaultValue: "template" }) : t("wizard.preview.capabilities.templates", { defaultValue: "templates" })}`,
 									);
 								if (prompts.length)
 									summaryParts.push(
-										`${prompts.length} ${prompts.length === 1 ? "prompt" : "prompts"}`,
+										`${prompts.length} ${prompts.length === 1 ? t("wizard.preview.capabilities.prompt", { defaultValue: "prompt" }) : t("wizard.preview.capabilities.prompts", { defaultValue: "prompts" })}`,
 									);
 								const summaryText = summaryParts.join(" · ");
 								const isOpen = !!expanded[draft.name];
@@ -1498,6 +1614,8 @@ export const ServerInstallWizard = forwardRef(
 				dryRunResult,
 				isDryRunLoading,
 				dryRunError,
+				dryRunStats,
+				dryRunWarning,
 			} = state;
 			const summary = importResult?.summary as
 				| { imported_count?: number | null; skipped_count?: number | null }
@@ -1515,58 +1633,112 @@ export const ServerInstallWizard = forwardRef(
 			const showReadyState = !importResult && !isImporting;
 
 			// Determine if we can proceed with import based on dry-run
+			const dryRunImportableCount = dryRunStats?.importedCount ?? 0;
+			const dryRunSkippedCount = dryRunStats?.skippedCount ?? 0;
+			const dryRunFailedCount = dryRunStats?.failedCount ?? 0;
 			const canProceedWithImport =
-				!isDryRunLoading && !dryRunError && dryRunResult;
+				!isDryRunLoading &&
+				!dryRunError &&
+				dryRunResult &&
+				dryRunImportableCount > 0;
+			const validationOverviewItems = [
+				{
+					label: t("wizard.result.validation.ready", {
+						defaultValue: "Ready to import",
+					}),
+					value: dryRunImportableCount,
+					accent:
+						dryRunImportableCount > 0
+							? "text-green-600"
+							: "text-muted-foreground",
+				},
+				{
+					label: t("wizard.result.validation.skipped", {
+						defaultValue: "Will be skipped",
+					}),
+					value: dryRunSkippedCount,
+					accent:
+						dryRunSkippedCount > 0 ? "text-amber-600" : "text-muted-foreground",
+				},
+				{
+					label: t("wizard.result.validation.failed", {
+						defaultValue: "Failed validation",
+					}),
+					value: dryRunFailedCount,
+					accent:
+						dryRunFailedCount > 0 ? "text-red-600" : "text-muted-foreground",
+				},
+			];
 
 			const successSteps: Array<{ label: string; action: NextStepAction }> =
 				selectedProfileName
 					? [
 							{
-								label:
-									"Close this drawer to continue browsing or queue another server for import.",
+								label: t("wizard.result.success.close", {
+									defaultValue:
+										"Close this drawer to continue browsing or queue another server for import.",
+								}),
 								action: "close",
 							},
 							{
-								label:
-									"Open the Servers dashboard to review and manage the new server.",
+								label: t("wizard.result.success.servers", {
+									defaultValue:
+										"Open the Servers dashboard to review and manage the new server.",
+								}),
 								action: "servers",
 							},
 							{
-								label: `Open Profiles to verify "${selectedProfileName}" reflects the new server.`,
+								label: t("wizard.result.success.profilesWithName", {
+									profile: selectedProfileName,
+									defaultValue:
+										'Open Profiles to verify "{{profile}}" reflects the new server.',
+								}),
 								action: "profiles",
 							},
 						]
 					: [
 							{
-								label:
-									"Close this drawer to continue browsing or queue another server for import.",
+								label: t("wizard.result.success.close", {
+									defaultValue:
+										"Close this drawer to continue browsing or queue another server for import.",
+								}),
 								action: "close",
 							},
 							{
-								label:
-									"Open the Servers dashboard to review and manage the new server.",
+								label: t("wizard.result.success.servers", {
+									defaultValue:
+										"Open the Servers dashboard to review and manage the new server.",
+								}),
 								action: "servers",
 							},
 							{
-								label:
-									"Visit Profiles to add this server to the appropriate activation sets.",
+								label: t("wizard.result.success.profiles", {
+									defaultValue:
+										"Visit Profiles to add this server to the appropriate activation sets.",
+								}),
 								action: "profiles",
 							},
 						];
 			const failureSteps: Array<{ label: string; action: NextStepAction }> = [
 				{
-					label:
-						"Return to the Servers dashboard to adjust or remove the configuration before retrying.",
+					label: t("wizard.result.failure.adjustServers", {
+						defaultValue:
+							"Return to the Servers dashboard to adjust or remove the configuration before retrying.",
+					}),
 					action: "servers",
 				},
 				{
-					label:
-						"Review the preview output above for errors and apply the necessary fixes before confirming again.",
+					label: t("wizard.result.failure.reviewPreview", {
+						defaultValue:
+							"Review the preview output above for errors and apply the necessary fixes before confirming again.",
+					}),
 					action: "preview",
 				},
 				{
-					label:
-						"Keep this drawer open, update the configuration, and rerun Preview before another import attempt.",
+					label: t("wizard.result.failure.rerunPreview", {
+						defaultValue:
+							"Keep this drawer open, update the configuration, and rerun Preview before another import attempt.",
+					}),
 					action: "preview",
 				},
 			];
@@ -1574,11 +1746,11 @@ export const ServerInstallWizard = forwardRef(
 			const renderNextSteps = (
 				items: Array<{ label: string; action: NextStepAction }>,
 			) => (
-				<div className="rounded-lg border p-4 space-y-3">
-					<h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-						Next steps
+				<div className="space-y-2">
+					<h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+						{t("wizard.result.nextSteps.title", { defaultValue: "Next steps" })}
 					</h4>
-					<ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+					<ul className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
 						{items.map(({ label, action }) => {
 							const interactive = action !== "none";
 							return (
@@ -1589,14 +1761,14 @@ export const ServerInstallWizard = forwardRef(
 											onClick={() => handleNextStepAction(action)}
 											className="group flex items-start gap-2 text-left text-slate-600 hover:text-primary focus:outline-none dark:text-slate-300"
 										>
-											<ChevronRight className="mt-0.5 h-4 w-4 text-slate-400 group-hover:text-primary" />
+											<ChevronRight className="mt-1 h-3 w-3 text-slate-400 group-hover:text-primary" />
 											<span className="underline decoration-dotted underline-offset-2">
 												{label}
 											</span>
 										</button>
 									) : (
 										<div className="flex items-start gap-2">
-											<ChevronRight className="mt-0.5 h-4 w-4 text-slate-400" />
+											<ChevronRight className="mt-1 h-3 w-3 text-slate-400" />
 											<span>{label}</span>
 										</div>
 									)}
@@ -1609,19 +1781,29 @@ export const ServerInstallWizard = forwardRef(
 
 			const readySteps: Array<{ label: string; action: NextStepAction }> = [
 				{
-					label:
-						"Review the server configuration and capabilities from the previous step.",
+					label: t("wizard.result.readySteps.reviewConfig", {
+						defaultValue:
+							"Review the server configuration and capabilities from the previous step.",
+					}),
 					action: "none",
 				},
 				{
 					label: autoAddToDefault
-						? "The server will be automatically added to the Default profile based on your settings."
-						: "The server will remain unassigned. You can add it to profiles later from the Profiles page.",
+						? t("wizard.result.readySteps.autoAdd", {
+								defaultValue:
+									"The server will be automatically added to the Default profile based on your settings.",
+							})
+						: t("wizard.result.readySteps.manualAssign", {
+								defaultValue:
+									"The server will remain unassigned. You can add it to profiles later from the Profiles page.",
+							}),
 					action: "none",
 				},
 				{
-					label:
-						"Click the Import button below to install the server to your system.",
+					label: t("wizard.result.readySteps.importAction", {
+						defaultValue:
+							"Click the Import button below to install the server to your system.",
+					}),
 					action: "none",
 				},
 			];
@@ -1630,49 +1812,136 @@ export const ServerInstallWizard = forwardRef(
 				<div className="flex flex-col">
 					<div className="p-4 space-y-4">
 						{showReadyState ? (
-							<>
-								{/* Dry-run validation status */}
-								{isDryRunLoading ? (
-									<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-										<Loader2 className="h-4 w-4 animate-spin" /> Validating
-										import...
-									</div>
-								) : dryRunError ? (
-									<Alert variant="destructive">
-										<AlertTriangle className="h-4 w-4" />
-										<AlertTitle>Import Validation Failed</AlertTitle>
-										<AlertDescription>{dryRunError}</AlertDescription>
-									</Alert>
-								) : canProceedWithImport ? (
-									<div className="rounded-lg border p-4">
-										<div className="flex items-center gap-2 mb-2">
-											<div className="h-2 w-2 rounded-full bg-green-500" />
-											<span className="font-medium">Import Validated</span>
-										</div>
-										<p className="text-sm text-muted-foreground">
-											Pre-validation succeeded. The server can be safely
-											imported.
-										</p>
-									</div>
-								) : (
-									<div className="rounded-lg border p-4">
-										<div className="flex items-center gap-2 mb-2">
-											<div className="h-2 w-2 rounded-full bg-blue-500" />
-											<span className="font-medium">Import Ready</span>
-										</div>
-										<p className="text-sm text-muted-foreground">
-											The server configuration is ready to be imported. Review
-											the information below and click Import when ready.
-										</p>
-									</div>
-								)}
+							isDryRunLoading ? (
+								<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+									<Loader2 className="h-4 w-4 animate-spin" />
+									{t("wizard.result.validating", {
+										defaultValue: "Validating import...",
+									})}
+								</div>
+							) : (
+								<div className="rounded-lg border p-4 space-y-4">
+									{(() => {
+										let badgeColor = "bg-green-500";
+										let statusTitle = t("wizard.result.validatedTitle", {
+											defaultValue: "Import Validated",
+										});
+										let detailMessage: string | null = null;
+										let detailTone: "error" | "warning" | "muted" = "muted";
+										if (dryRunError) {
+											badgeColor = "bg-red-500";
+											statusTitle = t("wizard.result.validationFailedTitle", {
+												defaultValue: "Import Validation Failed",
+											});
+											detailMessage = dryRunError;
+											detailTone = "error";
+										} else if (canProceedWithImport) {
+											if (dryRunWarning) {
+												badgeColor = "bg-amber-500";
+												statusTitle = t(
+													"wizard.result.validatedWithWarningsTitle",
+													{
+														defaultValue: "Import Validated With Warnings",
+													},
+												);
+												detailMessage = dryRunWarning;
+												detailTone = "warning";
+											}
+										} else {
+											badgeColor = "bg-amber-500";
+											statusTitle = t("wizard.result.alreadyInstalledTitle", {
+												defaultValue: "Already Installed",
+											});
+											detailMessage = dryRunWarning;
+											detailTone = "warning";
+										}
 
-								{/* Next Steps */}
-								{!isDryRunLoading && renderNextSteps(readySteps)}
-							</>
+										const detailClass =
+											detailTone === "error"
+												? "text-sm text-red-600"
+												: detailTone === "warning"
+													? "text-sm text-amber-600"
+													: "text-sm text-muted-foreground";
+
+										const skippedOnly =
+											!dryRunError &&
+											!canProceedWithImport &&
+											dryRunSkippedCount > 0;
+
+										const nextSteps = dryRunError
+											? failureSteps
+											: canProceedWithImport
+												? readySteps
+												: skippedOnly
+													? [
+															{
+																label: t(
+																	"wizard.result.skipSteps.useExisting",
+																	{
+																		defaultValue:
+																			"Close this drawer and start using the existing server.",
+																	},
+																),
+																action: "close" as NextStepAction,
+															},
+															{
+																label: t(
+																	"wizard.result.skipSteps.chooseAnother",
+																	{
+																		defaultValue:
+																			"Go back to the previous step to choose a different server if needed.",
+																	},
+																),
+																action: "preview" as NextStepAction,
+															},
+														]
+													: readySteps;
+
+										return (
+											<>
+												<div className="flex items-center gap-2">
+													<span
+														className={`font-medium ${detailTone === "warning" && !dryRunError ? "text-amber-600" : detailTone === "error" ? "text-red-600" : "text-green-600"}`}
+													>
+														{statusTitle}
+													</span>
+												</div>
+												<div className="space-y-3">
+													<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+														{validationOverviewItems.map(
+															({ label, value, accent }) => (
+																<div
+																	key={label}
+																	className="rounded-md border p-3"
+																>
+																	<div className="text-xs font-semibold uppercase text-muted-foreground">
+																		{label}
+																	</div>
+																	<div
+																		className={`text-2xl font-bold ${accent}`}
+																	>
+																		{value}
+																	</div>
+																</div>
+															),
+														)}
+													</div>
+													{detailMessage ? (
+														<p className={detailClass}>{detailMessage}</p>
+													) : null}
+													{renderNextSteps(nextSteps)}
+												</div>
+											</>
+										);
+									})()}
+								</div>
+							)
 						) : isImporting ? (
 							<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-								<Loader2 className="h-4 w-4 animate-spin" /> Importing servers…
+								<Loader2 className="h-4 w-4 animate-spin" />
+								{t("wizard.result.importingStatus", {
+									defaultValue: "Importing servers…",
+								})}
 							</div>
 						) : importResult ? (
 							<div className="space-y-4">
@@ -1686,26 +1955,43 @@ export const ServerInstallWizard = forwardRef(
 										)}
 										<span className="font-medium">
 											{importResult.success !== false
-												? "Import Successful"
-												: "Import Failed"}
+												? t("wizard.result.successTitle", {
+														defaultValue: "Import Successful",
+													})
+												: t("wizard.result.failureTitle", {
+														defaultValue: "Import Failed",
+													})}
 										</span>
 									</div>
 									{importResult.success !== false ? (
 										<>
 											<p className="text-sm text-muted-foreground">
 												{onlySkipped
-													? "All selected servers were already installed. No changes were applied."
-													: "The server has been successfully installed and is ready to use."}
+													? t("wizard.result.successAllSkipped", {
+															defaultValue:
+																"All selected servers were already installed. No changes were applied.",
+														})
+													: t("wizard.result.successInstalled", {
+															defaultValue:
+																"The server has been successfully installed and is ready to use.",
+														})}
 											</p>
 											{selectedProfileName ? (
 												<p className="mt-2 text-xs text-muted-foreground">
-													Enabled automatically in "{selectedProfileName}".
+													{t("wizard.result.successAutoEnabled", {
+														profile: selectedProfileName,
+														defaultValue:
+															'Enabled automatically in "{{profile}}".',
+													})}
 												</p>
 											) : null}
 										</>
 									) : (
 										<p className="text-sm text-red-600">
-											{importResult.error || "An error occurred during import"}
+											{importResult.error ||
+												t("wizard.result.failureGeneric", {
+													defaultValue: "An error occurred during import",
+												})}
 										</p>
 									)}
 								</div>
@@ -1715,7 +2001,9 @@ export const ServerInstallWizard = forwardRef(
 									<div className="grid grid-cols-2 gap-4">
 										<div className="rounded-lg border p-3">
 											<div className="text-sm font-medium text-muted-foreground">
-												Imported
+												{t("wizard.result.stats.imported", {
+													defaultValue: "Imported",
+												})}
 											</div>
 											<div className="text-2xl font-bold text-green-600">
 												{importResult.summary.imported_count || 0}
@@ -1723,7 +2011,9 @@ export const ServerInstallWizard = forwardRef(
 										</div>
 										<div className="rounded-lg border p-3">
 											<div className="text-sm font-medium text-muted-foreground">
-												Skipped
+												{t("wizard.result.stats.skipped", {
+													defaultValue: "Skipped",
+												})}
 											</div>
 											<div className="text-2xl font-bold text-yellow-600">
 												{importResult.summary.skipped_count || 0}
@@ -1735,7 +2025,11 @@ export const ServerInstallWizard = forwardRef(
 								{/* Server Details */}
 								{importResult.servers && (
 									<div className="space-y-2">
-										<h4 className="font-medium">Installed Servers</h4>
+										<h4 className="font-medium">
+											{t("wizard.result.installedServersTitle", {
+												defaultValue: "Installed Servers",
+											})}
+										</h4>
 										<div className="space-y-2">
 											{Object.entries(
 												importResult.servers as Record<string, any>,
@@ -1775,10 +2069,15 @@ export const ServerInstallWizard = forwardRef(
 							<div className="flex items-center justify-center h-full">
 								<div className="text-center">
 									<div className="text-lg font-medium mb-2">
-										Ready to Import
+										{t("wizard.result.readyTitle", {
+											defaultValue: "Ready to Import",
+										})}
 									</div>
 									<div className="text-sm text-muted-foreground">
-										Click the Import button to proceed with installation
+										{t("wizard.result.readyDescription", {
+											defaultValue:
+												"Click the Import button to proceed with installation",
+										})}
 									</div>
 								</div>
 							</div>
@@ -1796,12 +2095,20 @@ export const ServerInstallWizard = forwardRef(
 				<DrawerContent className="h-full flex flex-col">
 					<DrawerHeader>
 						<DrawerTitle className="flex items-center gap-2">
-							{isEditMode ? "Edit Server" : "Add MCP Server"}
+							{isEditMode
+								? t("wizard.header.editTitle", { defaultValue: "Edit Server" })
+								: t("wizard.header.addTitle", {
+										defaultValue: "Add MCP Server",
+									})}
 						</DrawerTitle>
 						<DrawerDescription>
 							{isEditMode
-								? "Update server configuration"
-								: "Configure and install a new MCP server"}
+								? t("wizard.header.editDescription", {
+										defaultValue: "Update server configuration",
+									})
+								: t("wizard.header.addDescription", {
+										defaultValue: "Configure and install a new MCP server",
+									})}
 						</DrawerDescription>
 					</DrawerHeader>
 
@@ -1864,8 +2171,12 @@ export const ServerInstallWizard = forwardRef(
 									<Button
 										variant="ghost"
 										className="h-9 w-9 p-0"
-										aria-label="Retry preview"
-										title="Retry preview"
+										aria-label={t("wizard.preview.retry", {
+											defaultValue: "Retry preview",
+										})}
+										title={t("wizard.preview.retry", {
+											defaultValue: "Retry preview",
+										})}
 										disabled={installPipeline.state.isImporting}
 										onClick={() => {
 											const { drafts, source } = installPipeline.state;
@@ -1908,8 +2219,8 @@ export const ServerInstallWizard = forwardRef(
 									}
 								>
 									{currentStep === "preview" || currentStep === "result"
-										? "Back"
-										: "Cancel"}
+										? t("wizard.buttons.back", { defaultValue: "Back" })
+										: t("wizard.buttons.cancel", { defaultValue: "Cancel" })}
 								</Button>
 							)}
 							<div className="flex gap-2">
@@ -1922,10 +2233,12 @@ export const ServerInstallWizard = forwardRef(
 										{isSubmitting ? (
 											<>
 												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Previewing...
+												{t("wizard.buttons.previewing", {
+													defaultValue: "Previewing...",
+												})}
 											</>
 										) : (
-											"Preview"
+											t("wizard.buttons.preview", { defaultValue: "Preview" })
 										)}
 									</Button>
 								)}
@@ -1935,7 +2248,7 @@ export const ServerInstallWizard = forwardRef(
 										onClick={() => handleStepChange("result")}
 										disabled={isSubmitting || !canNavigateToStep("result")}
 									>
-										Next
+										{t("wizard.buttons.next", { defaultValue: "Next" })}
 									</Button>
 								)}
 								{currentStep === "result" &&
@@ -1946,28 +2259,36 @@ export const ServerInstallWizard = forwardRef(
 											disabled={
 												installPipeline.state.isImporting ||
 												installPipeline.state.isDryRunLoading ||
-												!!installPipeline.state.dryRunError
+												!!installPipeline.state.dryRunError ||
+												!(
+													installPipeline.state.dryRunStats &&
+													installPipeline.state.dryRunStats.importedCount > 0
+												)
 											}
 										>
 											{installPipeline.state.isImporting ? (
 												<>
 													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-													Importing...
+													{t("wizard.buttons.importing", {
+														defaultValue: "Importing...",
+													})}
 												</>
 											) : installPipeline.state.isDryRunLoading ? (
 												<>
 													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-													Validating...
+													{t("wizard.buttons.validating", {
+														defaultValue: "Validating...",
+													})}
 												</>
 											) : (
-												"Import"
+												t("wizard.buttons.import", { defaultValue: "Import" })
 											)}
 										</Button>
 									)}
 								{currentStep === "result" &&
 									installPipeline.state.importResult && (
 										<Button type="button" onClick={handleOverlayClose}>
-											Done
+											{t("wizard.buttons.done", { defaultValue: "Done" })}
 										</Button>
 									)}
 							</div>

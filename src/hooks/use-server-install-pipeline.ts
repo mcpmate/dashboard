@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
 	extractImportStats,
 	serializeMetaForApi,
 	serversApi,
 } from "../lib/api";
+import type { ImportStats } from "../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../lib/notify";
 import { formatNameList, summarizeSkipped } from "../lib/server-import-utils";
 import type { ServerMetaInfo } from "../lib/types";
@@ -37,6 +39,7 @@ interface PreviewState {
 export function useServerInstallPipeline(
 	opts: UseServerInstallPipelineOptions = {},
 ) {
+	const { t } = useTranslation("servers");
 	const [isDrawerOpen, setDrawerOpen] = useState(false);
 	const [drafts, setDrafts] = useState<ServerInstallDraft[]>([]);
 	const [source, setSource] = useState<InstallSource | null>(null);
@@ -48,6 +51,8 @@ export function useServerInstallPipeline(
 	const [importResult, setImportResult] = useState<any>(null);
 	const [targetProfileId, setTargetProfileId] = useState<string | null>(null);
 	const [dryRunResult, setDryRunResult] = useState<any>(null);
+	const [dryRunStats, setDryRunStats] = useState<ImportStats | null>(null);
+	const [dryRunWarning, setDryRunWarning] = useState<string | null>(null);
 	const [isDryRunLoading, setDryRunLoading] = useState(false);
 	const [dryRunError, setDryRunError] = useState<string | null>(null);
 
@@ -63,6 +68,8 @@ export function useServerInstallPipeline(
 		setImportResult(null);
 		setTargetProfileId(null);
 		setDryRunResult(null);
+		setDryRunStats(null);
+		setDryRunWarning(null);
 		setDryRunLoading(false);
 		setDryRunError(null);
 	}, []);
@@ -211,6 +218,8 @@ export function useServerInstallPipeline(
 		try {
 			setDryRunLoading(true);
 			setDryRunError(null);
+			setDryRunStats(null);
+			setDryRunWarning(null);
 			const payload = buildImportPayload(drafts);
 			const requestBody = {
 				...payload,
@@ -219,22 +228,63 @@ export function useServerInstallPipeline(
 			};
 			const result = await serversApi.importServers(requestBody);
 			setDryRunResult(result);
+			const stats = extractImportStats(result);
+			setDryRunStats(stats);
+
+			const skipSummary = summarizeSkipped(stats.skippedDetails);
+			const skipFallback = formatNameList(stats.skippedServers);
+			if (stats.skippedCount > 0) {
+				const baseKey =
+					stats.skippedCount === 1
+						? "wizard.result.skipSummary.baseSingle"
+						: "wizard.result.skipSummary.baseMultiple";
+				const base = t(baseKey, { count: stats.skippedCount });
+				const detail = skipSummary || skipFallback;
+				const combined = detail
+					? t("wizard.result.skipSummary.withDetail", { base, detail })
+					: base;
+				const suffix =
+					stats.importedCount === 0 && stats.failedCount === 0
+						? ` ${t("wizard.result.skipSummary.suffixAlreadyInstalled")}`
+						: "";
+				setDryRunWarning(`${combined}${suffix}`.trim());
+			} else {
+				setDryRunWarning(null);
+			}
 
 			// Check if dry-run indicates any issues
-			if (result?.data?.failed_count > 0) {
-				const failedNames = result.data.failed_servers?.slice(0, 3).join(", ") || "some servers";
-				setDryRunError(`Import validation failed: ${failedNames}`);
+			if (stats.failedCount > 0) {
+				const failedNames = formatNameList(stats.failedServers);
+				setDryRunError(
+					t("wizard.result.failedSummary", {
+						count: stats.failedCount,
+						servers:
+							failedNames ||
+							t("wizard.result.failedSummaryFallback", {
+								count: stats.failedCount,
+							}),
+					}),
+				);
+			} else {
+				setDryRunError(null);
 			}
 		} catch (error) {
+			setDryRunStats(null);
+			setDryRunWarning(null);
 			const message = error instanceof Error ? error.message : String(error ?? "");
-			setDryRunError(message || "Failed to validate import");
+			setDryRunError(
+				message ||
+					t("wizard.result.validationErrorGeneric", {
+						defaultValue: "Failed to validate import",
+					}),
+			);
 		} finally {
 			setDryRunLoading(false);
 		}
 	}, [drafts, buildImportPayload, targetProfileId]);
 
 	const confirmImport = useCallback(async () => {
-		if (!drafts.length) return;
+		if (!drafts.length) return false;
 		try {
 			setImporting(true);
 			setCurrentStep("result");
@@ -282,13 +332,15 @@ export function useServerInstallPipeline(
 				if (shouldAutoClose) {
 					opts.onImported?.();
 				}
-				return;
+				return true;
 			}
 			notifyError("Import failed", String(result.error ?? "Unknown error"));
+			return false;
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error ?? "");
 			notifyError("Import failed", message || "Unexpected error");
+			return false;
 		} finally {
 			setImporting(false);
 		}
@@ -307,6 +359,8 @@ export function useServerInstallPipeline(
 			importResult,
 			targetProfileId,
 			dryRunResult,
+			dryRunStats,
+			dryRunWarning,
 			isDryRunLoading,
 			dryRunError,
 		}),
@@ -322,6 +376,8 @@ export function useServerInstallPipeline(
 			importResult,
 			targetProfileId,
 			dryRunResult,
+			dryRunStats,
+			dryRunWarning,
 			isDryRunLoading,
 			dryRunError,
 		],
