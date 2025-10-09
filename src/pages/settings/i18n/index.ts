@@ -152,7 +152,7 @@ export const settingsTranslations = {
 		},
 	},
 	"zh-CN": {
-		title: "设置",
+		title: "偏好设置",
 		tabs: {
 			general: "通用",
 			appearance: "外观",
@@ -186,7 +186,8 @@ export const settingsTranslations = {
 			dockTitle: "Dock 图标",
 			dockDescription: "在 macOS Dock 中显示 MCPMate 或从菜单栏静默运行。",
 			dockIconTitle: "Dock 图标模式",
-			dockHiddenNotice: "Dock 图标已隐藏，菜单栏图标会保持可见以便重新打开 MCPMate。",
+			dockHiddenNotice:
+				"Dock 图标已隐藏，菜单栏图标会保持可见以便重新打开 MCPMate。",
 			menuBarPlaceholder: "选择菜单栏图标模式",
 			wipLabel: "开发中",
 			defaultMarketPlaceholder: "选择默认市场",

@@ -51,7 +51,7 @@ export const navigationTranslations = {
 			servers: "服务器",
 			market: "市集",
 			runtime: "运行时",
-			settings: "设置",
+			settings: "偏好设置",
 			apiDocs: "API 文档",
 		},
 		layout: {
@@ -75,7 +75,7 @@ export const navigationTranslations = {
 				servers: "服务器",
 				runtime: "运行时",
 				system: "系统",
-				settings: "设置",
+				settings: "偏好设置",
 			},
 		},
 		notifications: {
