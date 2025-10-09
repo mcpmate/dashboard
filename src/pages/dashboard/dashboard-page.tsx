@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Server, Sliders, Users } from "lucide-react";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import type { LegendProps, TooltipProps } from "recharts";
 import {
@@ -315,6 +316,7 @@ function MetricsLegend({ payload }: { payload?: LegendProps["payload"] }) {
 }
 
 export function DashboardPage() {
+	const { t } = useTranslation();
 	const { data: systemStatus, isLoading: isLoadingSystem } = useQuery({
 		queryKey: ["systemStatus"],
 		queryFn: systemApi.getStatus,
@@ -422,14 +424,18 @@ export function DashboardPage() {
 					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
 						<CardHeader className="flex flex-row items-center justify-between space-y-0">
 							<CardTitle className="text-sm font-medium">
-								System Status
+								{t("dashboard.cards.systemStatus", {
+									defaultValue: "System Status",
+								})}
 							</CardTitle>
 							<Activity className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
 							<div className="space-y-1.5">
 								<div className="flex items-center justify-between">
-									<CardDescription>Status</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.status", { defaultValue: "Status" })}
+									</CardDescription>
 									{isLoadingSystem ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -437,7 +443,9 @@ export function DashboardPage() {
 									)}
 								</div>
 								<div className="flex items-center justify-between">
-									<CardDescription>Uptime</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.uptime", { defaultValue: "Uptime" })}
+									</CardDescription>
 									{isLoadingSystem ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -447,7 +455,9 @@ export function DashboardPage() {
 									)}
 								</div>
 								<div className="flex items-center justify-between">
-									<CardDescription>Version</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.version", { defaultValue: "Version" })}
+									</CardDescription>
 									{isLoadingSystem ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -465,14 +475,20 @@ export function DashboardPage() {
 					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
 						<CardHeader className="flex flex-row items-center justify-between space-y-0">
 							<div>
-								<CardTitle className="text-sm font-medium">Profiles</CardTitle>
+								<CardTitle className="text-sm font-medium">
+									{t("dashboard.cards.profiles", { defaultValue: "Profiles" })}
+								</CardTitle>
 							</div>
 							<Sliders className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
 							<div className="space-y-1.5">
 								<div className="flex items-center justify-between">
-									<CardDescription>Total Profiles</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.totalProfiles", {
+											defaultValue: "Total Profiles",
+										})}
+									</CardDescription>
 									{isLoadingProfiles ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -480,7 +496,11 @@ export function DashboardPage() {
 									)}
 								</div>
 								<div className="flex items-center justify-between">
-									<CardDescription>Active Profiles</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.activeProfiles", {
+											defaultValue: "Active Profiles",
+										})}
+									</CardDescription>
 									{isLoadingProfiles ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -497,13 +517,19 @@ export function DashboardPage() {
 				<Link to="/servers" className="block h-full">
 					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
 						<CardHeader className="flex flex-row items-center justify-between space-y-0">
-							<CardTitle className="text-sm font-medium">Servers</CardTitle>
+							<CardTitle className="text-sm font-medium">
+								{t("dashboard.cards.servers", { defaultValue: "Servers" })}
+							</CardTitle>
 							<Server className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
 							<div className="space-y-1.5">
 								<div className="flex items-center justify-between">
-									<CardDescription>Total Servers</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.totalServers", {
+											defaultValue: "Total Servers",
+										})}
+									</CardDescription>
 									{isLoadingServers ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -513,7 +539,11 @@ export function DashboardPage() {
 									)}
 								</div>
 								<div className="flex items-center justify-between">
-									<CardDescription>Connected</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.connected", {
+											defaultValue: "Connected",
+										})}
+									</CardDescription>
 									{isLoadingServers ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -530,13 +560,19 @@ export function DashboardPage() {
 				<Link to="/clients" className="block h-full">
 					<Card className="h-full min-h-[160px] hover:border-primary/40 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 cursor-pointer">
 						<CardHeader className="flex flex-row items-center justify-between space-y-0">
-							<CardTitle className="text-sm font-medium">Clients</CardTitle>
+							<CardTitle className="text-sm font-medium">
+								{t("dashboard.cards.clients", { defaultValue: "Clients" })}
+							</CardTitle>
 							<Users className="h-4 w-4 text-slate-500" />
 						</CardHeader>
 						<CardContent>
 							<div className="space-y-1.5">
 								<div className="flex items-center justify-between">
-									<CardDescription>Total Clients</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.totalClients", {
+											defaultValue: "Total Clients",
+										})}
+									</CardDescription>
 									{isLoadingClients ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -544,7 +580,9 @@ export function DashboardPage() {
 									)}
 								</div>
 								<div className="flex items-center justify-between">
-									<CardDescription>Managed</CardDescription>
+									<CardDescription>
+										{t("dashboard.labels.managed", { defaultValue: "Managed" })}
+									</CardDescription>
 									{isLoadingClients ? (
 										<div className="h-5 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 									) : (
@@ -563,9 +601,14 @@ export function DashboardPage() {
 				<div className="col-span-1 md:col-span-2">
 					<Card className="h-full">
 						<CardHeader>
-							<CardTitle>Metrics</CardTitle>
+							<CardTitle>
+								{t("dashboard.metrics.title", { defaultValue: "Metrics" })}
+							</CardTitle>
 							<CardDescription>
-								MCPMate Process vs host utilization sampled every 10 seconds
+								{t("dashboard.metrics.description", {
+									defaultValue:
+										"MCPMate Process vs host utilization sampled every 10 seconds",
+								})}
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
@@ -576,7 +619,9 @@ export function DashboardPage() {
 								</div>
 							) : metricsHistory.length === 0 ? (
 								<p className="text-sm text-slate-500">
-									No metrics have been reported yet.
+									{t("dashboard.metrics.noData", {
+										defaultValue: "No metrics have been reported yet.",
+									})}
 								</p>
 							) : (
 								<div className="h-[280px]">
@@ -617,7 +662,9 @@ export function DashboardPage() {
 											<Line
 												type="monotone"
 												dataKey="mcpmateCpuPercent"
-												name="MCPMate CPU (%)"
+												name={t("dashboard.metrics.mcpmateCpu", {
+													defaultValue: "MCPMate CPU (%)",
+												})}
 												stroke="#3b82f6"
 												strokeWidth={2}
 												dot={createDot("#3b82f6")}
@@ -627,7 +674,9 @@ export function DashboardPage() {
 											<Line
 												type="monotone"
 												dataKey="mcpmateMemoryPercent"
-												name="MCPMate Memory (%)"
+												name={t("dashboard.metrics.mcpmateMemory", {
+													defaultValue: "MCPMate Memory (%)",
+												})}
 												stroke="#10b981"
 												strokeWidth={2}
 												strokeDasharray="6 4"
@@ -638,7 +687,9 @@ export function DashboardPage() {
 											<Line
 												type="monotone"
 												dataKey="systemCpuPercent"
-												name="Host CPU (%)"
+												name={t("dashboard.metrics.hostCpu", {
+													defaultValue: "Host CPU (%)",
+												})}
 												stroke="#6366f1"
 												strokeWidth={2}
 												dot={createDot("#6366f1")}
@@ -648,7 +699,9 @@ export function DashboardPage() {
 											<Line
 												type="monotone"
 												dataKey="systemMemoryPercent"
-												name="Host Memory (%)"
+												name={t("dashboard.metrics.hostMemory", {
+													defaultValue: "Host Memory (%)",
+												})}
 												stroke="#f97316"
 												strokeWidth={2}
 												dot={createDot("#f97316")}
