@@ -95,19 +95,19 @@ export const settingsTranslations = {
 		developer: {
 			title: "Developer",
 			description:
-				"Experimental toggles for internal debugging and navigation visibility.",
-			enableServerDebugTitle: "Enable Server Debug",
+				"Experimental toggles for internal inspection and navigation visibility.",
+			enableServerDebugTitle: "Enable Server Inspection",
 			enableServerDebugDescription:
-				"Expose debug instrumentation for newly added servers.",
-			openDebugInNewWindowTitle: "Open Debug Views In New Window",
+				"Expose inspection instrumentation for newly added servers.",
+			openDebugInNewWindowTitle: "Open Inspect Views In New Window",
 			openDebugInNewWindowDescription:
-				"When enabled, Debug buttons launch a separate tab instead of navigating the current view.",
+				"When enabled, Inspect buttons launch a separate tab instead of navigating the current view.",
 			showApiDocsTitle: "Show API Docs Menu",
 			showApiDocsDescription:
 				"Display API documentation menu in the navigation.",
 			showDefaultHeadersTitle: "Show Default HTTP Headers",
 			showDefaultHeadersDescription:
-				"Display the server's default HTTP headers (values are redacted) in Server Details. Use only for debugging.",
+				"Display the server's default HTTP headers (values are redacted) in Server Details. Use only for inspection.",
 			showRawJsonTitle: "Show Raw Capability JSON",
 			showRawJsonDescription:
 				"Display raw JSON payloads under Details in capability lists (Server details and Uni‑Import preview).",
@@ -239,17 +239,17 @@ export const settingsTranslations = {
 		},
 		developer: {
 			title: "开发者",
-			description: "用于内部调试和导航可见性的实验性开关。",
-			enableServerDebugTitle: "启用服务器调试",
-			enableServerDebugDescription: "为新添加的服务器公开调试工具。",
-			openDebugInNewWindowTitle: "在新窗口中打开调试视图",
+			description: "用于内部检视和导航可见性的实验性开关。",
+			enableServerDebugTitle: "启用服务器检视",
+			enableServerDebugDescription: "为新添加的服务器公开检视工具。",
+			openDebugInNewWindowTitle: "在新窗口中打开检视视图",
 			openDebugInNewWindowDescription:
-				"启用后，调试按钮将启动单独的标签页而不是导航当前视图。",
+				"启用后，检视按钮将启动单独的标签页而不是导航当前视图。",
 			showApiDocsTitle: "显示 API 文档菜单",
 			showApiDocsDescription: "在导航中显示 API 文档菜单。",
 			showDefaultHeadersTitle: "显示默认 HTTP 头",
 			showDefaultHeadersDescription:
-				"在服务器详细信息中显示服务器的默认 HTTP 头（值已脱敏）。仅用于调试。",
+				"在服务器详细信息中显示服务器的默认 HTTP 头（值已脱敏）。仅用于检视。",
 			showRawJsonTitle: "显示原始能力 JSON",
 			showRawJsonDescription:
 				"在能力列表中显示原始 JSON 负载（服务器详情和统一导入预览）。",
@@ -384,19 +384,19 @@ export const settingsTranslations = {
 		},
 		developer: {
 			title: "開発者",
-			description: "内部デバッグとナビゲーション可視性のための実験的トグル。",
-			enableServerDebugTitle: "サーバーデバッグを有効化",
+			description: "内部検査とナビゲーション可視性のための実験的トグル。",
+			enableServerDebugTitle: "サーバー検査を有効化",
 			enableServerDebugDescription:
-				"新しく追加されたサーバーのデバッグ計装を公開します。",
-			openDebugInNewWindowTitle: "新しいウィンドウでデバッグビューを開く",
+				"新しく追加されたサーバーの検査計装を公開します。",
+			openDebugInNewWindowTitle: "新しいウィンドウで検査ビューを開く",
 			openDebugInNewWindowDescription:
-				"有効にすると、デバッグボタンは現在のビューをナビゲートする代わりに別のタブを起動します。",
+				"有効にすると、検査ボタンは現在のビューをナビゲートする代わりに別のタブを起動します。",
 			showApiDocsTitle: "API ドキュメントメニューを表示",
 			showApiDocsDescription:
 				"ナビゲーションに API ドキュメントメニューを表示します。",
 			showDefaultHeadersTitle: "デフォルト HTTP ヘッダーを表示",
 			showDefaultHeadersDescription:
-				"サーバー詳細でサーバーのデフォルト HTTP ヘッダー（値は編集済み）を表示します。デバッグ専用です。",
+				"サーバー詳細でサーバーのデフォルト HTTP ヘッダー（値は編集済み）を表示します。検査専用です。",
 		},
 		market: {
 			title: "MCP マーケット",

@@ -161,9 +161,9 @@ export function PageToolbarExample() {
 				))}
 			</div>
 
-			{/* 调试信息 */}
+			{/* 检视信息 */}
 			<div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
-				<h4 className="font-semibold">Debug Information:</h4>
+				<h4 className="font-semibold">Inspect Details:</h4>
 				<pre className="mt-2 text-xs">
 					{JSON.stringify(
 						{

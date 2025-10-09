@@ -832,7 +832,7 @@ export function SettingsPage() {
 								<CardDescription>
 									{t("settings:developer.description", {
 										defaultValue:
-											"Experimental toggles for internal debugging and navigation visibility.",
+											"Experimental toggles for internal inspection and navigation visibility.",
 									})}
 								</CardDescription>
 							</CardHeader>
@@ -841,13 +841,13 @@ export function SettingsPage() {
 									<div>
 										<h3 className="text-base font-medium">
 											{t("settings:developer.enableServerDebugTitle", {
-												defaultValue: "Enable Server Debug",
+												defaultValue: "Enable Server Inspection",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
 											{t("settings:developer.enableServerDebugDescription", {
 												defaultValue:
-													"Expose debug instrumentation for newly added servers.",
+													"Expose inspection instrumentation for newly added servers.",
 											})}
 										</p>
 									</div>
@@ -863,13 +863,13 @@ export function SettingsPage() {
 									<div>
 										<h3 className="text-base font-medium">
 											{t("settings:developer.openDebugInNewWindowTitle", {
-												defaultValue: "Open Debug Views In New Window",
+												defaultValue: "Open Inspect Views In New Window",
 											})}
 										</h3>
 										<p className="text-sm text-slate-500">
 											{t("settings:developer.openDebugInNewWindowDescription", {
 												defaultValue:
-													"When enabled, Debug buttons launch a separate tab instead of navigating the current view.",
+													"When enabled, Inspect buttons launch a separate tab instead of navigating the current view.",
 											})}
 										</p>
 									</div>
@@ -936,7 +936,7 @@ export function SettingsPage() {
 										<p className="text-sm text-slate-500">
 											{t("settings:developer.showDefaultHeadersDescription", {
 												defaultValue:
-													"Display the server's default HTTP headers (values are redacted) in Server Details. Use only for debugging.",
+													"Display the server's default HTTP headers (values are redacted) in Server Details. Use only for inspection.",
 											})}
 										</p>
 									</div>

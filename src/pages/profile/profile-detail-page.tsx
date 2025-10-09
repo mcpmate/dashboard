@@ -1139,7 +1139,7 @@ export function ProfileDetailPage() {
 															</div>
 														</div>
 														<div className="ml-auto flex items-center gap-2">
-															{/* Debug button with hover logic - positioned on the left */}
+															{/* Inspect button with hover logic - positioned on the left */}
 															{enableServerDebug && (
 																<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
 																	<button
@@ -1151,7 +1151,7 @@ export function ProfileDetailPage() {
 																				server.enabled ? "proxy" : "native",
 																			);
 																		}}
-																		aria-label={t("profiles:detail.labels.debugServer", { defaultValue: "Debug server" })}
+																		aria-label={t("profiles:detail.labels.debugServer", { defaultValue: "Inspect server" })}
 																		className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
 																	>
 																		<Bug size={20} />

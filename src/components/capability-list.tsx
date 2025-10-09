@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../lib/store";
 import type {
 	CapabilityArgument,
@@ -248,6 +249,7 @@ export function CapabilityList<T = CapabilityRecord>({
 	const showRawJson = useAppStore(
 		(state) => state.dashboardSettings.showRawCapabilityJson,
 	);
+	const { t } = useTranslation();
 
 	const mappedItems = useMemo(
 		() => (items || []).map((it) => mapItem(kind, it)),
@@ -326,7 +328,9 @@ export function CapabilityList<T = CapabilityRecord>({
 		const detailsBlock = hasDetails ? (
 			<details className="mt-2">
 				<summary className="cursor-pointer text-xs text-slate-500">
-					Details
+					{t("servers:capabilityList.detailsToggle", {
+						defaultValue: "Details",
+					})}
 				</summary>
 				<div className="mt-2 space-y-2">
 					{hasArgs ? (
@@ -334,9 +338,21 @@ export function CapabilityList<T = CapabilityRecord>({
 							<table className="w-full border-collapse text-xs">
 								<thead>
 									<tr className="text-left text-slate-500">
-										<th className="border-b py-1 pr-2">Argument</th>
-										<th className="border-b py-1 pr-2">Required</th>
-										<th className="border-b py-1 pr-2">Description</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.argument", {
+												defaultValue: "Argument",
+											})}
+										</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.required", {
+												defaultValue: "Required",
+											})}
+										</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.description", {
+												defaultValue: "Description",
+											})}
+										</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -346,7 +362,13 @@ export function CapabilityList<T = CapabilityRecord>({
 												{arg.name ?? `arg_${argIdx}`}
 											</td>
 											<td className="border-b py-1 pr-2">
-												{String(Boolean(arg.required))}
+												{arg.required
+													? t("servers:capabilityList.table.requiredYes", {
+															defaultValue: "Yes",
+														})
+													: t("servers:capabilityList.table.requiredNo", {
+															defaultValue: "No",
+														})}
 											</td>
 											<td className="border-b py-1 pr-2">
 												{arg.description ?? ""}
@@ -360,13 +382,29 @@ export function CapabilityList<T = CapabilityRecord>({
 
 					{hasSchema ? (
 						<div className="overflow-x-auto">
-							<div className="mb-1 text-xs text-slate-500">Input Schema</div>
+							<div className="mb-1 text-xs text-slate-500">
+								{t("servers:capabilityList.inputSchemaTitle", {
+									defaultValue: "Input Schema",
+								})}
+							</div>
 							<table className="w-full border-collapse text-xs">
 								<thead>
 									<tr className="text-left text-slate-500">
-										<th className="border-b py-1 pr-2">Property</th>
-										<th className="border-b py-1 pr-2">Type</th>
-										<th className="border-b py-1 pr-2">Description</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.property", {
+												defaultValue: "Property",
+											})}
+										</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.type", {
+												defaultValue: "Type",
+											})}
+										</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.description", {
+												defaultValue: "Description",
+											})}
+										</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -394,13 +432,29 @@ export function CapabilityList<T = CapabilityRecord>({
 
 					{hasOutSchema ? (
 						<div className="overflow-x-auto">
-							<div className="mb-1 text-xs text-slate-500">Output Schema</div>
+							<div className="mb-1 text-xs text-slate-500">
+								{t("servers:capabilityList.outputSchemaTitle", {
+									defaultValue: "Output Schema",
+								})}
+							</div>
 							<table className="w-full border-collapse text-xs">
 								<thead>
 									<tr className="text-left text-slate-500">
-										<th className="border-b py-1 pr-2">Property</th>
-										<th className="border-b py-1 pr-2">Type</th>
-										<th className="border-b py-1 pr-2">Description</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.property", {
+												defaultValue: "Property",
+											})}
+										</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.type", {
+												defaultValue: "Type",
+											})}
+										</th>
+										<th className="border-b py-1 pr-2">
+											{t("servers:capabilityList.table.description", {
+												defaultValue: "Description",
+											})}
+										</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -457,7 +511,7 @@ export function CapabilityList<T = CapabilityRecord>({
 		);
 
 		const leftSection = (
-			<div className="flex flex-1 items-center gap-3">
+			<div className="flex flex-1 items-start gap-3">
 				{avatarNode}
 				{infoBlock}
 			</div>
@@ -491,7 +545,7 @@ export function CapabilityList<T = CapabilityRecord>({
 		);
 
 		const actionSection = (
-			<div className="ml-auto flex items-center gap-2">{actions}</div>
+			<div className="ml-auto flex items-start gap-2">{actions}</div>
 		);
 
 		if (context === "profile") {
@@ -527,7 +581,7 @@ export function CapabilityList<T = CapabilityRecord>({
 				onClick={handleSelect}
 				onKeyDown={handleKeyDown}
 			>
-				<div className="flex items-center justify-between gap-3">
+				<div className="flex items-start justify-between gap-3">
 					{leftSection}
 					{actionSection}
 				</div>
@@ -549,7 +603,12 @@ export function CapabilityList<T = CapabilityRecord>({
 			) : renderedItems.length ? (
 				listContent
 			) : (
-				<div className="text-sm text-slate-500">{emptyText || "No data."}</div>
+				<div className="text-sm text-slate-500">
+					{emptyText ||
+						t("servers:capabilityList.emptyFallback", {
+							defaultValue: "No data.",
+						})}
+				</div>
 			)}
 		</div>
 	);
@@ -560,17 +619,22 @@ export function CapabilityList<T = CapabilityRecord>({
 
 	const showSearch =
 		typeof onFilterTextChange === "function" || filterText === undefined;
+	const kindLabel = t(`servers:detail.capabilityList.labels.${kind}`, {
+		defaultValue: kind[0].toUpperCase() + kind.slice(1),
+	});
+	const searchPlaceholder = t("servers:capabilityList.searchPlaceholder", {
+		label: kindLabel,
+		defaultValue: `Search ${kind}...`,
+	});
 
 	return (
 		<Card>
 			<CardHeader>
 				<div className="flex items-center justify-between gap-2">
-					<CardTitle>
-						{title ?? kind[0].toUpperCase() + kind.slice(1)}
-					</CardTitle>
+					<CardTitle>{title ?? kindLabel}</CardTitle>
 					{showSearch ? (
 						<Input
-							placeholder={`Search ${kind}...`}
+							placeholder={searchPlaceholder}
 							className="w-56"
 							value={search}
 							onChange={(event) => {

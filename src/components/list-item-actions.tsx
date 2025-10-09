@@ -40,13 +40,9 @@ export function ListItemActions({
 				: "flex items-center gap-2";
 
 		return (
-			<div className="ml-auto flex items-center gap-2">
+			<div className="ml-auto flex items-start gap-2">
 				{badges}
-				{hoverActions ? (
-					<div className={hoverClass}>
-						{hoverActions}
-					</div>
-				) : null}
+				{hoverActions ? <div className={hoverClass}>{hoverActions}</div> : null}
 			</div>
 		);
 	}
