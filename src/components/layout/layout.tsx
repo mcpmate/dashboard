@@ -129,7 +129,7 @@ export function Layout() {
 				}`}
 			>
 				{/* Make main area a flex column that occupies viewport height minus header, so footer can stick to bottom when content is short */}
-				<div className="container mx-auto p-4 min-h-[calc(100vh-4rem)] flex flex-col">
+				<div className="w-full p-4 min-h-[calc(100vh-4rem)] flex flex-col">
 					<div className="flex-1">
 						<Outlet />
 					</div>
