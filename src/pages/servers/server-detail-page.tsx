@@ -14,6 +14,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CapabilityList from "../../components/capability-list";
 import {
@@ -57,6 +58,8 @@ import {
 	TabsTrigger,
 } from "../../components/ui/tabs";
 import { configSuitsApi, inspectorApi, serversApi } from "../../lib/api";
+import { writeClipboardText } from "../../lib/clipboard";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { maskHeaderValue, sanitizeRecord } from "../../lib/security";
 import { useAppStore } from "../../lib/store";
@@ -158,6 +161,8 @@ function makeLogId() {
 }
 
 export function ServerDetailPage() {
+	usePageTranslations("servers");
+	const { t } = useTranslation("servers");
 	const { serverId } = useParams<{ serverId: string }>();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -207,15 +212,31 @@ export function ServerDetailPage() {
 				: serversApi.disableServer(serverId);
 		},
 		onSuccess: (_, enable) => {
-			notifySuccess(enable ? "Server enabled" : "Server disabled");
+			const titleKey = enable
+				? "notifications.toggle.enabledTitle"
+				: "notifications.toggle.disabledTitle";
+			notifySuccess(
+				t(titleKey, {
+					defaultValue: enable ? "Server enabled" : "Server disabled",
+				}),
+			);
 			queryClient.invalidateQueries({ queryKey: ["server", serverId] });
 			queryClient.invalidateQueries({ queryKey: ["servers"] });
 		},
 		onError: (e, enable) => {
 			const message = e instanceof Error ? e.message : String(e);
+			const actionLabel = enable
+				? t("notifications.toggle.enableAction", { defaultValue: "enable" })
+				: t("notifications.toggle.disableAction", { defaultValue: "disable" });
 			notifyError(
-				"Operation failed",
-				`Unable to ${enable ? "enable" : "disable"} server: ${message}`,
+				t("notifications.genericError.title", {
+					defaultValue: "Operation failed",
+				}),
+				t("notifications.toggle.error", {
+					action: actionLabel,
+					message,
+					defaultValue: "Unable to {{action}} server: {{message}}",
+				}),
 			);
 		},
 	});
@@ -226,12 +247,20 @@ export function ServerDetailPage() {
 			return serversApi.deleteServer(serverId);
 		},
 		onSuccess: () => {
-			notifySuccess("Server deleted");
+			notifySuccess(
+				t("notifications.delete.title", { defaultValue: "Server deleted" }),
+			);
 			queryClient.invalidateQueries({ queryKey: ["servers"] });
 			queryClient.removeQueries({ queryKey: ["server", serverId] });
 			navigate("/servers");
 		},
-		onError: (e) => notifyError("Delete failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("notifications.delete.errorFallback", {
+					defaultValue: "Error deleting server",
+				}),
+				String(e),
+			),
 	});
 
 	const activeProfilesQ = useQuery({
@@ -431,8 +460,10 @@ export function ServerDetailPage() {
 			if (!serverId) return;
 			if (channel === "proxy" && !proxyAvailable) {
 				updateDebugState(kind, {
-					error:
-						"Proxy mode unavailable: server not enabled in any active profile.",
+					error: t("detail.debug.proxyUnavailable", {
+						defaultValue:
+							"Proxy mode unavailable: server not enabled in any active profile.",
+					}),
 				});
 				return;
 			}
@@ -577,7 +608,13 @@ export function ServerDetailPage() {
 	}, [server?.headers]);
 
 	if (!serverId) {
-		return <div className="p-4">No server ID provided</div>;
+		return (
+			<div className="p-4">
+				{t("detail.errors.noServerId", {
+					defaultValue: "No server ID provided",
+				})}
+			</div>
+		);
 	}
 
 	return (
@@ -607,7 +644,8 @@ export function ServerDetailPage() {
 							}}
 							className="gap-1 rounded-l-md rounded-r-none"
 						>
-							<Eye className="h-4 w-4" /> Browse
+							<Eye className="h-4 w-4" />
+							{t("detail.viewModes.browse", { defaultValue: "Browse" })}
 						</Button>
 						<Button
 							type="button"
@@ -619,7 +657,8 @@ export function ServerDetailPage() {
 							}}
 							className="gap-1 rounded-r-md rounded-l-none"
 						>
-							<Bug className="h-4 w-4" /> Debug
+							<Bug className="h-4 w-4" />
+							{t("detail.viewModes.debug", { defaultValue: "Inspect" })}
 						</Button>
 					</div>
 				)}
@@ -641,19 +680,33 @@ export function ServerDetailPage() {
 					<AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
 						<AlertDialogContent>
 							<AlertDialogHeader>
-								<AlertDialogTitle>Delete Server</AlertDialogTitle>
+								<AlertDialogTitle>
+									{t("detail.deleteDialog.title", {
+										defaultValue: "Delete Server",
+									})}
+								</AlertDialogTitle>
 								<AlertDialogDescription>
-									This action cannot be undone.
+									{t("detail.deleteDialog.description", {
+										defaultValue: "This action cannot be undone.",
+									})}
 								</AlertDialogDescription>
 							</AlertDialogHeader>
 							<AlertDialogFooter>
-								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogCancel>
+									{t("detail.deleteDialog.cancel", { defaultValue: "Cancel" })}
+								</AlertDialogCancel>
 								<AlertDialogAction
 									onClick={() => deleteServerM.mutate()}
 									disabled={deleteServerM.isPending}
 									className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 								>
-									{deleteServerM.isPending ? "Deleting..." : "Delete"}
+									{deleteServerM.isPending
+										? t("detail.deleteDialog.pending", {
+												defaultValue: "Deleting...",
+											})
+										: t("detail.deleteDialog.confirm", {
+												defaultValue: "Delete",
+											})}
 								</AlertDialogAction>
 							</AlertDialogFooter>
 						</AlertDialogContent>
@@ -712,7 +765,9 @@ export function ServerDetailPage() {
 														</Avatar>
 														<div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
 															<span className="text-xs uppercase text-slate-500">
-																Service
+																{t("detail.overview.labels.service", {
+																	defaultValue: "Service",
+																})}
 															</span>
 															<Badge
 																variant={
@@ -720,10 +775,18 @@ export function ServerDetailPage() {
 																}
 																className={`justify-self-start ${serverEnabled ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200" : "text-slate-600 dark:text-slate-300"}`}
 															>
-																{serverEnabled ? "Enabled" : "Disabled"}
+																{serverEnabled
+																	? t("detail.overview.status.enabled", {
+																			defaultValue: "Enabled",
+																		})
+																	: t("detail.overview.status.disabled", {
+																			defaultValue: "Disabled",
+																		})}
 															</Badge>
 															<span className="text-xs uppercase text-slate-500">
-																Runtime
+																{t("detail.overview.labels.runtime", {
+																	defaultValue: "Runtime",
+																})}
 															</span>
 															<StatusBadge
 																status={runtimeStatus}
@@ -732,7 +795,9 @@ export function ServerDetailPage() {
 																className="justify-self-start"
 															/>
 															<span className="text-xs uppercase text-slate-500">
-																Type
+																{t("detail.overview.labels.type", {
+																	defaultValue: "Type",
+																})}
 															</span>
 															<span className="font-mono text-sm leading-tight">
 																{server.server_type}
@@ -740,7 +805,9 @@ export function ServerDetailPage() {
 															{protocolVersion ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Protocol
+																		{t("detail.overview.labels.protocol", {
+																			defaultValue: "Protocol",
+																		})}
 																	</span>
 																	<span className="font-mono text-xs text-slate-600 dark:text-slate-300">
 																		{protocolVersion}
@@ -750,7 +817,9 @@ export function ServerDetailPage() {
 															{serverVersion ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Version
+																		{t("detail.overview.labels.version", {
+																			defaultValue: "Version",
+																		})}
 																	</span>
 																	<span className="font-mono text-xs text-slate-600 dark:text-slate-300">
 																		{serverVersion}
@@ -760,7 +829,9 @@ export function ServerDetailPage() {
 															{capabilityOverviewText ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Capabilities
+																		{t("detail.overview.labels.capabilities", {
+																			defaultValue: "Capabilities",
+																		})}
 																	</span>
 																	<span className="text-sm text-slate-600 dark:text-slate-300">
 																		{capabilityOverviewText}
@@ -770,7 +841,9 @@ export function ServerDetailPage() {
 															{serverDescription ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Description
+																		{t("detail.overview.labels.description", {
+																			defaultValue: "Description",
+																		})}
 																	</span>
 																	<span className="text-sm text-slate-600 dark:text-slate-300">
 																		{serverDescription}
@@ -784,7 +857,12 @@ export function ServerDetailPage() {
 															Object.keys(redactedHeaders).length ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Default Headers
+																		{t(
+																			"detail.overview.labels.defaultHeaders",
+																			{
+																				defaultValue: "Default Headers",
+																			},
+																		)}
 																	</span>
 																	<div className="grid grid-cols-1 gap-1">
 																		{Object.entries(redactedHeaders).map(
@@ -806,7 +884,9 @@ export function ServerDetailPage() {
 															{serverCategory ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Category
+																		{t("detail.overview.labels.category", {
+																			defaultValue: "Category",
+																		})}
 																	</span>
 																	<span className="text-sm text-slate-600 dark:text-slate-300">
 																		{serverCategory}
@@ -816,7 +896,9 @@ export function ServerDetailPage() {
 															{serverScenario ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Scenario
+																		{t("detail.overview.labels.scenario", {
+																			defaultValue: "Scenario",
+																		})}
 																	</span>
 																	<span className="text-sm text-slate-600 dark:text-slate-300">
 																		{serverScenario}
@@ -826,7 +908,9 @@ export function ServerDetailPage() {
 															{server.command ? (
 																<>
 																	<span className="text-xs uppercase text-slate-500">
-																		Command
+																		{t("detail.overview.labels.command", {
+																			defaultValue: "Command",
+																		})}
 																	</span>
 																	<span className="font-mono text-xs md:text-sm break-all">
 																		{server.command}
@@ -834,7 +918,9 @@ export function ServerDetailPage() {
 																</>
 															) : null}
 															<span className="text-xs uppercase text-slate-500">
-																Repository
+																{t("detail.overview.labels.repository", {
+																	defaultValue: "Repository",
+																})}
 															</span>
 															<span className="font-mono text-xs text-slate-500">
 																—
@@ -853,7 +939,9 @@ export function ServerDetailPage() {
 																<RefreshCw
 																	className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
 																/>
-																Refresh
+																{t("detail.actions.refresh", {
+																	defaultValue: "Refresh",
+																})}
 															</Button>
 															<Button
 																size="sm"
@@ -862,7 +950,9 @@ export function ServerDetailPage() {
 																className="gap-2"
 															>
 																<Edit3 className="h-4 w-4" />
-																Edit
+																{t("detail.actions.edit", {
+																	defaultValue: "Edit",
+																})}
 															</Button>
 															<Button
 																size="sm"
@@ -876,12 +966,16 @@ export function ServerDetailPage() {
 																{serverEnabled ? (
 																	<>
 																		<PowerOff className="h-4 w-4" />
-																		Disable
+																		{t("detail.actions.disable", {
+																			defaultValue: "Disable",
+																		})}
 																	</>
 																) : (
 																	<>
 																		<Power className="h-4 w-4" />
-																		Enable
+																		{t("detail.actions.enable", {
+																			defaultValue: "Enable",
+																		})}
 																	</>
 																)}
 															</Button>
@@ -893,7 +987,9 @@ export function ServerDetailPage() {
 																className="gap-2"
 															>
 																<Trash2 className="h-4 w-4" />
-																Delete
+																{t("detail.actions.delete", {
+																	defaultValue: "Delete",
+																})}
 															</Button>
 														</ButtonGroup>
 													) : null}
@@ -906,7 +1002,10 @@ export function ServerDetailPage() {
 										<Card>
 											<CardHeader>
 												<CardTitle>
-													Instances ({server.instances?.length || 0})
+													{t("detail.instances.title", {
+														count: server.instances?.length || 0,
+														defaultValue: "Instances ({{count}})",
+													})}
 												</CardTitle>
 											</CardHeader>
 											<CardContent>
@@ -923,14 +1022,19 @@ export function ServerDetailPage() {
 																}
 															>
 																<div className="font-mono truncate">{i.id}</div>
-																<div className="text-xs text-slate-500">
-																	{String(i.status)}
-																</div>
+																<StatusBadge
+																	status={i.status}
+																	className="text-xs"
+																/>
 															</CapsuleStripeListItem>
 														))}
 													</CapsuleStripeList>
 												) : (
-													<div className="text-slate-500">No instances.</div>
+													<div className="text-slate-500">
+														{t("detail.instances.empty", {
+															defaultValue: "No instances.",
+														})}
+													</div>
 												)}
 											</CardContent>
 										</Card>
@@ -1030,6 +1134,7 @@ function ServerCapabilityTabsHeader({
 	serverId: string;
 	viewMode: keyof typeof VIEW_MODES;
 }) {
+	const { t } = useTranslation("servers");
 	const toolsQ = useQuery({
 		queryKey: ["server-cap", "tools", serverId],
 		queryFn: () => serversApi.listTools(serverId),
@@ -1056,28 +1161,42 @@ function ServerCapabilityTabsHeader({
 	return (
 		<TabsList className="flex flex-wrap gap-2">
 			{viewMode === VIEW_MODES.browse ? (
-				<TabsTrigger value="overview">Overview</TabsTrigger>
+				<TabsTrigger value="overview">
+					{t("detail.tabs.overview", { defaultValue: "Overview" })}
+				</TabsTrigger>
 			) : null}
 			<TabsTrigger value="tools" disabled={disableEmpty && toolsCount === 0}>
-				Tools ({toolsCount})
+				{t("detail.tabs.tools", {
+					count: toolsCount,
+					defaultValue: "Tools ({{count}})",
+				})}
 			</TabsTrigger>
 			<TabsTrigger
 				value="prompts"
 				disabled={disableEmpty && promptsCount === 0}
 			>
-				Prompts ({promptsCount})
+				{t("detail.tabs.prompts", {
+					count: promptsCount,
+					defaultValue: "Prompts ({{count}})",
+				})}
 			</TabsTrigger>
 			<TabsTrigger
 				value="resources"
 				disabled={disableEmpty && resourcesCount === 0}
 			>
-				Resources ({resourcesCount})
+				{t("detail.tabs.resources", {
+					count: resourcesCount,
+					defaultValue: "Resources ({{count}})",
+				})}
 			</TabsTrigger>
 			<TabsTrigger
 				value="templates"
 				disabled={disableEmpty && templatesCount === 0}
 			>
-				Resource Templates ({templatesCount})
+				{t("detail.tabs.templates", {
+					count: templatesCount,
+					defaultValue: "Resource Templates ({{count}})",
+				})}
 			</TabsTrigger>
 		</TabsList>
 	);
@@ -1091,6 +1210,7 @@ function ServerCapabilityList({
 	serverId: string;
 }) {
 	const [search, setSearch] = useState("");
+	const { t } = useTranslation("servers");
 	const queryMap = {
 		tools: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "tools", serverId],
@@ -1146,23 +1266,37 @@ function ServerCapabilityList({
 		}),
 	} as const;
 	const q = queryMap[kind];
-	const titleMap: Record<HeaderKinds, string> = {
-		tools: "Tools",
-		resources: "Resources",
-		prompts: "Prompts",
-		templates: "Resource Templates",
-	} as const;
+	const labelMap: Record<HeaderKinds, string> = {
+		tools: t("detail.capabilityList.labels.tools", { defaultValue: "Tools" }),
+		resources: t("detail.capabilityList.labels.resources", {
+			defaultValue: "Resources",
+		}),
+		prompts: t("detail.capabilityList.labels.prompts", {
+			defaultValue: "Prompts",
+		}),
+		templates: t("detail.capabilityList.labels.templates", {
+			defaultValue: "Resource Templates",
+		}),
+	};
+	const label = labelMap[kind];
 
 	return (
 		<CapabilityList
-			title={`${titleMap[kind]} (${q.data?.items?.length ?? 0})`}
+			title={t("detail.capabilityList.title", {
+				label,
+				count: q.data?.items?.length ?? 0,
+				defaultValue: "{{label}} ({{count}})",
+			})}
 			kind={kind}
 			context="server"
 			items={q.data?.items ?? []}
 			loading={q.isLoading}
 			filterText={search}
 			onFilterTextChange={setSearch}
-			emptyText={`No ${titleMap[kind].toLowerCase()} from this server`}
+			emptyText={t("detail.capabilityList.empty", {
+				label: label.toLowerCase(),
+				defaultValue: "No {{label}} from this server",
+			})}
 		/>
 	);
 }
@@ -1198,6 +1332,7 @@ function InspectorChannelControls({
 }: InspectorChannelControlsProps) {
 	const [hintVisible, setHintVisible] = useState(false);
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const { t } = useTranslation("servers");
 
 	useEffect(() => {
 		if (proxyAvailable) {
@@ -1250,7 +1385,9 @@ function InspectorChannelControls({
 		<div ref={containerRef} className="relative inline-flex items-center gap-2">
 			{selected === "proxy" && active !== "proxy" && !isChecking ? (
 				<span className="text-xs text-amber-600 dark:text-amber-400 mr-2">
-					Fallback to native until proxy is available
+					{t("detail.inspector.channel.fallback", {
+						defaultValue: "Fallback to native until proxy is available",
+					})}
 				</span>
 			) : null}
 			<div className="inline-flex rounded-md border bg-white dark:bg-slate-900">
@@ -1267,7 +1404,7 @@ function InspectorChannelControls({
 					) : (
 						<ShieldAlert className="h-4 w-4" />
 					)}
-					Proxy
+					{t("detail.inspector.channel.proxy", { defaultValue: "Proxy" })}
 				</Button>
 				<Button
 					type="button"
@@ -1276,16 +1413,22 @@ function InspectorChannelControls({
 					className="gap-1 h-8 px-3 text-xs rounded-r-md rounded-l-none"
 					onClick={handleNative}
 				>
-					<AlertTriangle className="h-4 w-4" /> Native
+					<AlertTriangle className="h-4 w-4" />
+					{t("detail.inspector.channel.native", { defaultValue: "Native" })}
 				</Button>
 			</div>
 			{!proxyAvailable && !isChecking && hintVisible ? (
 				<div className="absolute right-0 top-full mt-1 w-64 rounded-md border bg-white dark:bg-slate-900 p-3 text-xs shadow-lg z-10">
 					<p className="font-medium text-slate-700 dark:text-slate-200 mb-1">
-						Proxy unavailable
+						{t("detail.inspector.channel.hintTitle", {
+							defaultValue: "Proxy unavailable",
+						})}
 					</p>
 					<p className="text-slate-600 dark:text-slate-300 mb-2">
-						Enable this server in an active profile to exercise proxy mode.
+						{t("detail.inspector.channel.hintDescription", {
+							defaultValue:
+								"Enable this server in an active profile to exercise proxy mode.",
+						})}
 					</p>
 					<Button
 						size="sm"
@@ -1293,7 +1436,9 @@ function InspectorChannelControls({
 						className="text-xs"
 						onClick={onOpenProfiles}
 					>
-						Open Profiles
+						{t("detail.inspector.channel.openProfiles", {
+							defaultValue: "Open Profiles",
+						})}
 					</Button>
 				</div>
 			) : null}
@@ -1313,13 +1458,26 @@ function InspectorDebugSection({
 	const [filter, setFilter] = useState("");
 	const [logFilter, setLogFilter] = useState("");
 	const [tab, setTab] = useState<"results" | "logs">("results");
+	const { t } = useTranslation("servers");
 
 	const title = useMemo(() => {
-		if (kind === "tools") return "Tools";
-		if (kind === "resources") return "Resources";
-		if (kind === "prompts") return "Prompts";
-		return "Resource Templates";
-	}, [kind]);
+		if (kind === "tools") {
+			return t("detail.inspector.labels.tools", { defaultValue: "Tools" });
+		}
+		if (kind === "resources") {
+			return t("detail.inspector.labels.resources", {
+				defaultValue: "Resources",
+			});
+		}
+		if (kind === "prompts") {
+			return t("detail.inspector.labels.prompts", {
+				defaultValue: "Prompts",
+			});
+		}
+		return t("detail.inspector.labels.templates", {
+			defaultValue: "Resource Templates",
+		});
+	}, [kind, t]);
 
 	const sectionLogs = useMemo(() => {
 		const prefix =
@@ -1359,14 +1517,25 @@ function InspectorDebugSection({
 			<div className="flex items-center justify-between gap-2 flex-wrap">
 				<TabsList className="flex flex-wrap gap-2">
 					<TabsTrigger value="results">
-						Results ({state.items.length})
+						{t("detail.inspector.tabs.results", {
+							count: state.items.length,
+							defaultValue: "Results ({{count}})",
+						})}
 					</TabsTrigger>
-					<TabsTrigger value="logs">Logs ({sectionLogs.length})</TabsTrigger>
+					<TabsTrigger value="logs">
+						{t("detail.inspector.tabs.logs", {
+							count: sectionLogs.length,
+							defaultValue: "Logs ({{count}})",
+						})}
+					</TabsTrigger>
 				</TabsList>
 				{tab === "results" ? (
 					<div className="flex items-center gap-2 flex-wrap">
 						<Input
-							placeholder={`Filter ${title.toLowerCase()}...`}
+							placeholder={t("detail.inspector.filterPlaceholder", {
+								label: title,
+								defaultValue: "Filter {{label}}...",
+							})}
 							value={filter}
 							onChange={(e) => setFilter(e.target.value)}
 							className="h-8 w-48"
@@ -1382,13 +1551,21 @@ function InspectorDebugSection({
 							) : (
 								<RefreshCw className="h-4 w-4" />
 							)}
-							{state.fetched ? "Refresh" : "List"}
+							{state.fetched
+								? t("detail.inspector.actions.refresh", {
+										defaultValue: "Refresh",
+									})
+								: t("detail.inspector.actions.list", {
+										defaultValue: "List",
+									})}
 						</Button>
 					</div>
 				) : (
 					<div className="flex items-center gap-2 flex-wrap">
 						<Input
-							placeholder="Search logs..."
+							placeholder={t("detail.inspector.logs.search", {
+								defaultValue: "Search logs...",
+							})}
 							value={logFilter}
 							onChange={(e) => setLogFilter(e.target.value)}
 							className="h-8 w-48"
@@ -1400,7 +1577,9 @@ function InspectorDebugSection({
 							onClick={onClearLogs}
 							disabled={!sectionLogs.length}
 						>
-							Clear Logs
+							{t("detail.inspector.logs.clear", {
+								defaultValue: "Clear Logs",
+							})}
 						</Button>
 					</div>
 				)}
@@ -1411,8 +1590,10 @@ function InspectorDebugSection({
 					<CardHeader className="px-4 pt-4 pb-0">
 						{state.lastFetched ? (
 							<p className="text-xs text-slate-500">
-								Last listed at{" "}
-								{new Date(state.lastFetched).toLocaleTimeString()}
+								{t("detail.inspector.results.lastFetched", {
+									time: new Date(state.lastFetched).toLocaleTimeString(),
+									defaultValue: "Last listed at {{time}}",
+								})}
 							</p>
 						) : null}
 						{state.error ? (
@@ -1430,8 +1611,14 @@ function InspectorDebugSection({
 							filterText={filter}
 							emptyText={
 								state.fetched
-									? `No ${title.toLowerCase()} returned.`
-									: `Run ${title.toLowerCase()} list to fetch live data.`
+									? t("detail.inspector.results.emptyFetched", {
+											label: title,
+											defaultValue: "No {{label}} returned.",
+										})
+									: t("detail.inspector.results.emptyPrompt", {
+											label: title,
+											defaultValue: "Run {{label}} list to fetch live data.",
+										})
 							}
 							renderAction={(_, item) => (
 								<Button
@@ -1441,7 +1628,10 @@ function InspectorDebugSection({
 									className="gap-1"
 									onClick={() => onInspect(item)}
 								>
-									<Play className="w-3.5 h-3.5" /> Inspect
+									<Play className="w-3.5 h-3.5" />
+									{t("detail.inspector.actions.inspect", {
+										defaultValue: "Inspect",
+									})}
 								</Button>
 							)}
 						/>
@@ -1453,7 +1643,11 @@ function InspectorDebugSection({
 				<Card className="min-h-[220px]">
 					<CardContent className="space-y-2 p-4 max-h-[60vh] overflow-auto">
 						{sectionLogs.length === 0 ? (
-							<p className="text-sm text-slate-500">No inspector events yet.</p>
+							<p className="text-sm text-slate-500">
+								{t("detail.inspector.logs.empty", {
+									defaultValue: "No inspector events yet.",
+								})}
+							</p>
 						) : (
 							sectionLogs.map((entry) => (
 								<div
@@ -1508,7 +1702,7 @@ function InspectorDebugSection({
 												variant="outline"
 												className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
 												onClick={() => {
-													navigator.clipboard.writeText(safeLog(entry.payload));
+													void writeClipboardText(safeLog(entry.payload));
 												}}
 											>
 												<Copy className="h-3 w-3" />

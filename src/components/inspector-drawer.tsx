@@ -2,6 +2,7 @@ import { AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { inspectorApi } from "../lib/api";
 import { notifyError, notifySuccess } from "../lib/notify";
+import { writeClipboardText } from "../lib/clipboard";
 import type { InspectorSessionOpenData, InspectorSseEvent } from "../lib/types";
 import type {
 	CapabilityArgument,
@@ -1152,7 +1153,7 @@ export function InspectorDrawer({
 		try {
 			const text =
 				typeof result === "string" ? result : JSON.stringify(result, null, 2);
-			await navigator.clipboard.writeText(text);
+			await writeClipboardText(text);
 			notifySuccess(
 				"Response copied",
 				"Inspector response copied to clipboard.",

@@ -6,11 +6,15 @@ import {
 	useEffect,
 	useId,
 	useImperativeHandle,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { parseJsonDrafts } from "../../lib/install-normalizer";
+import { readClipboardText } from "../../lib/clipboard";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { Button } from "../ui/button";
 import {
 	Drawer,
@@ -43,6 +47,7 @@ import {
 	type ManualServerFormValues,
 	manualServerSchema,
 	SERVER_TYPE_OPTIONS,
+	DEFAULT_INGEST_MESSAGE,
 	type ServerInstallManualFormHandle,
 	type ServerInstallManualFormProps,
 } from "./types";
@@ -66,6 +71,8 @@ export const ServerInstallManualForm = forwardRef<
 		}: ServerInstallManualFormProps,
 		ref,
 	) => {
+		usePageTranslations("servers");
+		const { t, i18n } = useTranslation("servers");
 		const isEditMode = mode === "edit";
 		const isMarketMode = mode === "market";
 		const jsonEditingEnabled = allowJsonEditing ?? !isEditMode;
@@ -147,6 +154,21 @@ export const ServerInstallManualForm = forwardRef<
 		// Watched values
 		const kind = watch("kind");
 		const isStdio = kind === "stdio";
+		const serverTypeOptions = useMemo(
+			() =>
+				SERVER_TYPE_OPTIONS.map((option) => ({
+					...option,
+					label: t(`manual.fields.type.options.${option.value}`, {
+						defaultValue:
+							option.value === "stdio"
+								? "Stdio"
+								: option.value === "sse"
+									? "SSE"
+									: "Streamable HTTP",
+					}),
+				})),
+			[t],
+		);
 		const watchedName = useWatch({ control, name: "name" });
 		const watchedMetaDescription = useWatch({
 			control,
@@ -175,6 +197,89 @@ export const ServerInstallManualForm = forwardRef<
 		const watchedArgs = useWatch({ control, name: "args" });
 		const watchedEnv = useWatch({ control, name: "env" });
 		const watchedHeaders = useWatch({ control, name: "headers" });
+
+		const ingestMessages = useMemo(
+			() => ({
+				defaultMessage: t("manual.ingest.default", {
+					defaultValue: DEFAULT_INGEST_MESSAGE,
+				}),
+				parsingDropped: t("manual.ingest.parsingDropped", {
+					defaultValue: "Parsing dropped text",
+				}),
+				parsingPasted: t("manual.ingest.parsingPasted", {
+					defaultValue: "Parsing pasted content",
+				}),
+				success: t("manual.ingest.success", {
+					defaultValue: "Server configuration loaded successfully",
+				}),
+				noneDetectedError: t("manual.ingest.noneDetectedError", {
+					defaultValue: "No servers detected in the input",
+				}),
+				noneDetectedTitle: t("manual.ingest.noneDetectedTitle", {
+					defaultValue: "No servers detected",
+				}),
+				noneDetectedDescription: t("manual.ingest.noneDetectedDescription", {
+					defaultValue:
+						"We could not find any server definitions in the input.",
+				}),
+				parseFailedFallback: t("manual.ingest.parseFailedFallback", {
+					defaultValue: "Failed to parse input",
+				}),
+				parseFailedTitle: t("manual.ingest.parseFailedTitle", {
+					defaultValue: "Parsing failed",
+				}),
+			}),
+			[t],
+		);
+		const editingMessage = t("manual.ingest.editing", {
+			defaultValue: "Editing server",
+		});
+
+		const submissionMessages = useMemo(
+			() => ({
+				commandRequiredTitle: t("manual.errors.commandRequiredTitle", {
+					defaultValue: "Command required",
+				}),
+				commandRequiredBody: t("manual.errors.commandRequiredBody", {
+					defaultValue: "Provide a command for stdio servers.",
+				}),
+				endpointRequiredTitle: t("manual.errors.endpointRequiredTitle", {
+					defaultValue: "Endpoint required",
+				}),
+				endpointRequiredBody: t("manual.errors.endpointRequiredBody", {
+					defaultValue: "Provide a URL for non-stdio servers.",
+				}),
+				jsonNoServers: t("manual.errors.jsonNoServers", {
+					defaultValue: "No servers found in JSON payload",
+				}),
+				jsonMultipleServers: t("manual.errors.jsonMultipleServers", {
+					defaultValue:
+						"Manual entry accepts exactly one server in JSON mode",
+				}),
+				jsonParseFailedTitle: t("manual.errors.jsonParseFailedTitle", {
+					defaultValue: "Invalid JSON",
+				}),
+				jsonParseFailedFallback: t("manual.errors.jsonParseFailedFallback", {
+					defaultValue: "Failed to parse JSON",
+				}),
+				invalidJsonTitle: t("manual.errors.invalidJsonTitle", {
+					defaultValue: "Invalid JSON",
+				}),
+				submit: {
+					edit: t("manual.buttons.save", { defaultValue: "Save changes" }),
+					market: t("manual.buttons.import", { defaultValue: "Import server" }),
+					create: t("manual.buttons.preview", { defaultValue: "Preview" }),
+				},
+				pending: {
+					edit: t("manual.buttons.saving", { defaultValue: "Saving..." }),
+					market: t("manual.buttons.importing", { defaultValue: "Importing..." }),
+					create: t("manual.buttons.processing", {
+						defaultValue: "Processing...",
+					}),
+				},
+			}),
+			[t],
+		);
 
 		// Form sync
 		const { saveTypeSnapshot, restoreTypeSnapshot } = useFormSync({
@@ -224,6 +329,7 @@ export const ServerInstallManualForm = forwardRef<
 			reset,
 			onSubmitMultiple,
 			onClose,
+			messages: ingestMessages,
 		});
 
 		// Form submission
@@ -244,12 +350,71 @@ export const ServerInstallManualForm = forwardRef<
 			jsonEditingEnabled,
 			setJsonError,
 			setViewMode,
+			messages: submissionMessages,
 		});
 
 		// UI state
 		const [deleteConfirmStates, setDeleteConfirmStates] = useState<
 			Record<string, boolean>
 		>({});
+
+		const pasteShortcut = t("manual.ingest.shortcut", {
+			defaultValue: "Ctrl/Cmd + V",
+		});
+		const pasteTipPrefix = t("manual.ingest.tipPrefix", {
+			defaultValue: "Tip: press",
+		});
+		const pasteTipSuffix = t("manual.ingest.tipSuffix", {
+			defaultValue: "to paste instantly.",
+		});
+		const headerTitle = isEditMode
+			? t("manual.header.title.edit", { defaultValue: "Editing server" })
+			: isMarketMode
+				? t("manual.header.title.import", { defaultValue: "Import Server" })
+				: t("manual.header.title.create", {
+						defaultValue: "Server Uni-Import",
+					});
+		const headerDescription = isEditMode
+			? t("manual.header.description.edit", {
+					defaultValue:
+						"Review and update the existing server settings. JSON preview remains read-only in this mode.",
+				})
+			: isMarketMode
+				? t("manual.header.description.import", {
+						defaultValue: "Configure and import this server from the registry.",
+					})
+				: t("manual.header.description.create", {
+						defaultValue:
+							"You can directly drag and drop the configuration information, or enter it manually.",
+					});
+		const resetLabel = t("manual.buttons.reset", {
+			defaultValue: "Reset form",
+		});
+		const tabsCoreLabel = t("manual.tabs.core", {
+			defaultValue: "Core configuration",
+		});
+		const tabsMetaLabel = t("manual.tabs.meta", {
+			defaultValue: "Meta information",
+		});
+		const tabsMetaWip = t("manual.tabs.metaWip", { defaultValue: "WIP" });
+		const nameLabel = t("manual.fields.name.label", { defaultValue: "Name" });
+		const namePlaceholder = t("manual.fields.name.placeholder", {
+			defaultValue: "e.g., local-mcp",
+		});
+		const nameReadOnlyTitle = t("manual.fields.name.readOnlyTitle", {
+			defaultValue: "Editing server names is disabled",
+		});
+		const typeLabel = t("manual.fields.type.label", { defaultValue: "Type" });
+		const jsonLabel = t("manual.fields.json.label", {
+			defaultValue: "Server JSON",
+		});
+		const cancelLabel = t("manual.buttons.cancel", { defaultValue: "Cancel" });
+		const previewLabel = t("manual.buttons.preview", {
+			defaultValue: "Preview",
+		});
+		const previewingLabel = t("manual.buttons.previewing", {
+			defaultValue: "Previewing...",
+		});
 
 		// Refs
 		const dropZoneRef = useRef<HTMLButtonElement | null>(null);
@@ -319,14 +484,14 @@ export const ServerInstallManualForm = forwardRef<
 			setIsDropZoneCollapsed(true);
 			setIngestError(null);
 			setIngestMessage(
-				isEditMode
-					? "Editing server"
-					: "Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin",
+				isEditMode ? editingMessage : ingestMessages.defaultMessage,
 			);
 		}, [
 			applySingleDraftToForm,
 			initialDraft,
 			isEditMode,
+			editingMessage,
+			ingestMessages.defaultMessage,
 			isOpen,
 			setActiveTab,
 			setViewMode,
@@ -406,9 +571,7 @@ export const ServerInstallManualForm = forwardRef<
 				setIsDropZoneCollapsed(false);
 				setIngestError(null);
 				setIsIngestSuccess(false);
-				setIngestMessage(
-					"Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin",
-				);
+				setIngestMessage(ingestMessages.defaultMessage);
 			}
 		}, [
 			ingestEnabled,
@@ -417,6 +580,7 @@ export const ServerInstallManualForm = forwardRef<
 			setIngestError,
 			setIsIngestSuccess,
 			setIngestMessage,
+			ingestMessages.defaultMessage,
 		]);
 
 		// Drag and drop handlers
@@ -429,9 +593,7 @@ export const ServerInstallManualForm = forwardRef<
 				setIsDropZoneCollapsed(false);
 				setIngestError(null);
 				setIsIngestSuccess(false);
-				setIngestMessage(
-					"Drop JSON/TOML/Text or MCP bundles <sup>(WIP)</sup> to begin",
-				);
+				setIngestMessage(ingestMessages.defaultMessage);
 			}
 		};
 
@@ -453,12 +615,22 @@ export const ServerInstallManualForm = forwardRef<
 				const file = files[0];
 				if (file.name.endsWith(".mcpb") || file.name.endsWith(".dxt")) {
 					const buffer = await file.arrayBuffer();
-					setIngestMessage(`Processing bundle: ${file.name}`);
+					setIngestMessage(
+						t("manual.ingest.processingBundle", {
+							name: file.name,
+							defaultValue: "Processing bundle: {{name}}",
+						}),
+					);
 					await handleIngestPayload({ buffer, fileName: file.name });
 					return;
 				}
 				const text = await file.text();
-				setIngestMessage(`Parsing text from ${file.name}`);
+				setIngestMessage(
+					t("manual.ingest.parsingFile", {
+						name: file.name,
+						defaultValue: "Parsing text from {{name}}",
+					}),
+				);
 				await handleIngestPayload({ text, fileName: file.name });
 				return;
 			}
@@ -466,47 +638,74 @@ export const ServerInstallManualForm = forwardRef<
 				const item = items[0];
 				if (item.kind === "string") {
 					item.getAsString(async (text) => {
-						setIngestMessage("Parsing dropped text");
+						setIngestMessage(ingestMessages.parsingDropped);
 						await handleIngestPayload({ text });
 					});
 				}
 			}
 		};
 
-		const onPaste = (event: React.ClipboardEvent<HTMLButtonElement>) => {
-			if (!ingestEnabled) return;
-			if (isDropZoneCollapsed) return;
-			if (isIngesting) return;
-			const text = event.clipboardData.getData("text/plain");
-			if (text) {
+		const ingestClipboardPayload = useCallback(
+			async (initialText?: string | null) => {
+				if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
+					return false;
+				}
+				const seeded = initialText?.trim() ? initialText : null;
+				const text = seeded ?? (await readClipboardText());
+				if (!text || !text.trim()) {
+					return false;
+				}
+				setIngestMessage(ingestMessages.parsingPasted);
+				await handleIngestPayload({ text });
+				return true;
+			},
+			[
+				handleIngestPayload,
+				ingestEnabled,
+				ingestMessages.parsingPasted,
+				isDropZoneCollapsed,
+				isIngesting,
+			],
+		);
+
+		const onPaste = useCallback(
+			(event: React.ClipboardEvent<HTMLButtonElement>) => {
+				if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
+					return;
+				}
 				event.preventDefault();
-				setIngestMessage("Parsing pasted content");
-				handleIngestPayload({ text });
-			}
-		};
+				void ingestClipboardPayload(
+					event.clipboardData?.getData("text/plain") ?? null,
+				);
+			},
+			[
+				ingestClipboardPayload,
+				ingestEnabled,
+				isDropZoneCollapsed,
+				isIngesting,
+			],
+		);
 
 		// Paste listener
 		useEffect(() => {
 			if (!isOpen || !ingestEnabled) return;
 			const listener = (event: ClipboardEvent) => {
-				if (isDropZoneCollapsed) return;
-				if (isIngesting) return;
-				const text = event.clipboardData?.getData("text/plain");
-				if (text) {
-					event.preventDefault();
-					setIngestMessage("Parsing pasted content");
-					handleIngestPayload({ text });
+				if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
+					return;
 				}
+				event.preventDefault();
+				void ingestClipboardPayload(
+					event.clipboardData?.getData("text/plain") ?? null,
+				);
 			};
 			window.addEventListener("paste", listener);
 			return () => window.removeEventListener("paste", listener);
 		}, [
-			handleIngestPayload,
+			ingestClipboardPayload,
 			ingestEnabled,
 			isOpen,
-			isIngesting,
 			isDropZoneCollapsed,
-			setIngestMessage,
+			isIngesting,
 		]);
 
 		// Focus drop zone
@@ -527,7 +726,7 @@ export const ServerInstallManualForm = forwardRef<
 				applySingleDraftToForm(draft);
 				setIsIngestSuccess(true);
 				setIsDropZoneCollapsed(true);
-				setIngestMessage("Server configuration loaded successfully");
+				setIngestMessage(ingestMessages.success);
 				setIngestError(null);
 				setActiveTab("core");
 			},
@@ -614,7 +813,7 @@ export const ServerInstallManualForm = forwardRef<
 			try {
 				const drafts = parseJsonDrafts(jsonText);
 				if (!drafts.length) {
-					setJsonError("No servers found in JSON payload");
+					setJsonError(submissionMessages.jsonNoServers);
 					return false;
 				}
 				setJsonError(null);
@@ -623,7 +822,9 @@ export const ServerInstallManualForm = forwardRef<
 				return true;
 			} catch (error) {
 				const message =
-					error instanceof Error ? error.message : "Failed to parse JSON";
+					error instanceof Error
+						? error.message
+						: submissionMessages.jsonParseFailedFallback;
 				setJsonError(message);
 				return false;
 			}
@@ -652,19 +853,9 @@ export const ServerInstallManualForm = forwardRef<
 						<DrawerHeader className="pb-2">
 							<div className="flex items-start justify-between gap-2">
 								<div>
-									<DrawerTitle>
-										{isEditMode
-											? "Editing server"
-											: isMarketMode
-												? "Import Server"
-												: "Server Uni-Import"}
-									</DrawerTitle>
+									<DrawerTitle>{headerTitle}</DrawerTitle>
 									<DrawerDescription className="mt-1 text-sm text-muted-foreground">
-										{isEditMode
-											? "Review and update the existing server settings. JSON preview remains read-only in this mode."
-											: isMarketMode
-												? "Configure and import this server from the registry."
-												: "You can directly drag and drop the configuration information, or enter it manually."}
+										{headerDescription}
 									</DrawerDescription>
 								</div>
 								{ingestEnabled ? (
@@ -673,8 +864,8 @@ export const ServerInstallManualForm = forwardRef<
 										variant="ghost"
 										size="icon"
 										onClick={handleResetAll}
-										aria-label="Reset form"
-										title="Reset form"
+										aria-label={resetLabel}
+										title={resetLabel}
 									>
 										<RotateCcw className="h-4 w-4" />
 									</Button>
@@ -761,11 +952,11 @@ export const ServerInstallManualForm = forwardRef<
 										</p>
 										{!isDropZoneCollapsed && !ingestError && (
 											<p className="text-xs text-slate-400 mt-2">
-												Tip: press{" "}
+												{pasteTipPrefix}{" "}
 												<kbd className="rounded bg-slate-200 px-1 text-[10px]">
-													Ctrl/Cmd + V
+													{pasteShortcut}
 												</kbd>{" "}
-												to paste instantly.
+												{pasteTipSuffix}
 											</p>
 										)}
 									</div>
@@ -785,9 +976,9 @@ export const ServerInstallManualForm = forwardRef<
 								className="space-y-4"
 							>
 								<TabsList className="grid w-full grid-cols-2">
-									<TabsTrigger value="core">Core configuration</TabsTrigger>
+									<TabsTrigger value="core">{tabsCoreLabel}</TabsTrigger>
 									<TabsTrigger value="meta">
-										Meta information <sup>(WIP)</sup>
+										{tabsMetaLabel} <sup>({tabsMetaWip})</sup>
 									</TabsTrigger>
 								</TabsList>
 
@@ -810,18 +1001,18 @@ export const ServerInstallManualForm = forwardRef<
 											<div className="space-y-4">
 												<div className="flex items-center gap-4">
 													<Label htmlFor={nameId} className="w-20 text-right">
-														Name
+														{nameLabel}
 													</Label>
 													<div className="flex-1">
 														<Input
 															id={nameId}
 															{...register("name")}
-															placeholder="e.g., local-mcp"
+															placeholder={namePlaceholder}
 															readOnly={isEditMode}
 															aria-readonly={isEditMode}
 															title={
 																isEditMode
-																	? "Editing server names is disabled"
+																	? nameReadOnlyTitle
 																	: undefined
 															}
 															className={
@@ -832,18 +1023,20 @@ export const ServerInstallManualForm = forwardRef<
 														/>
 														{errors.name && (
 															<p className="text-xs text-red-500">
-																{errors.name.message}
+																{t(errors.name.message ?? "", {
+																	defaultValue: errors.name.message,
+																})}
 															</p>
 														)}
 													</div>
 												</div>
 												<div className="flex items-center gap-4">
 													<Label htmlFor={kindId} className="w-20 text-right">
-														Type
+														{typeLabel}
 													</Label>
 													<div className="flex-1">
 														<Segment
-															options={SERVER_TYPE_OPTIONS}
+															options={serverTypeOptions}
 															value={kind}
 															onValueChange={(value) => {
 																const newKind =
@@ -862,7 +1055,9 @@ export const ServerInstallManualForm = forwardRef<
 														/>
 														{errors.kind && (
 															<p className="text-xs text-red-500">
-																{errors.kind.message}
+																{t(errors.kind.message ?? "", {
+																	defaultValue: errors.kind.message,
+																})}
 															</p>
 														)}
 													</div>
@@ -926,7 +1121,7 @@ export const ServerInstallManualForm = forwardRef<
 													htmlFor={manualJsonId}
 													className="w-20 text-right pt-3 flex-shrink-0"
 												>
-													Server JSON
+													{jsonLabel}
 												</Label>
 												<div className="flex-1 flex flex-col">
 													<div className="flex-1 min-h-[400px] border border-input rounded-md flex flex-col">
@@ -994,7 +1189,7 @@ export const ServerInstallManualForm = forwardRef<
 									onClick={onClose}
 									disabled={isSubmitting}
 								>
-									Cancel
+									{cancelLabel}
 								</Button>
 								{isMarketMode ? (
 									<Button
@@ -1005,10 +1200,10 @@ export const ServerInstallManualForm = forwardRef<
 										{isSubmitting ? (
 											<>
 												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Previewing...
+												{previewingLabel}
 											</>
 										) : (
-											"Preview"
+											previewLabel
 										)}
 									</Button>
 								) : (

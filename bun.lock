@@ -21,6 +21,7 @@
         "@tanstack/react-query": "^5.25.0",
         "@tanstack/react-table": "^8.11.2",
         "@tauri-apps/api": "^2.0.4",
+        "@tauri-apps/plugin-clipboard-manager": "^2.0.1",
         "@tauri-apps/plugin-opener": "^2.5.0",
         "acorn": "^8.15.0",
         "class-variance-authority": "^0.7.0",
@@ -348,6 +349,8 @@
     "@tanstack/table-core": ["@tanstack/table-core@8.21.3", "", {}, "sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg=="],
 
     "@tauri-apps/api": ["@tauri-apps/api@2.8.0", "https://registry.npmmirror.com/@tauri-apps/api/-/api-2.8.0.tgz", {}, "sha512-ga7zdhbS2GXOMTIZRT0mYjKJtR9fivsXzsyq5U3vjDL0s6DTMwYRm0UHNjzTY5dh4+LSC68Sm/7WEiimbQNYlw=="],
+
+    "@tauri-apps/plugin-clipboard-manager": ["@tauri-apps/plugin-clipboard-manager@2.3.0", "https://registry.npmmirror.com/@tauri-apps/plugin-clipboard-manager/-/plugin-clipboard-manager-2.3.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.6.0" } }, "sha512-81NOBA2P+OTY8RLkBwyl9ZR/0CeggLub4F6zxcxUIfFOAqtky7J61+K/MkH2SC1FMxNBxrX0swDuKvkjkHadlA=="],
 
     "@tauri-apps/plugin-opener": ["@tauri-apps/plugin-opener@2.5.0", "https://registry.npmmirror.com/@tauri-apps/plugin-opener/-/plugin-opener-2.5.0.tgz", { "dependencies": { "@tauri-apps/api": "^2.8.0" } }, "sha512-B0LShOYae4CZjN8leiNDbnfjSrTwoZakqKaWpfoH6nXiJwt6Rgj6RnVIffG3DoJiKsffRhMkjmBV9VeilSb4TA=="],
 
