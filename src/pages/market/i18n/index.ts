@@ -40,7 +40,7 @@ export const marketTranslations = {
 		officialRegistry: "Official MCP Registry",
 	},
 	"zh-CN": {
-		title: "市集",
+		title: "服务源",
 		alpha: "alpha",
 		buttons: {
 			refresh: "刷新",
