@@ -1,5 +1,6 @@
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ErrorDisplay } from "../../components/error-display";
 import { ServerInstallWizard } from "../../components/uniimport/server-install-wizard";
 import type { ServerInstallManualFormHandle } from "../../components/uniimport/types";
@@ -48,6 +49,7 @@ interface RemoteOption {
 }
 
 export function MarketPage() {
+	const { t } = useTranslation();
 	// Use custom hooks for data and tab management
 	const {
 		tabs,
@@ -149,7 +151,10 @@ export function MarketPage() {
 			label,
 			hiddenAt: Date.now(),
 		});
-		notifyInfo("Server hidden", `${label} will be excluded from Market.`);
+		notifyInfo(
+			t("market.notifications.serverHidden"),
+			`${label} will be excluded from Market.`,
+		);
 	};
 
 	const handleOpenDrawer = (entry: RegistryServerEntry) => {
@@ -406,14 +411,14 @@ export function MarketPage() {
 					formRef.current?.loadDraft({ ...currentDraft, meta: mergedMeta });
 				}
 				notifyInfo(
-					"Configuration detected",
-					"Review the imported snippet before completing the setup.",
+					t("market.notifications.configurationDetected"),
+					t("market.notifications.reviewImportedSnippet"),
 				);
 			} catch (error) {
 				pendingImportRef.current = { ...snippet };
 				setPendingImportTick((tick) => tick + 1);
 				notifyError(
-					"Import failed",
+					t("market.notifications.importFailed"),
 					String(
 						error instanceof Error ? error.message : (error ?? "Unknown error"),
 					),
@@ -422,7 +427,7 @@ export function MarketPage() {
 		})();
 	}, [drawerOpen, pendingImportTick]);
 
-// (preview/import handlers are now managed inside ServerInstallWizard via shared pipeline)
+	// (preview/import handlers are now managed inside ServerInstallWizard via shared pipeline)
 
 	// Scroll to top effect
 	useEffect(() => {
@@ -441,9 +446,9 @@ export function MarketPage() {
 					<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 						<div className="space-y-1">
 							<h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-								Market
+								{t("market.title")}
 								<sup className="ml-2 align-super text-xs font-normal text-slate-500 dark:text-slate-400">
-									alpha
+									{t("market.alpha")}
 								</sup>
 							</h2>
 						</div>
@@ -465,8 +470,12 @@ export function MarketPage() {
 									size="sm"
 									onClick={handleRefreshClick}
 									className="gap-2"
+									disabled={isPageLoading}
 								>
-									Refresh
+									<Loader2
+										className={`h-4 w-4 ${isPageLoading ? "animate-spin" : ""}`}
+									/>
+									{t("market.buttons.refresh")}
 								</Button>
 							</div>
 						)}
@@ -488,7 +497,7 @@ export function MarketPage() {
 				{isOfficialTab ? (
 					<>
 						<ErrorDisplay
-							title="Failed to load registry"
+							title={t("market.errors.failedToLoadRegistry")}
 							error={fetchError ?? null}
 							onRetry={handleRefreshClick}
 						/>
@@ -522,11 +531,12 @@ export function MarketPage() {
 							<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
 								<div className="space-y-2">
 									<h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
-										{currentTab?.label || "Third-Party Portal"}
+										{currentTab?.label || t("market.thirdParty.portal")}
 									</h3>
-									<p>第三方门户内容将在这里显示</p>
+									<p>{t("market.thirdParty.contentWillDisplay")}</p>
 									<p className="text-xs text-slate-400">
-										URL: {currentTab?.url || "未配置"}
+										URL:{" "}
+										{currentTab?.url || t("market.thirdParty.urlNotConfigured")}
 									</p>
 								</div>
 							</div>
@@ -542,7 +552,7 @@ export function MarketPage() {
 						className="fixed bottom-16 right-14 z-30 shadow-lg"
 					>
 						<ArrowUp className="mr-2 h-4 w-4" />
-						Top
+						{t("market.buttons.top")}
 					</Button>
 				) : null}
 			</div>
@@ -563,7 +573,7 @@ export function MarketPage() {
 					/>
 					<div className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-slate-800">
 						<h3 className="text-lg font-semibold mb-4">
-							Select Transport Option
+							{t("market.transport.selectOption")}
 						</h3>
 						<div className="space-y-2">
 							{remoteOptions.map((option) => (
@@ -583,8 +593,8 @@ export function MarketPage() {
 									<div className="font-medium">{option.label}</div>
 									<div className="text-sm text-slate-500 dark:text-slate-400">
 										{option.source === "remote"
-											? "Remote endpoint"
-											: "Package installation"}
+											? t("market.transport.remoteEndpoint")
+											: t("market.transport.packageInstallation")}
 									</div>
 								</button>
 							))}

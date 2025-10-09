@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Pagination } from "../../components/pagination";
 import { Card, CardFooter, CardHeader } from "../../components/ui/card";
 import { MarketCard } from "./market-card";
@@ -16,6 +17,7 @@ export function ServerGrid({
 	onNextPage,
 	onPreviousPage,
 }: ServerGridProps) {
+	const { t } = useTranslation();
 	return (
 		<>
 			{/* Loading Skeleton */}
@@ -62,8 +64,7 @@ export function ServerGrid({
 			{/* Empty State */}
 			{isEmpty ? (
 				<div className="rounded-xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
-					No entries matched your filters. Try another name or clear the search
-					above.
+					{t("market.emptyState.noEntriesMatched")}
 				</div>
 			) : null}
 
@@ -74,7 +75,9 @@ export function ServerGrid({
 						<div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm dark:bg-slate-950/80">
 							<div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 shadow-lg dark:bg-slate-800">
 								<Loader2 className="h-4 w-4 animate-spin" />
-								<span className="text-sm font-medium">Loading...</span>
+								<span className="text-sm font-medium">
+									{t("market.emptyState.loading")}
+								</span>
 							</div>
 						</div>
 					) : null}

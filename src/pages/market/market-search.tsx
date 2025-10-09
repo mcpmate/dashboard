@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import {
@@ -19,30 +20,35 @@ export function MarketSearch({
 	onRefresh,
 	isLoading,
 }: MarketSearchProps) {
+	const { t } = useTranslation();
 	return (
 		<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
 			<div className="flex-1 sm:flex-none">
 				<Input
 					value={search}
 					onChange={(event) => onSearchChange(event.target.value)}
-					placeholder="Search by server name"
+					placeholder={t("market.search.placeholder")}
 					className="h-9 w-full rounded-md border border-slate-200 bg-white px-4 py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-600 sm:w-64"
 				/>
 			</div>
 			<Select value={sort} onValueChange={onSortChange}>
 				<SelectTrigger className="h-9 w-full sm:w-[160px]">
-					<SelectValue placeholder="Sort" />
+					<SelectValue placeholder={t("market.search.sort")} />
 				</SelectTrigger>
 				<SelectContent align="end">
-					<SelectItem value="recent">Recently updated</SelectItem>
-					<SelectItem value="name">Alphabetical</SelectItem>
+					<SelectItem value="recent">
+						{t("market.search.recentlyUpdated")}
+					</SelectItem>
+					<SelectItem value="name">
+						{t("market.search.alphabetical")}
+					</SelectItem>
 				</SelectContent>
 			</Select>
 
 			{/* Refresh Button */}
 			<Button variant="outline" size="sm" onClick={onRefresh} className="gap-2">
 				<Loader2 className={cn("h-4 w-4", isLoading)} />
-				Refresh
+				{t("market.buttons.refresh")}
 			</Button>
 		</div>
 	);
