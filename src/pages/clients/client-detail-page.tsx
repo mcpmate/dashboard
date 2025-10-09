@@ -63,6 +63,7 @@ import {
 } from "../../components/ui/tabs";
 import { clientsApi, configSuitsApi } from "../../lib/api";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import type {
 	ClientBackupEntry,
 	ClientBackupPolicySetReq,
@@ -73,6 +74,7 @@ import type {
 	ConfigSuit,
 } from "../../lib/types";
 import { formatBackupTime } from "../../lib/utils";
+import { useTranslation } from "react-i18next";
 
 type ClientDetailTab = "overview" | "configuration" | "backups";
 
@@ -126,6 +128,8 @@ export function ClientDetailPage() {
 	const { identifier } = useParams<{ identifier: string }>();
 	const qc = useQueryClient();
 	const navigate = useNavigate();
+	usePageTranslations("clients");
+	const { t, i18n } = useTranslation("clients");
 	const [displayName, setDisplayName] = useState("");
 	const [selectedBackups, setSelectedBackups] = useState<string[]>([]);
 	const [detected, setDetected] = useState<boolean>(false);
@@ -212,13 +216,13 @@ export function ClientDetailPage() {
 		() => profiles.filter((profile) => profile.is_active),
 		[profiles],
 	);
-const sharedProfiles = useMemo(
-	() =>
-		profiles.filter(
-			(profile) => profile.suit_type === "shared" && profile.is_active,
-		),
-	[profiles],
-);
+	const sharedProfiles = useMemo(
+		() =>
+			profiles.filter(
+				(profile) => profile.suit_type === "shared" && profile.is_active,
+			),
+		[profiles],
+	);
 
 	// Get profile IDs for fetching capabilities
 	const profileIds = useMemo(() => {
@@ -366,21 +370,45 @@ const sharedProfiles = useMemo(
 		onSuccess: ({ data, preview }) => {
 			if (preview) {
 				if (data) {
-					notifyInfo("Preview ready", "Review the diff before applying.");
+					notifyInfo(
+						t("detail.notifications.previewReady.title", {
+							defaultValue: "Preview ready",
+						}),
+						t("detail.notifications.previewReady.message", {
+							defaultValue: "Review the diff before applying.",
+						}),
+					);
 				} else {
 					notifyInfo(
-						"Preview ready",
-						"No changes detected in this configuration.",
+						t("detail.notifications.previewReady.title", {
+							defaultValue: "Preview ready",
+						}),
+						t("detail.notifications.previewReady.noChanges", {
+							defaultValue: "No changes detected in this configuration.",
+						}),
 					);
 				}
 			} else {
-				notifySuccess("Applied", "Configuration applied");
+				notifySuccess(
+					t("detail.notifications.applied.title", {
+						defaultValue: "Applied",
+					}),
+					t("detail.notifications.applied.message", {
+						defaultValue: "Configuration applied",
+					}),
+				);
 				// Refresh backup records after successful apply
 				refetchBackups();
 			}
 			qc.invalidateQueries({ queryKey: ["client-config", identifier] });
 		},
-		onError: (e) => notifyError("Apply failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.applyFailed.title", {
+					defaultValue: "Apply failed",
+				}),
+				String(e),
+			),
 	});
 
 	const importMutation = useMutation<ClientConfigImportData | null>({
@@ -401,24 +429,38 @@ const sharedProfiles = useMemo(
 			// If onSuccess received null means we just did a preview; do not close
 			if (!res) return;
 			const imported =
-				res.imported_servers?.length ??
-				res.summary?.imported_count ??
-				0;
+				res.imported_servers?.length ?? res.summary?.imported_count ?? 0;
 			if (imported > 0) {
 				notifySuccess(
-					"Imported",
-					`${imported} server(s) imported successfully`,
+					t("detail.notifications.imported.title", {
+						defaultValue: "Imported",
+					}),
+					t("detail.notifications.imported.message", {
+						defaultValue: "{{count}} server(s) imported successfully",
+						count: imported,
+					}),
 				);
 				setImportPreviewOpen(false);
 			} else {
 				notifyInfo(
-					"Nothing to import",
-					"All entries were skipped or no importable servers found.",
+					t("detail.notifications.nothingToImport.title", {
+						defaultValue: "Nothing to import",
+					}),
+					t("detail.notifications.nothingToImport.message", {
+						defaultValue:
+							"All entries were skipped or no importable servers found.",
+					}),
 				);
 				setImportPreviewOpen(false);
 			}
 		},
-		onError: (e) => notifyError("Import failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.importFailed.title", {
+					defaultValue: "Import failed",
+				}),
+				String(e),
+			),
 	});
 
 	// Header actions: refresh detection and toggle managed
@@ -435,8 +477,22 @@ const sharedProfiles = useMemo(
 			}
 			await refetchDetails();
 		},
-		onSuccess: () => notifySuccess("Refreshed", "Detection refreshed"),
-		onError: (e) => notifyError("Refresh failed", String(e)),
+		onSuccess: () =>
+			notifySuccess(
+				t("detail.notifications.refreshed.title", {
+					defaultValue: "Refreshed",
+				}),
+				t("detail.notifications.refreshed.message", {
+					defaultValue: "Detection refreshed",
+				}),
+			),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.refreshFailed.title", {
+					defaultValue: "Refresh failed",
+				}),
+				String(e),
+			),
 	});
 
 	const toggleManagedMutation = useMutation({
@@ -446,8 +502,22 @@ const sharedProfiles = useMemo(
 			await clientsApi.manage(identifier, next ? "enable" : "disable");
 			await refetchDetails();
 		},
-		onSuccess: () => notifySuccess("Updated", "Managed state changed"),
-		onError: (e) => notifyError("Update failed", String(e)),
+		onSuccess: () =>
+			notifySuccess(
+				t("detail.notifications.managedUpdated.title", {
+					defaultValue: "Updated",
+				}),
+				t("detail.notifications.managedUpdated.message", {
+					defaultValue: "Managed state changed",
+				}),
+			),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.managedFailed.title", {
+					defaultValue: "Update failed",
+				}),
+				String(e),
+			),
 	});
 	const importPreviewMutation = useMutation<ClientConfigImportData>({
 		mutationFn: async () => {
@@ -458,7 +528,13 @@ const sharedProfiles = useMemo(
 			setImportPreviewData(res);
 			setImportPreviewOpen(true);
 		},
-		onError: (e) => notifyError("Preview failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.previewFailed.title", {
+					defaultValue: "Preview failed",
+				}),
+				String(e),
+			),
 	});
 
 	const restoreMutation = useMutation({
@@ -467,11 +543,24 @@ const sharedProfiles = useMemo(
 			return clientsApi.restoreConfig({ identifier, backup });
 		},
 		onSuccess: () => {
-			notifySuccess("Restored", "Configuration restored from backup");
+			notifySuccess(
+				t("detail.notifications.restored.title", {
+					defaultValue: "Restored",
+				}),
+				t("detail.notifications.restored.message", {
+					defaultValue: "Configuration restored from backup",
+				}),
+			);
 			refetchDetails();
 			refetchBackups();
 		},
-		onError: (e) => notifyError("Restore failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.restoreFailed.title", {
+					defaultValue: "Restore failed",
+				}),
+				String(e),
+			),
 	});
 
 	const deleteBackupMutation = useMutation({
@@ -480,10 +569,23 @@ const sharedProfiles = useMemo(
 			return clientsApi.deleteBackup(identifier, backup);
 		},
 		onSuccess: () => {
-			notifySuccess("Deleted", "Backup deleted");
+			notifySuccess(
+				t("detail.notifications.deleted.title", {
+					defaultValue: "Deleted",
+				}),
+				t("detail.notifications.deleted.message", {
+					defaultValue: "Backup deleted",
+				}),
+			);
 			refetchBackups();
 		},
-		onError: (e) => notifyError("Delete failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.deleteFailed.title", {
+					defaultValue: "Delete failed",
+				}),
+				String(e),
+			),
 	});
 
 	const bulkDeleteMutation = useMutation({
@@ -497,12 +599,25 @@ const sharedProfiles = useMemo(
 			if (failed > 0) throw new Error(`${failed} deletions failed`);
 		},
 		onSuccess: async () => {
-			notifySuccess("Deleted", "Selected backups have been deleted");
+			notifySuccess(
+				t("detail.notifications.bulkDeleted.title", {
+					defaultValue: "Deleted",
+				}),
+				t("detail.notifications.bulkDeleted.message", {
+					defaultValue: "Selected backups have been deleted",
+				}),
+			);
 			setSelectedBackups([]);
 			setBulkConfirmOpen(false);
 			await refetchBackups();
 		},
-		onError: (e) => notifyError("Bulk delete failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.bulkDeleteFailed.title", {
+					defaultValue: "Bulk delete failed",
+				}),
+				String(e),
+			),
 	});
 
 	const [confirm, setConfirm] = useState<null | {
@@ -514,10 +629,23 @@ const sharedProfiles = useMemo(
 		mutationFn: (payload: ClientBackupPolicySetReq) =>
 			clientsApi.setBackupPolicy(payload),
 		onSuccess: () => {
-			notifySuccess("Saved", "Backup policy updated");
+			notifySuccess(
+				t("detail.notifications.saved.title", {
+					defaultValue: "Saved",
+				}),
+				t("detail.notifications.saved.message", {
+					defaultValue: "Backup policy updated",
+				}),
+			);
 			refetchPolicy();
 		},
-		onError: (e) => notifyError("Save failed", String(e)),
+		onError: (e) =>
+			notifyError(
+				t("detail.notifications.saveFailed.title", {
+					defaultValue: "Save failed",
+				}),
+				String(e),
+			),
 	});
 
 	const [policyLabel, setPolicyLabel] = useState<string>("keep_n");
@@ -545,7 +673,13 @@ const sharedProfiles = useMemo(
 	}, [configDetails]);
 
 	if (!identifier)
-		return <div className="p-4">No client identifier provided.</div>;
+		return (
+			<div className="p-4">
+				{t("detail.noIdentifier", {
+					defaultValue: "No client identifier provided.",
+				})}
+			</div>
+		);
 
 	return (
 		<div className="space-y-4">
@@ -558,11 +692,19 @@ const sharedProfiles = useMemo(
 						{/* Managed / Detected badges */}
 						{typeof configDetails?.managed === "boolean" ? (
 							<Badge variant={configDetails.managed ? "secondary" : "outline"}>
-								{configDetails.managed ? "Managed" : "Unmanaged"}
+								{configDetails.managed
+									? t("detail.badges.managed", { defaultValue: "Managed" })
+									: t("detail.badges.unmanaged", {
+											defaultValue: "Unmanaged",
+										})}
 							</Badge>
 						) : null}
 						<Badge variant={detected ? "default" : "secondary"}>
-							{detected ? "Detected" : "Not Detected"}
+							{detected
+								? t("detail.badges.detected", { defaultValue: "Detected" })
+								: t("detail.badges.notDetected", {
+										defaultValue: "Not Detected",
+									})}
 						</Badge>
 					</div>
 					{detailDescription ? (
@@ -580,10 +722,20 @@ const sharedProfiles = useMemo(
 			>
 				<div className="flex items-center justify-between">
 					<TabsList>
-						<TabsTrigger value="overview">Overview</TabsTrigger>
-						<TabsTrigger value="configuration">Configuration</TabsTrigger>
-						<TabsTrigger value="backups">Backups</TabsTrigger>
-						<TabsTrigger value="logs">Logs</TabsTrigger>
+						<TabsTrigger value="overview">
+							{t("detail.tabs.overview", { defaultValue: "Overview" })}
+						</TabsTrigger>
+						<TabsTrigger value="configuration">
+							{t("detail.tabs.configuration", {
+								defaultValue: "Configuration",
+							})}
+						</TabsTrigger>
+						<TabsTrigger value="backups">
+							{t("detail.tabs.backups", { defaultValue: "Backups" })}
+						</TabsTrigger>
+						<TabsTrigger value="logs">
+							{t("detail.tabs.logs", { defaultValue: "Logs" })}
+						</TabsTrigger>
 					</TabsList>
 				</div>
 
@@ -614,14 +766,18 @@ const sharedProfiles = useMemo(
 												</Avatar>
 												<div className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 text-sm">
 													<span className="text-xs uppercase text-slate-500">
-														Config Path
+														{t("detail.overview.labels.configPath", {
+															defaultValue: "Config Path",
+														})}
 													</span>
 													<span className="font-mono text-xs truncate max-w-[520px]">
 														{configDetails.config_path}
 													</span>
 
 													<span className="text-xs uppercase text-slate-500">
-														Last Modified
+														{t("detail.overview.labels.lastModified", {
+															defaultValue: "Last Modified",
+														})}
 													</span>
 													<span className="text-xs">
 														{configDetails.last_modified || "-"}
@@ -630,7 +786,9 @@ const sharedProfiles = useMemo(
 													{detailHomepageUrl ? (
 														<>
 															<span className="text-xs uppercase text-slate-500">
-																Homepage
+																{t("detail.overview.labels.homepage", {
+																	defaultValue: "Homepage",
+																})}
 															</span>
 															<a
 																href={detailHomepageUrl}
@@ -645,7 +803,9 @@ const sharedProfiles = useMemo(
 													{detailDocsUrl ? (
 														<>
 															<span className="text-xs uppercase text-slate-500">
-																Docs
+																{t("detail.overview.labels.docs", {
+																	defaultValue: "Docs",
+																})}
 															</span>
 															<a
 																href={detailDocsUrl}
@@ -660,7 +820,9 @@ const sharedProfiles = useMemo(
 													{detailSupportUrl ? (
 														<>
 															<span className="text-xs uppercase text-slate-500">
-																Support
+																{t("detail.overview.labels.support", {
+																	defaultValue: "Support",
+																})}
 															</span>
 															<a
 																href={detailSupportUrl}
@@ -685,7 +847,9 @@ const sharedProfiles = useMemo(
 													<RefreshCw
 														className={`h-4 w-4 ${refreshDetectMutation.isPending ? "animate-spin" : ""}`}
 													/>
-													Refresh
+													{t("detail.overview.buttons.refresh", {
+														defaultValue: "Refresh",
+													})}
 												</Button>
 												<Button
 													variant="outline"
@@ -701,7 +865,13 @@ const sharedProfiles = useMemo(
 													) : (
 														<Play className="h-4 w-4" />
 													)}
-													{configDetails?.managed ? "Disable" : "Enable"}
+													{configDetails?.managed
+														? t("detail.overview.buttons.disable", {
+																defaultValue: "Disable",
+															})
+														: t("detail.overview.buttons.enable", {
+																defaultValue: "Enable",
+															})}
 												</Button>
 											</ButtonGroup>
 										</div>
@@ -709,21 +879,30 @@ const sharedProfiles = useMemo(
 								</CardContent>
 							) : (
 								<CardContent className="text-sm text-slate-500">
-									No details available
+									{t("detail.overview.noDetails", {
+										defaultValue: "No details available",
+									})}
 								</CardContent>
 							)}
 						</Card>
 						<Card>
 							<CardHeader>
 								<div className="flex items-center justify-between">
-									<CardTitle>Current Servers</CardTitle>
+									<CardTitle>
+										{t("detail.overview.currentServers.title", {
+											defaultValue: "Current Servers",
+										})}
+									</CardTitle>
 									<div className="flex items-center gap-2">
 										<Button
 											size="sm"
 											variant="outline"
 											onClick={() => importPreviewMutation.mutate()}
 										>
-											<Download className="mr-2 h-4 w-4" /> Import from Config
+											<Download className="mr-2 h-4 w-4" />{" "}
+											{t("detail.overview.currentServers.import", {
+												defaultValue: "Import from Config",
+											})}
 										</Button>
 									</div>
 								</div>
@@ -743,13 +922,22 @@ const sharedProfiles = useMemo(
 										{currentServers.map((n) => (
 											<CapsuleStripeListItem key={n}>
 												<div className="font-mono">{n}</div>
-												<div className="text-xs text-slate-500">configured</div>
+												<div className="text-xs text-slate-500">
+													{t(
+														"detail.overview.currentServers.configuredLabel",
+														{
+															defaultValue: "configured",
+														},
+													)}
+												</div>
 											</CapsuleStripeListItem>
 										))}
 									</CapsuleStripeList>
 								) : (
 									<div className="text-sm text-slate-500">
-										No servers extracted from current config.
+										{t("detail.overview.currentServers.empty", {
+											defaultValue: "No servers extracted from current config.",
+										})}
 									</div>
 								)}
 							</CardContent>
@@ -762,10 +950,16 @@ const sharedProfiles = useMemo(
 						<Card>
 							<CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 								<div>
-									<CardTitle>Configuration Mode</CardTitle>
+									<CardTitle>
+										{t("detail.configuration.title", {
+											defaultValue: "Configuration Mode",
+										})}
+									</CardTitle>
 									<CardDescription>
-										If you don't understand what this means, please don't make
-										any changes and keep the current settings.
+										{t("detail.configuration.description", {
+											defaultValue:
+												"If you don't understand what this means, please don't make any changes and keep the current settings.",
+										})}
 									</CardDescription>
 								</div>
 								<div className="flex items-center gap-2">
@@ -785,7 +979,9 @@ const sharedProfiles = useMemo(
 										<RefreshCw
 											className={`mr-2 h-4 w-4 ${applyMutation.isPending ? "animate-spin" : ""}`}
 										/>
-										Re-apply
+										{t("detail.configuration.reapply", {
+											defaultValue: "Re-apply",
+										})}
 									</Button>
 								</div>
 							</CardHeader>
@@ -797,24 +993,62 @@ const sharedProfiles = useMemo(
 										<div className="space-y-3">
 											<div className="space-y-1">
 												<h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-													1. Mode
+													{t("detail.configuration.sections.mode.title", {
+														defaultValue: "1. Management Mode",
+													})}
 												</h4>
 												<p className="text-xs text-slate-500 leading-relaxed">
 													{mode === "hosted" &&
-														"MCPMate generates and applies configuration for this client."}
+														t(
+															"detail.configuration.sections.mode.descriptions.hosted",
+															{
+																defaultValue:
+																	"MCPMate provisions a dedicated MCP server for this client and enables advanced MCPMate features.",
+															},
+														)}
 													{mode === "transparent" &&
-														"MCPMate monitors and reports on this client's configuration."}
+														t(
+															"detail.configuration.sections.mode.descriptions.transparent",
+															{
+																defaultValue:
+																	"MCPMate applies the selected original MCP server configurations for this client and performs no additional actions.",
+															},
+														)}
 													{mode === "none" &&
-														"MCPMate does not manage this client's configuration."}
+														t(
+															"detail.configuration.sections.mode.descriptions.none",
+															{
+																defaultValue:
+																	"MCPMate does not manage this client's configuration.",
+															},
+														)}
 												</p>
 											</div>
 											<Segment
 												value={mode}
 												onValueChange={(v) => setMode(v as ClientConfigMode)}
 												options={[
-													{ value: "hosted", label: "Hosted" },
-													{ value: "transparent", label: "Transparent" },
-													{ value: "none", label: "None" },
+													{
+														value: "hosted",
+														label: t(
+															"detail.configuration.sections.mode.options.hosted",
+															{ defaultValue: "Hosted Mode" },
+														),
+													},
+													{
+														value: "transparent",
+														label: t(
+															"detail.configuration.sections.mode.options.transparent",
+															{ defaultValue: "Transparent Mode" },
+														),
+													},
+													{
+														value: "none",
+														label: t(
+															"detail.configuration.sections.mode.options.none",
+															{ defaultValue: "None" },
+														),
+													},
 												]}
 												showDots={true}
 												className="w-full"
@@ -825,35 +1059,80 @@ const sharedProfiles = useMemo(
 										<div className="space-y-3">
 											<div className="space-y-1">
 												<h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-													2. Source
+													{t("detail.configuration.sections.source.title", {
+														defaultValue: "2. Capability Source",
+													})}
 												</h4>
-					<p className="text-xs text-slate-500 leading-relaxed">
-						{selectedConfig === "default" &&
-							"Use all currently activated profiles."}
-						{selectedConfig === "profile" &&
-							"Select specific shared profiles to include."}
-						{selectedConfig === "custom" &&
-							"Use customized configuration settings."}
-					</p>
-				</div>
-				<Segment
-					value={selectedConfig}
-					onValueChange={(v) =>
-						setSelectedConfig(v as ClientConfigSelected)
-					}
-					options={[
-						{ value: "default", label: "Activated" },
-						{
-							value: "profile",
-							label: "Profiles",
-							status: "WIP",
-						},
-						{
-							value: "custom",
-							label: "Customize",
-							status: "WIP",
-						},
-					]}
+												<p className="text-xs text-slate-500 leading-relaxed">
+													{selectedConfig === "default" &&
+														t(
+															"detail.configuration.sections.source.descriptions.default",
+															{
+																defaultValue:
+																	"Use all currently activated profiles.",
+															},
+														)}
+													{selectedConfig === "profile" &&
+														t(
+															"detail.configuration.sections.source.descriptions.profile",
+															{
+																defaultValue:
+																	"Select specific shared profiles to include.",
+															},
+														)}
+													{selectedConfig === "custom" &&
+														t(
+															"detail.configuration.sections.source.descriptions.custom",
+															{
+																defaultValue:
+																	"Use customized configuration settings.",
+															},
+														)}
+												</p>
+											</div>
+											<Segment
+												value={selectedConfig}
+												onValueChange={(v) =>
+													setSelectedConfig(v as ClientConfigSelected)
+												}
+												options={[
+													{
+														value: "default",
+														label: t(
+															"detail.configuration.sections.source.options.default",
+															{ defaultValue: "Activated" },
+														),
+														status:
+															t(
+																"detail.configuration.sections.source.statusLabel.default",
+																{ defaultValue: "" },
+															) || undefined,
+													},
+													{
+														value: "profile",
+														label: t(
+															"detail.configuration.sections.source.options.profile",
+															{ defaultValue: "Profiles" },
+														),
+														status:
+															t(
+																"detail.configuration.sections.source.statusLabel.profile",
+																{ defaultValue: "WIP" },
+															) || undefined,
+													},
+													{
+														value: "custom",
+														label: t(
+															"detail.configuration.sections.source.options.custom",
+															{ defaultValue: "Customize" },
+														),
+														status:
+															t(
+																"detail.configuration.sections.source.statusLabel.custom",
+																{ defaultValue: "WIP" },
+															) || undefined,
+													},
+												]}
 												showDots={true}
 												className="w-full"
 												disabled={mode === "none"}
@@ -870,28 +1149,44 @@ const sharedProfiles = useMemo(
 										>
 											<div className="mb-3">
 												<h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-													3. Profiles List
+													{t("detail.configuration.sections.profiles.title", {
+														defaultValue: "3. Profiles List",
+													})}
 												</h4>
 												{/* Dynamic description based on source */}
-					{selectedConfig === "default" && (
-						<p className="text-xs text-slate-500 mt-1 leading-relaxed">
-							When the activated source is selected, configure all
-							currently activated profiles. Checkboxes are locked to
-							keep the selection consistent.
-						</p>
-					)}
-					{selectedConfig === "profile" && (
-						<p className="text-xs text-slate-500 mt-1 leading-relaxed">
-							Select which shared profiles to include in this
-							client's configuration.
-						</p>
-					)}
-					{selectedConfig === "custom" && (
-						<p className="text-xs text-slate-500 mt-1 leading-relaxed">
-							Create and maintain a customized configuration for the
-							current application.
-						</p>
-					)}
+												{selectedConfig === "default" && (
+													<p className="text-xs text-slate-500 mt-1 leading-relaxed">
+														{t(
+															"detail.configuration.sections.profiles.descriptions.default",
+															{
+																defaultValue:
+																	"When the activated source is selected, configure all currently activated profiles. Checkboxes are locked to keep the selection consistent.",
+															},
+														)}
+													</p>
+												)}
+												{selectedConfig === "profile" && (
+													<p className="text-xs text-slate-500 mt-1 leading-relaxed">
+														{t(
+															"detail.configuration.sections.profiles.descriptions.profile",
+															{
+																defaultValue:
+																	"Select which shared profiles to include in this client's configuration.",
+															},
+														)}
+													</p>
+												)}
+												{selectedConfig === "custom" && (
+													<p className="text-xs text-slate-500 mt-1 leading-relaxed">
+														{t(
+															"detail.configuration.sections.profiles.descriptions.custom",
+															{
+																defaultValue:
+																	"Create and maintain a customized configuration for the current application.",
+															},
+														)}
+													</p>
+												)}
 											</div>
 
 											{loadingProfiles ? (
@@ -905,8 +1200,13 @@ const sharedProfiles = useMemo(
 												</div>
 											) : mode === "none" ? (
 												<div className="rounded border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-													Configuration mode is set to "none" - no profiles need
-													to be applied
+													{t(
+														"detail.configuration.sections.profiles.modeNone",
+														{
+															defaultValue:
+																'Configuration mode is set to "none" - no profiles need to be applied',
+														},
+													)}
 												</div>
 											) : (
 												<CapsuleStripeList>
@@ -932,27 +1232,54 @@ const sharedProfiles = useMemo(
 																				</div>
 																				<div className="text-xs text-slate-500 truncate">
 																					{profile.description ||
-																						"No description"}
+																						t(
+																							"detail.configuration.labels.noDescription",
+																							{ defaultValue: "No description" },
+																						)}
 																				</div>
 																				{capabilities && (
 																					<div className="flex gap-4 mt-1 text-xs text-slate-500">
 																						<span>
-																							Servers:{" "}
+																							{t(
+																								"detail.configuration.labels.servers",
+																								{
+																									defaultValue: "Servers",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.servers.enabled}/
 																							{capabilities.servers.total}
 																						</span>
 																						<span>
-																							Tools:{" "}
+																							{t(
+																								"detail.configuration.labels.tools",
+																								{
+																									defaultValue: "Tools",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.tools.enabled}/
 																							{capabilities.tools.total}
 																						</span>
 																						<span>
-																							Resources:{" "}
+																							{t(
+																								"detail.configuration.labels.resources",
+																								{
+																									defaultValue: "Resources",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.resources.enabled}/
 																							{capabilities.resources.total}
 																						</span>
 																						<span>
-																							Prompts:{" "}
+																							{t(
+																								"detail.configuration.labels.prompts",
+																								{
+																									defaultValue: "Prompts",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.prompts.enabled}/
 																							{capabilities.prompts.total}
 																						</span>
@@ -978,7 +1305,12 @@ const sharedProfiles = useMemo(
 														) : (
 															<CapsuleStripeListItem>
 																<div className="text-sm text-slate-500 py-4 text-center w-full">
-																	No active profiles found
+																	{t(
+																		"detail.configuration.sections.profiles.empty.active",
+																		{
+																			defaultValue: "No active profiles found",
+																		},
+																	)}
 																</div>
 															</CapsuleStripeListItem>
 														)
@@ -1029,27 +1361,54 @@ const sharedProfiles = useMemo(
 																				</div>
 																				<div className="text-xs text-slate-500 truncate">
 																					{profile.description ||
-																						"No description"}
+																						t(
+																							"detail.configuration.labels.noDescription",
+																							{ defaultValue: "No description" },
+																						)}
 																				</div>
 																				{capabilities && (
 																					<div className="flex gap-4 mt-1 text-xs text-slate-500">
 																						<span>
-																							Servers:{" "}
+																							{t(
+																								"detail.configuration.labels.servers",
+																								{
+																									defaultValue: "Servers",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.servers.enabled}/
 																							{capabilities.servers.total}
 																						</span>
 																						<span>
-																							Tools:{" "}
+																							{t(
+																								"detail.configuration.labels.tools",
+																								{
+																									defaultValue: "Tools",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.tools.enabled}/
 																							{capabilities.tools.total}
 																						</span>
 																						<span>
-																							Resources:{" "}
+																							{t(
+																								"detail.configuration.labels.resources",
+																								{
+																									defaultValue: "Resources",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.resources.enabled}/
 																							{capabilities.resources.total}
 																						</span>
 																						<span>
-																							Prompts:{" "}
+																							{t(
+																								"detail.configuration.labels.prompts",
+																								{
+																									defaultValue: "Prompts",
+																								},
+																							)}
+																							:{" "}
 																							{capabilities.prompts.enabled}/
 																							{capabilities.prompts.total}
 																						</span>
@@ -1076,7 +1435,12 @@ const sharedProfiles = useMemo(
 														) : (
 															<CapsuleStripeListItem>
 																<div className="text-sm text-slate-500 py-4 text-center w-full">
-																	No shared profiles found
+																	{t(
+																		"detail.configuration.sections.profiles.empty.shared",
+																		{
+																			defaultValue: "No shared profiles found",
+																		},
+																	)}
 																</div>
 															</CapsuleStripeListItem>
 														)
@@ -1102,13 +1466,31 @@ const sharedProfiles = useMemo(
 															<div className="flex-1 min-w-0">
 																<div className="font-medium text-sm truncate text-slate-700 dark:text-slate-300">
 																	{selectedConfig === "custom"
-																		? "Customize the profile"
-																		: "Add a new profile"}
+																		? t(
+																				"detail.configuration.sections.profiles.ghost.titleCustom",
+																				{ defaultValue: "Customize the profile" },
+																			)
+																		: t(
+																				"detail.configuration.sections.profiles.ghost.titleDefault",
+																				{ defaultValue: "Add a new profile" },
+																			)}
 																</div>
 																<div className="text-xs text-slate-400 dark:text-slate-600 truncate">
 																	{selectedConfig === "custom"
-																		? "Create and manage host application profile"
-																		: "Click to navigate to profile management page"}
+																		? t(
+																				"detail.configuration.sections.profiles.ghost.subtitleCustom",
+																				{
+																					defaultValue:
+																						"Create and manage host application profile",
+																				},
+																			)
+																		: t(
+																				"detail.configuration.sections.profiles.ghost.subtitleDefault",
+																				{
+																					defaultValue:
+																						"Click to navigate to profile management page",
+																				},
+																			)}
 																</div>
 															</div>
 														</div>
@@ -1127,9 +1509,13 @@ const sharedProfiles = useMemo(
 					<Card>
 						<CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 							<div>
-								<CardTitle>Backups</CardTitle>
+								<CardTitle>
+									{t("detail.backups.title", { defaultValue: "Backups" })}
+								</CardTitle>
 								<CardDescription>
-									Restore or delete configuration snapshots.
+									{t("detail.backups.description", {
+										defaultValue: "Restore or delete configuration snapshots.",
+									})}
 								</CardDescription>
 							</div>
 							<div className="flex flex-wrap items-center gap-2">
@@ -1142,7 +1528,9 @@ const sharedProfiles = useMemo(
 									<RefreshCw
 										className={`mr-2 h-4 w-4 ${loadingBackups ? "animate-spin" : ""}`}
 									/>
-									Refresh
+									{t("detail.backups.buttons.refresh", {
+										defaultValue: "Refresh",
+									})}
 								</Button>
 								{!loadingBackups && visibleBackups.length > 0 && (
 									<ButtonGroup>
@@ -1153,14 +1541,18 @@ const sharedProfiles = useMemo(
 												setSelectedBackups(visibleBackups.map((b) => b.backup))
 											}
 										>
-											Select all
+											{t("detail.backups.buttons.selectAll", {
+												defaultValue: "Select all",
+											})}
 										</Button>
 										<Button
 											variant="outline"
 											size="sm"
 											onClick={() => setSelectedBackups([])}
 										>
-											Clear
+											{t("detail.backups.buttons.clear", {
+												defaultValue: "Clear",
+											})}
 										</Button>
 										<Button
 											size="sm"
@@ -1172,7 +1564,10 @@ const sharedProfiles = useMemo(
 											onClick={() => setBulkConfirmOpen(true)}
 										>
 											<Trash2 className="mr-2 h-4 w-4" />
-											Delete selected ({selectedBackups.length})
+											{t("detail.backups.buttons.deleteSelected", {
+												defaultValue: "Delete selected ({{count}})",
+												count: selectedBackups.length,
+											})}
 										</Button>
 									</ButtonGroup>
 								)}
@@ -1248,7 +1643,9 @@ const sharedProfiles = useMemo(
 																}}
 															>
 																<RotateCcw className="mr-2 h-4 w-4" />
-																Restore
+																{t("detail.backups.buttons.restore", {
+																	defaultValue: "Restore",
+																})}
 															</Button>
 															<Button
 																size="icon"
@@ -1271,7 +1668,11 @@ const sharedProfiles = useMemo(
 									})}
 								</CapsuleStripeList>
 							) : (
-								<div className="text-slate-500 text-sm">No backups.</div>
+								<div className="text-slate-500 text-sm">
+									{t("detail.backups.empty", {
+										defaultValue: "No backups.",
+									})}
+								</div>
 							)}
 						</CardContent>
 					</Card>
@@ -1281,15 +1682,22 @@ const sharedProfiles = useMemo(
 					<Card>
 						<CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 							<div>
-								<CardTitle>Logs</CardTitle>
+								<CardTitle>
+									{t("detail.logs.title", { defaultValue: "Logs" })}
+								</CardTitle>
 								<CardDescription>
-									Runtime warnings and backend notes for this client.
+									{t("detail.logs.description", {
+										defaultValue:
+											"Runtime warnings and backend notes for this client.",
+									})}
 								</CardDescription>
 							</div>
 							<div className="flex flex-wrap items-center gap-2">
 								<Input
 									type="search"
-									placeholder="Search logs..."
+									placeholder={t("detail.logs.searchPlaceholder", {
+										defaultValue: "Search logs...",
+									})}
 									value={logFilter}
 									onChange={(event) => setLogFilter(event.target.value)}
 									className="h-8 w-48"
@@ -1300,7 +1708,7 @@ const sharedProfiles = useMemo(
 									onClick={() => setLogEntries([])}
 									disabled={!logEntries.length}
 								>
-									Clear Logs
+									{t("detail.logs.clear", { defaultValue: "Clear Logs" })}
 								</Button>
 							</div>
 						</CardHeader>
@@ -1317,7 +1725,7 @@ const sharedProfiles = useMemo(
 													{new Date(entry.timestamp).toLocaleTimeString()}
 												</span>
 												<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-													Warning
+													{t("detail.logs.warning", { defaultValue: "Warning" })}
 												</span>
 											</div>
 											<pre className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
@@ -1328,7 +1736,9 @@ const sharedProfiles = useMemo(
 								</div>
 							) : (
 								<div className="rounded border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-									No log entries recorded for this client yet.
+									{t("detail.logs.empty", {
+										defaultValue: "No log entries recorded for this client yet.",
+									})}
 								</div>
 							)}
 						</CardContent>
@@ -1336,21 +1746,36 @@ const sharedProfiles = useMemo(
 				</TabsContent>
 			</Tabs>
 
-			<ConfirmDialog
-				isOpen={!!confirm}
-				onClose={() => setConfirm(null)}
-				title={confirm?.kind === "delete" ? "Delete Backup" : "Restore Backup"}
-				description={
-					confirm?.kind === "delete"
-						? "Are you sure you want to delete this backup? This action cannot be undone."
-						: "Restore configuration from the selected backup? Current config may be overwritten."
-				}
-				confirmLabel={confirm?.kind === "delete" ? "Delete" : "Restore"}
-				variant={confirm?.kind === "delete" ? "destructive" : "default"}
-				isLoading={deleteBackupMutation.isPending || restoreMutation.isPending}
-				onConfirm={async () => {
-					if (!confirm) return;
-					if (confirm.kind === "delete") {
+	<ConfirmDialog
+		isOpen={!!confirm}
+		onClose={() => setConfirm(null)}
+		title={
+			confirm?.kind === "delete"
+				? t("detail.confirm.deleteTitle", { defaultValue: "Delete Backup" })
+				: t("detail.confirm.restoreTitle", { defaultValue: "Restore Backup" })
+		}
+		description={
+			confirm?.kind === "delete"
+				? t("detail.confirm.deleteDescription", {
+						defaultValue:
+							"Are you sure you want to delete this backup? This action cannot be undone.",
+					})
+				: t("detail.confirm.restoreDescription", {
+						defaultValue:
+							"Restore configuration from the selected backup? Current config may be overwritten.",
+					})
+		}
+		confirmLabel={
+			confirm?.kind === "delete"
+				? t("detail.confirm.deleteLabel", { defaultValue: "Delete" })
+				: t("detail.confirm.restoreLabel", { defaultValue: "Restore" })
+		}
+		cancelLabel={t("detail.confirm.cancelLabel", { defaultValue: "Cancel" })}
+		variant={confirm?.kind === "delete" ? "destructive" : "default"}
+		isLoading={deleteBackupMutation.isPending || restoreMutation.isPending}
+		onConfirm={async () => {
+			if (!confirm) return;
+			if (confirm.kind === "delete") {
 						await deleteBackupMutation.mutateAsync({ backup: confirm.backup });
 					} else {
 						await restoreMutation.mutateAsync({ backup: confirm.backup });
@@ -1360,29 +1785,42 @@ const sharedProfiles = useMemo(
 			/>
 
 			{/* Bulk delete confirmation */}
-			<ConfirmDialog
-				isOpen={bulkConfirmOpen}
-				onClose={() => setBulkConfirmOpen(false)}
-				title="Delete Selected Backups"
-				description={`Are you sure you want to delete ${selectedBackups.length} backup(s)? This action cannot be undone.`}
-				confirmLabel="Delete"
-				variant="destructive"
-				isLoading={bulkDeleteMutation.isPending}
-				onConfirm={() => bulkDeleteMutation.mutate()}
-			/>
+	<ConfirmDialog
+		isOpen={bulkConfirmOpen}
+		onClose={() => setBulkConfirmOpen(false)}
+		title={t("detail.backups.bulk.title", {
+			defaultValue: "Delete Selected Backups",
+		})}
+		description={t("detail.backups.bulk.description", {
+			defaultValue:
+				"Are you sure you want to delete {{count}} backup(s)? This action cannot be undone.",
+			count: selectedBackups.length,
+		})}
+		confirmLabel={t("detail.confirm.deleteLabel", { defaultValue: "Delete" })}
+		cancelLabel={t("detail.confirm.cancelLabel", { defaultValue: "Cancel" })}
+		variant="destructive"
+		isLoading={bulkDeleteMutation.isPending}
+		onConfirm={() => bulkDeleteMutation.mutate()}
+	/>
 
 			{/* Backup Policy Drawer */}
 			<Drawer open={policyOpen} onOpenChange={setPolicyOpen}>
 				<DrawerContent>
 					<DrawerHeader>
-						<DrawerTitle>Backup Policy</DrawerTitle>
+						<DrawerTitle>
+							{t("detail.policy.title", { defaultValue: "Backup Policy" })}
+						</DrawerTitle>
 					</DrawerHeader>
 					<div className="p-4 space-y-4">
 						<div className="space-y-1">
-							<Label>Policy</Label>
+							<Label>
+								{t("detail.policy.fields.policy", { defaultValue: "Policy" })}
+							</Label>
 							<p className="text-xs text-slate-500">
-								Backup retention strategy. For now, only "keep_n" is supported,
-								which keeps at most N recent backups and prunes older ones.
+								{t("detail.policy.fields.policyDescription", {
+									defaultValue:
+										'Backup retention strategy. For now, only "keep_n" is supported, which keeps at most N recent backups and prunes older ones.',
+								})}
 							</p>
 							<Select value={policyLabel} onValueChange={setPolicyLabel}>
 								<SelectTrigger>
@@ -1394,10 +1832,14 @@ const sharedProfiles = useMemo(
 							</Select>
 						</div>
 						<div className="space-y-1">
-							<Label htmlFor={limitId}>Limit</Label>
+							<Label htmlFor={limitId}>
+								{t("detail.policy.fields.limit", { defaultValue: "Limit" })}
+							</Label>
 							<p className="text-xs text-slate-500">
-								Maximum number of backups to keep for this client. Set to 0 for
-								no limit.
+								{t("detail.policy.fields.limitDescription", {
+									defaultValue:
+										"Maximum number of backups to keep for this client. Set to 0 for no limit.",
+								})}
 							</p>
 							<Input
 								id={limitId}
@@ -1411,14 +1853,16 @@ const sharedProfiles = useMemo(
 							<Button
 								onClick={() => {
 									if (!identifier) return;
-										setPolicyMutation.mutate({
-											identifier,
-											policy: { policy: policyLabel, limit: policyLimit },
-										});
-									}}
+									setPolicyMutation.mutate({
+										identifier,
+										policy: { policy: policyLabel, limit: policyLimit },
+									});
+								}}
 								disabled={setPolicyMutation.isPending}
 							>
-								Save Policy
+								{t("detail.policy.buttons.save", {
+									defaultValue: "Save Policy",
+								})}
 							</Button>
 						</div>
 					</div>
@@ -1430,9 +1874,16 @@ const sharedProfiles = useMemo(
 			<Drawer open={importPreviewOpen} onOpenChange={setImportPreviewOpen}>
 				<DrawerContent>
 					<DrawerHeader>
-						<DrawerTitle>Import Preview</DrawerTitle>
+						<DrawerTitle>
+							{t("detail.importPreview.title", {
+								defaultValue: "Import Preview",
+							})}
+						</DrawerTitle>
 						<DrawerDescription>
-							Summary of servers detected from current client config.
+							{t("detail.importPreview.description", {
+								defaultValue:
+									"Summary of servers detected from current client config.",
+							})}
 						</DrawerDescription>
 					</DrawerHeader>
 					<div className="p-4 text-sm flex flex-col gap-4 max-h-[70vh]">
@@ -1440,28 +1891,46 @@ const sharedProfiles = useMemo(
 							<div className="h-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
 						) : importPreviewData ? (
 							<div className="flex-1 min-h-0 flex flex-col gap-4">
-								<div className="grid grid-cols-[120px_1fr] gap-y-2 gap-x-4 text-sm leading-6">
-									<div className="text-slate-500">Attempted</div>
-									<div>
-										{typeof importPreviewData.summary?.attempted === "boolean"
-											? importPreviewData.summary.attempted
-												? "Yes"
-												: "No"
-											: "-"}
-									</div>
-									<div className="text-slate-500">Imported</div>
-									<div>{importPreviewData.summary?.imported_count ?? 0}</div>
-									<div className="text-slate-500">Skipped</div>
-									<div>{importPreviewData.summary?.skipped_count ?? 0}</div>
-									<div className="text-slate-500">Failed</div>
-									<div>{importPreviewData.summary?.failed_count ?? 0}</div>
-								</div>
-								{Array.isArray(importPreviewData.items) &&
-								importPreviewData.items.length > 0 ? (
-									<div className="rounded border">
-										<div className="px-3 py-2 text-xs text-slate-500 border-b">
-											Servers to import
-										</div>
+				<div className="grid grid-cols-[120px_1fr] gap-y-2 gap-x-4 text-sm leading-6">
+					<div className="text-slate-500">
+						{t("detail.importPreview.fields.attempted", {
+							defaultValue: "Attempted",
+						})}
+					</div>
+					<div>
+					{typeof importPreviewData.summary?.attempted === "boolean"
+						? importPreviewData.summary.attempted
+							? t("states.yes", { defaultValue: "Yes" })
+							: t("states.no", { defaultValue: "No" })
+							: "-"}
+					</div>
+					<div className="text-slate-500">
+						{t("detail.importPreview.fields.imported", {
+							defaultValue: "Imported",
+						})}
+					</div>
+					<div>{importPreviewData.summary?.imported_count ?? 0}</div>
+					<div className="text-slate-500">
+						{t("detail.importPreview.fields.skipped", {
+							defaultValue: "Skipped",
+						})}
+					</div>
+					<div>{importPreviewData.summary?.skipped_count ?? 0}</div>
+					<div className="text-slate-500">
+						{t("detail.importPreview.fields.failed", {
+							defaultValue: "Failed",
+						})}
+					</div>
+					<div>{importPreviewData.summary?.failed_count ?? 0}</div>
+				</div>
+				{Array.isArray(importPreviewData.items) &&
+				importPreviewData.items.length > 0 ? (
+					<div className="rounded border">
+						<div className="px-3 py-2 text-xs text-slate-500 border-b">
+							{t("detail.importPreview.sections.servers", {
+								defaultValue: "Servers to import",
+							})}
+						</div>
 										<ul className="divide-y max-h-[30vh] overflow-auto">
 											{importPreviewData.items.map((it, idx: number) => (
 												<li
@@ -1477,21 +1946,27 @@ const sharedProfiles = useMemo(
 														</div>
 													) : null}
 													<div className="mt-1 text-slate-500">
-														tools: {it.tools?.items?.length ?? 0} • resources:{" "}
-														{it.resources?.items?.length ?? 0} • templates:{" "}
-														{it.resource_templates?.items?.length ?? 0} •
-														prompts: {it.prompts?.items?.length ?? 0}
+														{t("detail.importPreview.sections.stats", {
+															defaultValue:
+																"tools: {{tools}} • resources: {{resources}} • templates: {{templates}} • prompts: {{prompts}}",
+															tools: it.tools?.items?.length ?? 0,
+															resources: it.resources?.items?.length ?? 0,
+															templates: it.resource_templates?.items?.length ?? 0,
+															prompts: it.prompts?.items?.length ?? 0,
+														})}
 													</div>
 												</li>
 											))}
 										</ul>
 									</div>
 								) : null}
-								{importPreviewData.summary?.errors ? (
-									<details>
-										<summary className="text-xs text-slate-500 cursor-pointer">
-											Errors
-										</summary>
+				{importPreviewData.summary?.errors ? (
+					<details>
+						<summary className="text-xs text-slate-500 cursor-pointer">
+							{t("detail.importPreview.sections.errors", {
+								defaultValue: "Errors",
+							})}
+						</summary>
 										<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto max-h-[26vh]">
 											{JSON.stringify(
 												importPreviewData.summary.errors,
@@ -1501,45 +1976,61 @@ const sharedProfiles = useMemo(
 										</pre>
 									</details>
 								) : null}
-								<details className="mt-2 flex-1 min-h-0">
-									<summary className="text-xs text-slate-500 cursor-pointer">
-										Raw preview JSON
-									</summary>
+				<details className="mt-2 flex-1 min-h-0">
+					<summary className="text-xs text-slate-500 cursor-pointer">
+						{t("detail.importPreview.sections.raw", {
+							defaultValue: "Raw preview JSON",
+						})}
+					</summary>
 									<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto flex-1 min-h-0 max-h-[40vh]">
 										{JSON.stringify(importPreviewData, null, 2)}
 									</pre>
 								</details>
 							</div>
-						) : (
-							<div className="text-slate-500">No preview data.</div>
-						)}
+			) : (
+				<div className="text-slate-500">
+					{t("detail.importPreview.noPreview", {
+						defaultValue: "No preview data.",
+					})}
+				</div>
+			)}
 					</div>
 					<DrawerFooter>
-						<div className="flex w-full items-center justify-between">
-							<Button
-								variant="outline"
-								onClick={() => setImportPreviewOpen(false)}
-							>
-								Close
-							</Button>
+				<div className="flex w-full items-center justify-between">
+					<Button
+						variant="outline"
+						onClick={() => setImportPreviewOpen(false)}
+					>
+						{t("detail.importPreview.buttons.close", {
+							defaultValue: "Close",
+						})}
+					</Button>
 							{importPreviewData ? (
 								(importPreviewData?.summary?.imported_count ?? 0) > 0 ? (
-									<Button
-										onClick={() => importMutation.mutate()}
-										disabled={importMutation.isPending}
-									>
-										Apply Import
-									</Button>
+						<Button
+							onClick={() => importMutation.mutate()}
+							disabled={importMutation.isPending}
+						>
+							{t("detail.importPreview.buttons.apply", {
+								defaultValue: "Apply Import",
+							})}
+						</Button>
 								) : (
-									<div className="text-xs text-slate-500">No import needed</div>
+						<div className="text-xs text-slate-500">
+							{t("detail.importPreview.states.noImportNeeded", {
+								defaultValue: "No import needed",
+							})}
+						</div>
 								)
 							) : (
-								<Button
-									onClick={() => importPreviewMutation.mutate()}
-									disabled={importPreviewMutation.isPending}
-								>
-									Preview
-								</Button>
+						<Button
+							onClick={() => importPreviewMutation.mutate()}
+							disabled={importPreviewMutation.isPending}
+						>
+							{t("detail.importPreview.buttons.preview", {
+								defaultValue: "Preview",
+							})}
+						</Button>
 							)}
 						</div>
 					</DrawerFooter>

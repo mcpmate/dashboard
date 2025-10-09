@@ -2,6 +2,7 @@ import i18n from "i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
 // 导入所有翻译文件
+import { clientsTranslations } from "../../pages/clients/i18n";
 import { dashboardTranslations } from "../../pages/dashboard/i18n";
 import { marketTranslations } from "../../pages/market/i18n";
 import { profilesTranslations } from "../../pages/profiles/i18n";
@@ -57,6 +58,9 @@ export const loadPageTranslations = {
 	},
 	runtime: () => {
 		loadTranslations("runtime", runtimeTranslations);
+	},
+	clients: () => {
+		loadTranslations("clients", clientsTranslations);
 	},
 };
 

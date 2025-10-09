@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Globe, Plus, RefreshCw, ToggleLeft } from "lucide-react";
-import { type MouseEvent, useState } from "react";
+import React, { type MouseEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
@@ -13,14 +14,16 @@ import { Card, CardContent } from "../../components/ui/card";
 import { PageToolbar } from "../../components/ui/page-toolbar";
 import { Switch } from "../../components/ui/switch";
 import { clientsApi } from "../../lib/api";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
-import React from "react";
 
 export function ClientsPage() {
 	const navigate = useNavigate();
 	const qc = useQueryClient();
 	const [refreshing, setRefreshing] = useState(false);
+	usePageTranslations("clients");
+	const { t, i18n } = useTranslation("clients");
 	const { defaultView, setDashboardSetting } = useAppStore((state) => ({
 		defaultView: state.dashboardSettings.defaultView,
 		setDashboardSetting: state.setDashboardSetting,
@@ -40,21 +43,23 @@ export function ClientsPage() {
 	const managedCount = clients.filter((c: any) => !!c.managed).length;
 	const configuredCount = clients.filter((c: any) => !!c.has_mcp_config).length;
 	// 转换数据格式以适配 Entity 接口，保持引用稳定
-    const clientsAsEntities = React.useMemo(() => {
-        const mapped = clients.map((client: any) => ({
-            id: client.identifier || client.display_name || "",
-            name: client.display_name || client.identifier || "",
-            description: client.description || "",
-            ...client,
-        }));
-        // Default stable sort by name A→Z, tie-breaker by id
-        mapped.sort((a, b) => {
-            const byName = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-            if (byName !== 0) return byName;
-            return a.id.localeCompare(b.id, undefined, { sensitivity: "base" });
-        });
-        return mapped;
-    }, [clients]);
+	const clientsAsEntities = React.useMemo(() => {
+		const mapped = clients.map((client: any) => ({
+			id: client.identifier || client.display_name || "",
+			name: client.display_name || client.identifier || "",
+			description: client.description || "",
+			...client,
+		}));
+		// Default stable sort by name A→Z, tie-breaker by id
+		mapped.sort((a, b) => {
+			const byName = a.name.localeCompare(b.name, undefined, {
+				sensitivity: "base",
+			});
+			if (byName !== 0) return byName;
+			return a.id.localeCompare(b.id, undefined, { sensitivity: "base" });
+		});
+		return mapped;
+	}, [clients]);
 
 	// 排序后的数据状态
 	const [sortedClients, setSortedClients] = React.useState(clientsAsEntities);
@@ -64,14 +69,6 @@ export function ClientsPage() {
 		setSortedClients(clientsAsEntities);
 	}, [clientsAsEntities]);
 	const [search, setSearch] = React.useState("");
-
-	// 计算统计信息
-	const stats = React.useMemo(() => {
-		const total = clientsAsEntities.length;
-		const filtered = sortedClients.length;
-		const showing = filtered;
-		return { total, filtered, showing };
-	}, [clientsAsEntities.length, sortedClients.length]);
 
 	const manageMutation = useMutation({
 		mutationFn: async ({
@@ -96,20 +93,50 @@ export function ClientsPage() {
 				/* noop */
 			}
 			qc.invalidateQueries({ queryKey: ["clients"] });
-			notifySuccess("Updated", "Client management state updated");
+			notifySuccess(
+				t("notifications.managementUpdated.title", {
+					defaultValue: "Updated",
+				}),
+				t("notifications.managementUpdated.message", {
+					defaultValue: "Client management state updated",
+				}),
+			);
 		},
-		onError: (err) => notifyError("Operation failed", String(err)),
+		onError: (err) =>
+			notifyError(
+				t("notifications.operationFailed.title", {
+					defaultValue: "Operation failed",
+				}),
+				String(err),
+			),
 	});
 
 	const renderClientListItem = (client: any) => {
-		const displayName = client.display_name || client.identifier || "Client";
+		const displayName =
+			client.display_name ||
+			client.identifier ||
+			t("entity.fallbackName", { defaultValue: "Client" });
 		const identifier = client.identifier || "—";
 		const avatarInitial =
 			(displayName.trim() || identifier).charAt(0).toUpperCase() || "C";
 		const serverCount = client.mcp_servers_count ?? 0;
-		const configPath = client.config_path || "Not configured";
+		const configPath =
+			client.config_path ||
+			t("entity.config.notConfigured", { defaultValue: "Not configured" });
 		const description =
 			client.description ?? client.template?.description ?? "";
+
+		const configLabel = t("entity.stats.config", { defaultValue: "Config" });
+		const serversTag = t("entity.bottomTags.servers", {
+			count: serverCount,
+			defaultValue: "Servers: {{count}}",
+		});
+		const detectedLabel = t("entity.badge.detected", {
+			defaultValue: "Detected",
+		});
+		const notDetectedLabel = t("entity.badge.notDetected", {
+			defaultValue: "Not Detected",
+		});
 
 		return (
 			<EntityListItem
@@ -122,15 +149,15 @@ export function ClientsPage() {
 					alt: displayName,
 					fallback: avatarInitial,
 				}}
-				stats={[{ label: "Config", value: configPath }]}
-				bottomTags={[<span key="servers">Servers: {serverCount}</span>]}
+				stats={[{ label: configLabel, value: configPath }]}
+				bottomTags={[<span key="servers">{serversTag}</span>]}
 				statusBadge={
 					client.detected ? (
 						<span className="flex items-center rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-							<Check className="mr-1 h-3 w-3" /> Detected
+							<Check className="mr-1 h-3 w-3" /> {detectedLabel}
 						</span>
 					) : (
-						<Badge variant="secondary">Not Detected</Badge>
+						<Badge variant="secondary">{notDetectedLabel}</Badge>
 					)
 				}
 				enableSwitch={{
@@ -145,7 +172,10 @@ export function ClientsPage() {
 	};
 
 	const renderClientCard = (client: any) => {
-		const displayName = client.display_name || client.identifier || "Client";
+		const displayName =
+			client.display_name ||
+			client.identifier ||
+			t("entity.fallbackName", { defaultValue: "Client" });
 		const identifier = client.identifier || "—";
 		const avatarInitial =
 			(displayName.trim() || identifier).charAt(0).toUpperCase() || "C";
@@ -154,18 +184,48 @@ export function ClientsPage() {
 		const homepageUrl =
 			client.homepage_url ?? client.template?.homepage_url ?? null;
 		const statItems = [
-			{ label: "Servers", value: (client.mcp_servers_count ?? 0).toString() },
-			{ label: "Managed", value: client.managed ? "On" : "Off" },
-			{ label: "Detected", value: client.detected ? "Yes" : "No" },
-			{ label: "Config", value: client.has_mcp_config ? "Present" : "Missing" },
+			{
+				label: t("entity.stats.servers", { defaultValue: "Servers" }),
+				value: (client.mcp_servers_count ?? 0).toString(),
+			},
+			{
+				label: t("entity.stats.managed", { defaultValue: "Managed" }),
+				value: client.managed
+					? t("states.on", { defaultValue: "On" })
+					: t("states.off", { defaultValue: "Off" }),
+			},
+			{
+				label: t("entity.stats.detected", { defaultValue: "Detected" }),
+				value: client.detected
+					? t("states.yes", { defaultValue: "Yes" })
+					: t("states.no", { defaultValue: "No" }),
+			},
+			{
+				label: t("entity.stats.config", { defaultValue: "Config" }),
+				value: client.has_mcp_config
+					? t("states.present", { defaultValue: "Present" })
+					: t("states.missing", { defaultValue: "Missing" }),
+			},
 		];
 		const detectedBadge = client.detected ? (
-			<Badge variant="default">Detected</Badge>
+			<Badge variant="default">
+				{t("entity.badge.detected", { defaultValue: "Detected" })}
+			</Badge>
 		) : (
-			<Badge variant="secondary">Not Detected</Badge>
+			<Badge variant="secondary">
+				{t("entity.badge.notDetected", { defaultValue: "Not Detected" })}
+			</Badge>
 		);
 		const quickLinks = (
-			[{ label: "Homepage", url: homepageUrl, icon: Globe }] as const
+			[
+				{
+					label: t("detail.overview.labels.homepage", {
+						defaultValue: "Homepage",
+					}),
+					url: homepageUrl,
+					icon: Globe,
+				},
+			] as const
 		).filter((link) => !!link.url);
 
 		const handleQuickLink = (event: MouseEvent, url: string) => {
@@ -235,28 +295,53 @@ export function ClientsPage() {
 	};
 
 	// Prepare stats cards data
-	const statsCards = [
-		{
-			title: "Total Clients",
-			value: clients.length,
-			description: "discovered",
-		},
-		{
-			title: "Detected",
-			value: `${detectedCount}/${clients.length}`,
-			description: "installed",
-		},
-		{
-			title: "Managed",
-			value: managedCount,
-			description: "management enabled",
-		},
-		{
-			title: "Configured",
-			value: configuredCount,
-			description: "has MCP config",
-		},
-	];
+	const statsCards = React.useMemo(
+		() => [
+			{
+				title: t("statsCards.total.title", {
+					defaultValue: "Total Clients",
+				}),
+				value: clients.length,
+				description: t("statsCards.total.description", {
+					defaultValue: "discovered",
+				}),
+			},
+			{
+				title: t("statsCards.detected.title", {
+					defaultValue: "Detected",
+				}),
+				value: `${detectedCount}/${clients.length}`,
+				description: t("statsCards.detected.description", {
+					defaultValue: "installed",
+				}),
+			},
+			{
+				title: t("statsCards.managed.title", {
+					defaultValue: "Managed",
+				}),
+				value: managedCount,
+				description: t("statsCards.managed.description", {
+					defaultValue: "management enabled",
+				}),
+			},
+			{
+				title: t("statsCards.configured.title", {
+					defaultValue: "Configured",
+				}),
+				value: configuredCount,
+				description: t("statsCards.configured.description", {
+					defaultValue: "has MCP config",
+				}),
+			},
+		],
+		[
+			clients.length,
+			detectedCount,
+			managedCount,
+			configuredCount,
+			i18n.language,
+		],
+	);
 
 	// Prepare loading skeleton
 	const loadingSkeleton =
@@ -305,8 +390,13 @@ export function ClientsPage() {
 			<CardContent className="flex flex-col items-center justify-center p-6">
 				<EmptyState
 					icon={<ToggleLeft className="h-12 w-12" />}
-					title="No clients found"
-					description="Make sure MCPMate backend is running and detection is enabled"
+					title={t("emptyState.title", {
+						defaultValue: "No clients found",
+					})}
+					description={t("emptyState.description", {
+						defaultValue:
+							"Make sure MCPMate backend is running and detection is enabled",
+					})}
 				/>
 			</CardContent>
 		</Card>
@@ -316,43 +406,72 @@ export function ClientsPage() {
 	const [expanded, setExpanded] = useState(false);
 
 	// 工具栏配置
-	const toolbarConfig = {
-		data: clientsAsEntities,
-		search: {
-			placeholder: "Search clients...",
-			fields: [
-				{ key: "display_name", label: "Display Name", weight: 10 },
-				{ key: "identifier", label: "Identifier", weight: 8 },
-				{ key: "description", label: "Description", weight: 5 },
-			],
-			debounceMs: 300,
-		},
-		viewMode: {
-			enabled: true,
-			defaultMode: defaultView as "grid" | "list",
-		},
-		sort: {
-			enabled: true,
-			options: [
-				{
-					value: "display_name",
-					label: "Name",
-					defaultDirection: "asc" as const,
-				},
-				{
-					value: "detected",
-					label: "Detection Status",
-					defaultDirection: "desc" as const,
-				},
-				{
-					value: "managed",
-					label: "Management Status",
-					defaultDirection: "desc" as const,
-				},
-			],
-			defaultSort: "display_name",
-		},
-	};
+	const toolbarConfig = React.useMemo(
+		() => ({
+			data: clientsAsEntities,
+			search: {
+				placeholder: t("toolbar.search.placeholder", {
+					defaultValue: "Search clients...",
+				}),
+				fields: [
+					{
+						key: "display_name",
+						label: t("toolbar.search.fields.displayName", {
+							defaultValue: "Display Name",
+						}),
+						weight: 10,
+					},
+					{
+						key: "identifier",
+						label: t("toolbar.search.fields.identifier", {
+							defaultValue: "Identifier",
+						}),
+						weight: 8,
+					},
+					{
+						key: "description",
+						label: t("toolbar.search.fields.description", {
+							defaultValue: "Description",
+						}),
+						weight: 5,
+					},
+				],
+				debounceMs: 300,
+			},
+			viewMode: {
+				enabled: true,
+				defaultMode: defaultView as "grid" | "list",
+			},
+			sort: {
+				enabled: true,
+				options: [
+					{
+						value: "display_name",
+						label: t("toolbar.sort.options.displayName", {
+							defaultValue: "Name",
+						}),
+						defaultDirection: "asc" as const,
+					},
+					{
+						value: "detected",
+						label: t("toolbar.sort.options.detected", {
+							defaultValue: "Detection Status",
+						}),
+						defaultDirection: "desc" as const,
+					},
+					{
+						value: "managed",
+						label: t("toolbar.sort.options.managed", {
+							defaultValue: "Management Status",
+						}),
+						defaultDirection: "desc" as const,
+					},
+				],
+				defaultSort: "display_name",
+			},
+		}),
+		[clientsAsEntities, defaultView, i18n.language, t],
+	);
 
 	// 工具栏状态
 	const toolbarState = {
@@ -384,11 +503,17 @@ export function ClientsPage() {
 				className="h-9 w-9 p-0"
 				onMouseUp={() =>
 					notifyInfo(
-						"Refresh triggered",
-						"Latest client state will sync to the list",
+						t("toolbar.actions.refresh.notificationTitle", {
+							defaultValue: "Refresh triggered",
+						}),
+						t("toolbar.actions.refresh.notificationMessage", {
+							defaultValue: "Latest client state will sync to the list",
+						}),
 					)
 				}
-				title="Refresh"
+				title={t("toolbar.actions.refresh.title", {
+					defaultValue: "Refresh",
+				})}
 			>
 				<RefreshCw
 					className={`h-4 w-4 ${isRefetching || refreshing ? "animate-spin" : ""}`}
@@ -399,11 +524,18 @@ export function ClientsPage() {
 				className="h-9 w-9 p-0"
 				onClick={() =>
 					notifyInfo(
-						"Feature in Development",
-						"This feature is being implemented, please stay tuned",
+						t("toolbar.actions.add.notificationTitle", {
+							defaultValue: "Feature in Development",
+						}),
+						t("toolbar.actions.add.notificationMessage", {
+							defaultValue:
+								"This feature is being implemented, please stay tuned",
+						}),
 					)
 				}
-				title="Add Client"
+				title={t("toolbar.actions.add.title", {
+					defaultValue: "Add Client",
+				})}
 			>
 				<Plus className="h-4 w-4" />
 			</Button>
@@ -412,7 +544,7 @@ export function ClientsPage() {
 
 	return (
 		<PageLayout
-			title="Clients"
+			title={t("title", { defaultValue: "Clients" })}
 			headerActions={
 				<PageToolbar
 					config={toolbarConfig}
@@ -432,12 +564,6 @@ export function ClientsPage() {
 					? sortedClients.map((client) => renderClientCard(client))
 					: sortedClients.map((client) => renderClientListItem(client))}
 			</ListGridContainer>
-
-			{/* 统计信息 - 移到页面底部 */}
-			<div className="text-xs text-slate-500 dark:text-slate-400 mt-4 text-center">
-				Showing {stats.showing} of {stats.filtered} clients (Total:{" "}
-				{stats.total})
-			</div>
 		</PageLayout>
 	);
 }
