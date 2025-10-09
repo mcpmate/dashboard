@@ -6,6 +6,7 @@ import {
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
+import { useTranslation } from "react-i18next";
 import {
 	BellRing,
 	CheckCircle2,
@@ -17,6 +18,7 @@ import { Badge } from "./ui/badge";
 import { useNotify } from "../lib/notify";
 
 export function NotificationCenter() {
+	const { t } = useTranslation();
 	const { items, markAllRead, markRead, clear, isOpen, setOpen } = useNotify();
 	const unreadCount = items.reduce((acc, it) => acc + (it.read ? 0 : 1), 0);
 
@@ -39,7 +41,7 @@ export function NotificationCenter() {
 				<button
 					type="button"
 					className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
-					aria-label="Notifications"
+					aria-label={t("notifications.title")}
 				>
 					<div className="relative">
 						<BellRing size={20} />
@@ -59,7 +61,9 @@ export function NotificationCenter() {
 				className="w-[360px] max-h-[60vh] overflow-auto p-0"
 			>
 				<div className="px-3 py-2 flex items-center justify-between sticky top-0 bg-popover z-10 border-b border-slate-200 dark:border-slate-700">
-					<DropdownMenuLabel className="p-0">Notifications</DropdownMenuLabel>
+					<DropdownMenuLabel className="p-0">
+						{t("notifications.title")}
+					</DropdownMenuLabel>
 					<div className="flex items-center gap-2">
 						<Button
 							variant="outline"
@@ -67,7 +71,7 @@ export function NotificationCenter() {
 							onClick={markAllRead}
 							disabled={unreadCount === 0}
 						>
-							Mark all read
+							{t("notifications.markAllRead")}
 						</Button>
 						<Button
 							variant="outline"
@@ -75,12 +79,14 @@ export function NotificationCenter() {
 							onClick={clear}
 							disabled={items.length === 0}
 						>
-							Clear
+							{t("notifications.clear")}
 						</Button>
 					</div>
 				</div>
 				{items.length === 0 ? (
-					<div className="p-4 text-sm text-slate-500">No notifications</div>
+					<div className="p-4 text-sm text-slate-500">
+						{t("notifications.noNotifications")}
+					</div>
 				) : (
 					<div className="py-1">
 						{items.map((n) => (

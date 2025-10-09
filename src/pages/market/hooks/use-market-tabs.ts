@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-	type MarketPortalMeta,
-	useAppStore,
-} from "../../../lib/store";
+import { type MarketPortalMeta, useAppStore } from "../../../lib/store";
 import { mergePortalOverrides } from "../portal-registry";
 import type { TabItem, UseMarketTabsReturn } from "../types";
 
-export function useMarketTabs(): UseMarketTabsReturn {
+export function useMarketTabs(
+	t?: (key: string) => string,
+): UseMarketTabsReturn {
 	// Get default market setting
 	const defaultMarket = useAppStore(
 		(state) => state.dashboardSettings.defaultMarket,
@@ -44,11 +43,11 @@ export function useMarketTabs(): UseMarketTabsReturn {
 	const officialTab = useMemo<TabItem>(
 		() => ({
 			id: "official",
-			label: "Official MCP Registry",
+			label: t ? t("market.officialRegistry") : "Official MCP Registry",
 			type: "official",
 			closable: defaultMarket !== "official",
 		}),
-		[defaultMarket],
+		[defaultMarket, t],
 	);
 
 	const defaultPortalMeta = useMemo(() => {
@@ -66,7 +65,7 @@ export function useMarketTabs(): UseMarketTabsReturn {
 	const [activeTab, setActiveTab] = useState<string>(
 		defaultMarket === "official"
 			? "official"
-			: defaultPortalMeta?.id ?? "official",
+			: (defaultPortalMeta?.id ?? "official"),
 	);
 
 	const prevDefaultMarketRef = useRef(defaultMarket);
@@ -131,7 +130,10 @@ export function useMarketTabs(): UseMarketTabsReturn {
 	const addOfficialTab = useCallback(() => {
 		setTabs((prev) => {
 			if (prev.some((tab) => tab.id === "official")) return prev;
-			return [...prev, { ...officialTab, closable: defaultMarket !== "official" }];
+			return [
+				...prev,
+				{ ...officialTab, closable: defaultMarket !== "official" },
+			];
 		});
 		setActiveTab("official");
 	}, [defaultMarket, officialTab]);
@@ -157,7 +159,9 @@ export function useMarketTabs(): UseMarketTabsReturn {
 			setTabs((prev) => {
 				const newTabs = prev.filter((tab) => tab.id !== tabId);
 				if (activeTab === tabId) {
-					setActiveTab(defaultMarket === "official" ? "official" : defaultMarket);
+					setActiveTab(
+						defaultMarket === "official" ? "official" : defaultMarket,
+					);
 				}
 				return newTabs;
 			});

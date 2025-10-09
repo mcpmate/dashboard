@@ -60,7 +60,7 @@ export function MarketPage() {
 		addOfficialTab,
 		closeTab,
 		portalMap,
-	} = useMarketTabs();
+	} = useMarketTabs(t);
 
 	const currentTab = useMemo(
 		() => tabs.find((tab) => tab.id === activeTab),

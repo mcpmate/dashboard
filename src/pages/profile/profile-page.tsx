@@ -13,6 +13,7 @@ import {
 	Wrench,
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
@@ -84,6 +85,7 @@ function formatSuitDisplayName(
 }
 
 export function ProfilePage() {
+	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [searchParams] = useSearchParams();
@@ -188,14 +190,14 @@ export function ProfilePage() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
-				"Profile activated",
-				"Profile has been successfully activated",
+				t("profiles.messages.profileActivated"),
+				t("profiles.messages.profileActivatedDescription"),
 			);
 		},
 		onError: (error) => {
 			notifyError(
-				"Activation failed",
-				`Failed to activate profile: ${error instanceof Error ? error.message : String(error)}`,
+				t("profiles.messages.activationFailed"),
+				`${t("profiles.messages.activationFailedDescription")}: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		},
 	});
@@ -206,14 +208,14 @@ export function ProfilePage() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["configSuits"] });
 			notifySuccess(
-				"Profile deactivated",
-				"Profile has been successfully deactivated",
+				t("profiles.messages.profileDeactivated"),
+				t("profiles.messages.profileDeactivatedDescription"),
 			);
 		},
 		onError: (error) => {
 			notifyError(
-				"Deactivation failed",
-				`Failed to deactivate profile: ${error instanceof Error ? error.message : String(error)}`,
+				t("profiles.messages.deactivationFailed"),
+				`${t("profiles.messages.deactivationFailedDescription")}: ${error instanceof Error ? error.message : String(error)}`,
 			);
 		},
 	});
@@ -465,36 +467,42 @@ export function ProfilePage() {
 				titleBadges={[
 					isDefaultAnchor ? (
 						<Badge key="default-anchor" variant="outline">
-							Default Anchor
+							{t("profiles.badges.defaultAnchor")}
 						</Badge>
 					) : isDefaultMember ? (
 						<Badge key="in-default" variant="outline">
-							In Default
+							{t("profiles.badges.inDefault")}
 						</Badge>
 					) : null,
 				].filter(Boolean)}
 				stats={[
-					{ label: "Multi-select", value: suit.multi_select ? "Yes" : "No" },
-					{ label: "Priority", value: suit.priority },
+					{
+						label: t("profiles.badges.multiSelect"),
+						value: suit.multi_select ? t("common.yes") : t("common.no"),
+					},
+					{ label: t("profiles.badges.priority"), value: suit.priority },
 				]}
 				bottomTags={[
 					<span key="servers">
-						Servers: {formatCount(stats?.enabledServers, stats?.totalServers)}
+						{t("profiles.badges.servers")}:{" "}
+						{formatCount(stats?.enabledServers, stats?.totalServers)}
 					</span>,
 					<span key="tools">
-						Tools: {formatCount(stats?.enabledTools, stats?.totalTools)}
+						{t("profiles.badges.tools")}:{" "}
+						{formatCount(stats?.enabledTools, stats?.totalTools)}
 					</span>,
 					<span key="resources">
-						Resources:{" "}
+						{t("profiles.badges.resources")}:{" "}
 						{formatCount(stats?.enabledResources, stats?.totalResources)}
 					</span>,
 					<span key="prompts">
-						Prompts: {formatCount(stats?.enabledPrompts, stats?.totalPrompts)}
+						{t("profiles.badges.prompts")}:{" "}
+						{formatCount(stats?.enabledPrompts, stats?.totalPrompts)}
 					</span>,
 				]}
 				statusBadge={
 					<Badge variant={suit.is_active ? "default" : "secondary"}>
-						{suit.suit_type}
+						{t(`profiles.suitTypes.${suit.suit_type}`)}
 					</Badge>
 				}
 				enableSwitch={{
@@ -515,19 +523,19 @@ export function ProfilePage() {
 		const isDefaultAnchor = suitRole === "default_anchor";
 		const statItems = [
 			{
-				label: "Servers",
+				label: t("profiles.badges.servers"),
 				value: formatCount(stats?.enabledServers, stats?.totalServers),
 			},
 			{
-				label: "Tools",
+				label: t("profiles.badges.tools"),
 				value: formatCount(stats?.enabledTools, stats?.totalTools),
 			},
 			{
-				label: "Resources",
+				label: t("profiles.badges.resources"),
 				value: formatCount(stats?.enabledResources, stats?.totalResources),
 			},
 			{
-				label: "Prompts",
+				label: t("profiles.badges.prompts"),
 				value: formatCount(stats?.enabledPrompts, stats?.totalPrompts),
 			},
 		];
@@ -544,18 +552,18 @@ export function ProfilePage() {
 				topRightBadge={
 					isDefaultAnchor ? (
 						<Badge variant="outline" className="shrink-0">
-							Default Anchor
+							{t("profiles.badges.defaultAnchor")}
 						</Badge>
 					) : suit.is_default ? (
 						<Badge variant="outline" className="shrink-0">
-							In Default
+							{t("profiles.badges.inDefault")}
 						</Badge>
 					) : undefined
 				}
 				stats={statItems}
 				bottomLeft={
 					<Badge variant={suit.is_active ? "default" : "secondary"}>
-						{suit.suit_type}
+						{t(`profiles.suitTypes.${suit.suit_type}`)}
 					</Badge>
 				}
 				bottomRight={
@@ -580,40 +588,40 @@ export function ProfilePage() {
 	// Prepare stats cards data
 	const statsCards = [
 		{
-			title: "Profiles",
+			title: t("profiles.stats.profiles"),
 			value: isLoadingSuits ? "..." : `${activeSuits.length}/${suits.length}`,
-			description: "active profiles",
+			description: t("profiles.stats.activeProfiles"),
 			icon: <Settings className="h-4 w-4 text-emerald-600" />,
 		},
 		{
-			title: "Servers",
+			title: t("profiles.stats.servers"),
 			value:
 				activeSuitServersQueries.some((query) => query.isLoading) ||
 				isLoadingSuits
 					? "..."
 					: `${enabledServersCount}/${totalServersInSuit}`,
-			description: "running",
+			description: t("profiles.stats.running"),
 			icon: <Server className="h-4 w-4 text-blue-600" />,
 		},
 		{
-			title: "Tools",
+			title: t("profiles.stats.tools"),
 			value:
 				activeSuitToolsQueries.some((query) => query.isLoading) ||
 				isLoadingSuits
 					? "..."
 					: `${enabledToolsCount}/${totalToolsInSuit}`,
-			description: "enabled",
+			description: t("profiles.stats.enabled"),
 			icon: <Wrench className="h-4 w-4 text-purple-600" />,
 		},
 		{
-			title: "Instances",
+			title: t("profiles.stats.instances"),
 			value:
 				isLoadingAllServers ||
 				activeSuitServersQueries.some((query) => query.isLoading) ||
 				isLoadingSuits
 					? "..."
 					: `${readyInstances}/${totalInstances}`,
-			description: "ready",
+			description: t("profiles.stats.ready"),
 			icon: <Activity className="h-4 w-4 text-orange-600" />,
 		},
 	];
@@ -621,61 +629,77 @@ export function ProfilePage() {
 	// Prepare loading skeleton
 	const loadingSkeleton =
 		defaultView === "grid"
-			? Array.from({ length: 6 }, (_, index) => (
-					<Card
-						key={`loading-grid-${index}`}
-						className="animate-pulse border border-slate-200 dark:border-slate-800"
-					>
-						<CardHeader className="space-y-2">
-							<div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-800"></div>
-							<div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800"></div>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="grid grid-cols-4 gap-x-6 gap-y-2">
-								{Array.from({ length: 4 }, (__, statIndex) => (
-									<div
-										key={`loading-grid-label-${index}-${statIndex}`}
-										className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-800"
-									></div>
-								))}
-								{Array.from({ length: 4 }, (__, statIndex) => (
-									<div
-										key={`loading-grid-value-${index}-${statIndex}`}
-										className="h-5 w-20 rounded bg-slate-200 dark:bg-slate-800"
-									></div>
-								))}
+			? Array.from({ length: 6 }, (_, index) => {
+					const cardId = `loading-grid-${index}`;
+					return (
+						<Card
+							key={cardId}
+							className="animate-pulse border border-slate-200 dark:border-slate-800"
+						>
+							<CardHeader className="space-y-2">
+								<div className="h-5 w-32 rounded bg-slate-200 dark:bg-slate-800"></div>
+								<div className="h-4 w-48 rounded bg-slate-200 dark:bg-slate-800"></div>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="grid grid-cols-4 gap-x-6 gap-y-2">
+									{Array.from({ length: 4 }, (__, statIndex) => {
+										const labelId = `${cardId}-label-${statIndex}`;
+										return (
+											<div
+												key={labelId}
+												className="h-3 w-16 rounded bg-slate-200 dark:bg-slate-800"
+											></div>
+										);
+									})}
+									{Array.from({ length: 4 }, (__, statIndex) => {
+										const valueId = `${cardId}-value-${statIndex}`;
+										return (
+											<div
+												key={valueId}
+												className="h-5 w-20 rounded bg-slate-200 dark:bg-slate-800"
+											></div>
+										);
+									})}
+								</div>
+							</CardContent>
+							<CardFooter className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+								<div className="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-800"></div>
+								<div className="flex items-center gap-2">
+									<div className="h-3 w-14 rounded bg-slate-200 dark:bg-slate-800"></div>
+									<div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-800"></div>
+								</div>
+							</CardFooter>
+						</Card>
+					);
+				})
+			: Array.from({ length: 3 }, (_, id) => {
+					const suitId = `loading-suit-${id}`;
+					return (
+						<div
+							key={suitId}
+							className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
+						>
+							<div className="space-y-1">
+								<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+								<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 							</div>
-						</CardContent>
-						<CardFooter className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
-							<div className="h-5 w-20 rounded-full bg-slate-200 dark:bg-slate-800"></div>
-							<div className="flex items-center gap-2">
-								<div className="h-3 w-14 rounded bg-slate-200 dark:bg-slate-800"></div>
-								<div className="h-6 w-12 rounded bg-slate-200 dark:bg-slate-800"></div>
-							</div>
-						</CardFooter>
-					</Card>
-				))
-			: Array.from({ length: 3 }, (_, id) => (
-					<div
-						key={`loading-suit-${id}`}
-						className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950"
-					>
-						<div className="space-y-1">
-							<div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-							<div className="h-4 w-48 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+							<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
 						</div>
-						<div className="h-9 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
-					</div>
-				));
+					);
+				});
 
 	// 工具栏配置
 	const toolbarConfig = {
-		data: suitsResponse?.suits || [],
+		data: (suitsResponse?.suits || []) as ConfigSuit[],
 		search: {
-			placeholder: "Search profiles...",
+			placeholder: t("profiles.searchPlaceholder"),
 			fields: [
-				{ key: "name", label: "Name", weight: 10 },
-				{ key: "description", label: "Description", weight: 8 },
+				{ key: "name", label: t("profiles.fields.name"), weight: 10 },
+				{
+					key: "description",
+					label: t("profiles.fields.description"),
+					weight: 8,
+				},
 			],
 			debounceMs: 300,
 		},
@@ -688,12 +712,12 @@ export function ProfilePage() {
 			options: [
 				{
 					value: "name",
-					label: "Name",
+					label: t("profiles.fields.name"),
 					defaultDirection: "asc" as const,
 				},
 				{
 					value: "is_active",
-					label: "Active Status",
+					label: t("profiles.sort.activeStatus"),
 					defaultDirection: "desc" as const,
 				},
 			],
@@ -730,7 +754,7 @@ export function ProfilePage() {
 				variant="outline"
 				size="sm"
 				className="h-9 w-9 p-0"
-				title="Refresh"
+				title={t("profiles.buttons.refresh")}
 			>
 				<RefreshCw
 					className={`h-4 w-4 ${isRefetchingSuits ? "animate-spin" : ""}`}
@@ -740,7 +764,7 @@ export function ProfilePage() {
 				size="sm"
 				className="h-9 w-9 p-0"
 				onClick={() => setIsNewSuitDialogOpen(true)}
-				title="New Profile"
+				title={t("profiles.buttons.newProfile")}
 			>
 				<Plus className="h-4 w-4" />
 			</Button>
@@ -753,8 +777,8 @@ export function ProfilePage() {
 			<CardContent className="flex flex-col items-center justify-center p-6">
 				<EmptyState
 					icon={<Settings className="h-12 w-12" />}
-					title="No profiles found"
-					description="Profiles help organize and manage your MCP servers, tools, and resources"
+					title={t("profiles.emptyState.title")}
+					description={t("profiles.emptyState.description")}
 					action={
 						<Button
 							onClick={() => setIsNewSuitDialogOpen(true)}
@@ -762,7 +786,7 @@ export function ProfilePage() {
 							className="mt-4"
 						>
 							<Plus className="mr-2 h-4 w-4" />
-							Create First Profile
+							{t("profiles.buttons.createFirst")}
 						</Button>
 					}
 				/>
@@ -772,12 +796,12 @@ export function ProfilePage() {
 
 	return (
 		<PageLayout
-			title="Profiles"
+			title={t("profiles.title")}
 			headerActions={
 				<PageToolbar
-					config={toolbarConfig}
+					config={toolbarConfig as any}
 					state={toolbarState}
-					callbacks={toolbarCallbacks}
+					callbacks={toolbarCallbacks as any}
 					actions={actions}
 				/>
 			}
@@ -785,7 +809,9 @@ export function ProfilePage() {
 		>
 			{suitsError && (
 				<div className="bg-red-50 border border-red-200 rounded-md p-4">
-					<h3 className="text-red-800 font-medium">Error loading profiles:</h3>
+					<h3 className="text-red-800 font-medium">
+						{t("profiles.errors.loadingFailed")}
+					</h3>
 					<p className="text-red-600 text-sm mt-1">{String(suitsError)}</p>
 				</div>
 			)}
@@ -807,7 +833,7 @@ export function ProfilePage() {
 				open={isNewSuitDialogOpen}
 				onOpenChange={setIsNewSuitDialogOpen}
 				mode="create"
-				restrictProfileType={profileType}
+				restrictProfileType={profileType || undefined}
 				onSuccess={() => {
 					setIsNewSuitDialogOpen(false);
 					refetchSuits();

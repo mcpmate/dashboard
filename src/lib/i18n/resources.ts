@@ -148,6 +148,7 @@ export const resources = {
 					remoteEndpoint: "Remote endpoint",
 					packageInstallation: "Package installation",
 				},
+				officialRegistry: "Official MCP Registry",
 			},
 			header: {
 				back: "Back",
@@ -165,9 +166,173 @@ export const resources = {
 					settings: "Settings",
 				},
 			},
+			notifications: {
+				title: "Notifications",
+				markAllRead: "Mark all read",
+				clear: "Clear",
+				noNotifications: "No notifications",
+			},
+			profiles: {
+				title: "Profiles",
+				searchPlaceholder: "Search profiles...",
+				fields: {
+					name: "Name",
+					description: "Description",
+				},
+				sort: {
+					activeStatus: "Active Status",
+				},
+				buttons: {
+					refresh: "Refresh",
+					newProfile: "New Profile",
+					createFirst: "Create First Profile",
+				},
+				badges: {
+					defaultAnchor: "Default Anchor",
+					inDefault: "In Default",
+					multiSelect: "Multi-select",
+					priority: "Priority",
+					servers: "Servers",
+					tools: "Tools",
+					resources: "Resources",
+					prompts: "Prompts",
+				},
+				stats: {
+					profiles: "Profiles",
+					servers: "Servers",
+					tools: "Tools",
+					instances: "Instances",
+					activeProfiles: "active profiles",
+					running: "running",
+					enabled: "enabled",
+					ready: "ready",
+				},
+				emptyState: {
+					title: "No profiles found",
+					description:
+						"Profiles help organize and manage your MCP servers, tools, and resources",
+				},
+				errors: {
+					loadingFailed: "Error loading profiles:",
+				},
+				messages: {
+					profileActivated: "Profile activated",
+					profileActivatedDescription:
+						"Profile has been successfully activated",
+					activationFailed: "Activation failed",
+					activationFailedDescription: "Failed to activate profile",
+					profileDeactivated: "Profile deactivated",
+					profileDeactivatedDescription:
+						"Profile has been successfully deactivated",
+					deactivationFailed: "Deactivation failed",
+					deactivationFailedDescription: "Failed to deactivate profile",
+				},
+				untitledProfile: "Untitled Profile",
+				suitTypes: {
+					shared: "Shared",
+					personal: "Personal",
+					team: "Team",
+				},
+				form: {
+					title: {
+						create: "Create New Profile",
+						edit: "Edit Profile",
+					},
+					description: {
+						create:
+							"Create a new profile to organize your MCP servers and tools.",
+						edit: "Update the profile settings.",
+					},
+					steps: {
+						profile: "Profile",
+						servers: "Servers",
+						hints: {
+							basics: "Basics",
+							assign: "Assign",
+						},
+					},
+					fields: {
+						name: "Name",
+						nameRequired: "Name *",
+						description: "Description",
+						concurrentActivation: "Concurrent Activation",
+						status: "Status",
+						cloneFrom: "Clone From",
+					},
+					placeholders: {
+						profileName: "Enter profile name",
+						profileDescription: "Provide a short summary",
+						searchServers: "Search servers...",
+					},
+					labels: {
+						concurrentActivationDescription:
+							"Allow concurrent activation with other profiles",
+						activateImmediately: "Activate immediately",
+						setAsDefault: "Set as default profile",
+						none: "None",
+						noDescription: "No description",
+					},
+					buttons: {
+						next: "Next",
+						back: "Back",
+						cancel: "Cancel",
+						create: "Create Profile",
+						save: "Save Changes",
+						saving: "Saving...",
+					},
+					serverSelection: {
+						title:
+							"Choose which servers belong to this profile. Server enable/disable status is managed separately.",
+						assigned: "servers assigned",
+						available: "available servers",
+						availableServers: "Available Servers",
+						profileServers: "Profile Servers",
+						noData: "No data",
+						loading: "Loading server list…",
+						noAvailable: "No available servers",
+					},
+					clonePreview: {
+						loading: "Loading capabilities…",
+						description:
+							"Cloning copies enabled servers, tools, and resources from the source profile.",
+						labels: {
+							type: "Type",
+							priority: "Priority",
+							multiSelect: "Multi-select",
+							status: "Status",
+							servers: "Servers",
+							tools: "Tools",
+							resources: "Resources",
+							prompts: "Prompts",
+						},
+						values: {
+							active: "Active",
+							inactive: "Inactive",
+						},
+					},
+					messages: {
+						created: "Created",
+						createdDescription: "Profile created successfully",
+						createFailed: "Create failed",
+						updated: "Updated",
+						updatedDescription: "Profile updated successfully",
+						updateFailed: "Update failed",
+						validationFailed: "Validation failed",
+						nameRequired: "Name is required",
+					},
+				},
+			},
 			common: {
 				wip: "WIP",
 				wipTag: "(WIP)",
+				yes: "Yes",
+				no: "No",
+				user: "User",
+				roles: {
+					user: "User",
+					admin: "Admin",
+					defaultAnchor: "Default Anchor",
+				},
 				status: {
 					ready: "Ready",
 					error: "Error",
@@ -175,6 +340,9 @@ export const resources = {
 					initializing: "Initializing",
 					idle: "Idle",
 					unknown: "Unknown",
+					status: "Status",
+					enabled: "Enabled",
+					disabled: "Disabled",
 				},
 				placeholders: {
 					menuBarVisibility: "Menu bar visibility",
@@ -489,6 +657,7 @@ export const resources = {
 					remoteEndpoint: "远程端点",
 					packageInstallation: "包安装",
 				},
+				officialRegistry: "官方 MCP 注册表",
 			},
 			header: {
 				back: "返回",
@@ -506,9 +675,166 @@ export const resources = {
 					settings: "设置",
 				},
 			},
+			notifications: {
+				title: "通知",
+				markAllRead: "全部标记为已读",
+				clear: "清空",
+				noNotifications: "暂无通知",
+			},
+			profiles: {
+				title: "配置集",
+				searchPlaceholder: "搜索配置集...",
+				fields: {
+					name: "名称",
+					description: "描述",
+				},
+				sort: {
+					activeStatus: "激活状态",
+				},
+				buttons: {
+					refresh: "刷新",
+					newProfile: "新建配置集",
+					createFirst: "创建第一个配置集",
+				},
+				badges: {
+					defaultAnchor: "默认锚点",
+					inDefault: "在默认中",
+					multiSelect: "多选",
+					priority: "优先级",
+					servers: "服务器",
+					tools: "工具",
+					resources: "资源",
+					prompts: "提示",
+				},
+				stats: {
+					profiles: "配置集",
+					servers: "服务器",
+					tools: "工具",
+					instances: "实例",
+					activeProfiles: "活跃配置集",
+					running: "运行中",
+					enabled: "已启用",
+					ready: "就绪",
+				},
+				emptyState: {
+					title: "未找到配置集",
+					description: "配置集帮助组织和管理您的 MCP 服务器、工具和资源",
+				},
+				errors: {
+					loadingFailed: "加载配置集失败：",
+				},
+				messages: {
+					profileActivated: "配置集已激活",
+					profileActivatedDescription: "配置集已成功激活",
+					activationFailed: "激活失败",
+					activationFailedDescription: "激活配置集失败",
+					profileDeactivated: "配置集已停用",
+					profileDeactivatedDescription: "配置集已成功停用",
+					deactivationFailed: "停用失败",
+					deactivationFailedDescription: "停用配置集失败",
+				},
+				untitledProfile: "未命名配置集",
+				suitTypes: {
+					shared: "共享",
+					personal: "个人",
+					team: "团队",
+				},
+				form: {
+					title: {
+						create: "创建新配置集",
+						edit: "编辑配置集",
+					},
+					description: {
+						create: "创建新配置集来组织您的 MCP 服务器和工具。",
+						edit: "更新配置集设置。",
+					},
+					steps: {
+						profile: "配置集",
+						servers: "服务器",
+						hints: {
+							basics: "基础",
+							assign: "分配",
+						},
+					},
+					fields: {
+						name: "名称",
+						nameRequired: "名称 *",
+						description: "描述",
+						concurrentActivation: "并发激活",
+						status: "状态",
+						cloneFrom: "克隆自",
+					},
+					placeholders: {
+						profileName: "输入配置集名称",
+						profileDescription: "提供简短摘要",
+						searchServers: "搜索服务器...",
+					},
+					labels: {
+						concurrentActivationDescription: "允许与其他配置集同时激活",
+						activateImmediately: "立即激活",
+						setAsDefault: "设为默认配置集",
+						none: "无",
+						noDescription: "无描述",
+					},
+					buttons: {
+						next: "下一步",
+						back: "返回",
+						cancel: "取消",
+						create: "创建配置集",
+						save: "保存更改",
+						saving: "保存中...",
+					},
+					serverSelection: {
+						title: "选择属于此配置集的服务器。服务器的启用/禁用状态单独管理。",
+						assigned: "个服务器已分配",
+						available: "个可用服务器",
+						availableServers: "可用服务器",
+						profileServers: "配置集服务器",
+						noData: "无数据",
+						loading: "加载服务器列表…",
+						noAvailable: "无可用服务器",
+					},
+					clonePreview: {
+						loading: "加载能力…",
+						description: "克隆会复制源配置集中已启用的服务器、工具和资源。",
+						labels: {
+							type: "类型",
+							priority: "优先级",
+							multiSelect: "多选",
+							status: "状态",
+							servers: "服务器",
+							tools: "工具",
+							resources: "资源",
+							prompts: "提示",
+						},
+						values: {
+							active: "活跃",
+							inactive: "非活跃",
+						},
+					},
+					messages: {
+						created: "已创建",
+						createdDescription: "配置集创建成功",
+						createFailed: "创建失败",
+						updated: "已更新",
+						updatedDescription: "配置集更新成功",
+						updateFailed: "更新失败",
+						validationFailed: "验证失败",
+						nameRequired: "名称为必填项",
+					},
+				},
+			},
 			common: {
 				wip: "开发中",
 				wipTag: "(开发中)",
+				yes: "是",
+				no: "否",
+				user: "用户",
+				roles: {
+					user: "用户",
+					admin: "管理员",
+					defaultAnchor: "默认锚点",
+				},
 				status: {
 					ready: "就绪",
 					error: "错误",
@@ -516,6 +842,9 @@ export const resources = {
 					initializing: "初始化中",
 					idle: "空闲",
 					unknown: "未知",
+					status: "状态",
+					enabled: "已启用",
+					disabled: "已禁用",
 				},
 				placeholders: {
 					menuBarVisibility: "菜单栏可见性",
@@ -819,6 +1148,7 @@ export const resources = {
 					remoteEndpoint: "リモートエンドポイント",
 					packageInstallation: "パッケージインストール",
 				},
+				officialRegistry: "公式 MCP レジストリ",
 			},
 			header: {
 				back: "戻る",
@@ -836,9 +1166,175 @@ export const resources = {
 					settings: "設定",
 				},
 			},
+			notifications: {
+				title: "通知",
+				markAllRead: "すべて既読にする",
+				clear: "クリア",
+				noNotifications: "通知はありません",
+			},
+			profiles: {
+				title: "プロファイル",
+				searchPlaceholder: "プロファイルを検索...",
+				fields: {
+					name: "名前",
+					description: "説明",
+				},
+				sort: {
+					activeStatus: "アクティブ状態",
+				},
+				buttons: {
+					refresh: "更新",
+					newProfile: "新しいプロファイル",
+					createFirst: "最初のプロファイルを作成",
+				},
+				badges: {
+					defaultAnchor: "デフォルトアンカー",
+					inDefault: "デフォルト内",
+					multiSelect: "マルチセレクト",
+					priority: "優先度",
+					servers: "サーバー",
+					tools: "ツール",
+					resources: "リソース",
+					prompts: "プロンプト",
+				},
+				stats: {
+					profiles: "プロファイル",
+					servers: "サーバー",
+					tools: "ツール",
+					instances: "インスタンス",
+					activeProfiles: "アクティブプロファイル",
+					running: "実行中",
+					enabled: "有効",
+					ready: "準備完了",
+				},
+				emptyState: {
+					title: "プロファイルが見つかりません",
+					description:
+						"プロファイルは MCP サーバー、ツール、リソースを整理・管理するのに役立ちます",
+				},
+				errors: {
+					loadingFailed: "プロファイルの読み込みエラー：",
+				},
+				messages: {
+					profileActivated: "プロファイルがアクティブ化されました",
+					profileActivatedDescription:
+						"プロファイルが正常にアクティブ化されました",
+					activationFailed: "アクティブ化に失敗しました",
+					activationFailedDescription:
+						"プロファイルのアクティブ化に失敗しました",
+					profileDeactivated: "プロファイルが非アクティブ化されました",
+					profileDeactivatedDescription:
+						"プロファイルが正常に非アクティブ化されました",
+					deactivationFailed: "非アクティブ化に失敗しました",
+					deactivationFailedDescription:
+						"プロファイルの非アクティブ化に失敗しました",
+				},
+				untitledProfile: "無題のプロファイル",
+				suitTypes: {
+					shared: "共有",
+					personal: "個人",
+					team: "チーム",
+				},
+				form: {
+					title: {
+						create: "新しいプロファイルを作成",
+						edit: "プロファイルを編集",
+					},
+					description: {
+						create:
+							"MCP サーバーとツールを整理するための新しいプロファイルを作成します。",
+						edit: "プロファイル設定を更新します。",
+					},
+					steps: {
+						profile: "プロファイル",
+						servers: "サーバー",
+						hints: {
+							basics: "基本",
+							assign: "割り当て",
+						},
+					},
+					fields: {
+						name: "名前",
+						nameRequired: "名前 *",
+						description: "説明",
+						concurrentActivation: "同時アクティブ化",
+						status: "状態",
+						cloneFrom: "クローン元",
+					},
+					placeholders: {
+						profileName: "プロファイル名を入力",
+						profileDescription: "短い要約を提供",
+						searchServers: "サーバーを検索...",
+					},
+					labels: {
+						concurrentActivationDescription:
+							"他のプロファイルと同時にアクティブ化を許可",
+						activateImmediately: "すぐにアクティブ化",
+						setAsDefault: "デフォルトプロファイルに設定",
+						none: "なし",
+						noDescription: "説明なし",
+					},
+					buttons: {
+						next: "次へ",
+						back: "戻る",
+						cancel: "キャンセル",
+						create: "プロファイルを作成",
+						save: "変更を保存",
+						saving: "保存中...",
+					},
+					serverSelection: {
+						title:
+							"このプロファイルに属するサーバーを選択してください。サーバーの有効/無効状態は個別に管理されます。",
+						assigned: "個のサーバーが割り当て済み",
+						available: "個の利用可能なサーバー",
+						availableServers: "利用可能なサーバー",
+						profileServers: "プロファイルサーバー",
+						noData: "データなし",
+						loading: "サーバーリストを読み込み中…",
+						noAvailable: "利用可能なサーバーなし",
+					},
+					clonePreview: {
+						loading: "機能を読み込み中…",
+						description:
+							"クローンは、ソースプロファイルから有効なサーバー、ツール、リソースをコピーします。",
+						labels: {
+							type: "タイプ",
+							priority: "優先度",
+							multiSelect: "複数選択",
+							status: "状態",
+							servers: "サーバー",
+							tools: "ツール",
+							resources: "リソース",
+							prompts: "プロンプト",
+						},
+						values: {
+							active: "アクティブ",
+							inactive: "非アクティブ",
+						},
+					},
+					messages: {
+						created: "作成済み",
+						createdDescription: "プロファイルが正常に作成されました",
+						createFailed: "作成に失敗しました",
+						updated: "更新済み",
+						updatedDescription: "プロファイルが正常に更新されました",
+						updateFailed: "更新に失敗しました",
+						validationFailed: "検証に失敗しました",
+						nameRequired: "名前は必須です",
+					},
+				},
+			},
 			common: {
 				wip: "開発中",
 				wipTag: "(開発中)",
+				yes: "はい",
+				no: "いいえ",
+				user: "ユーザー",
+				roles: {
+					user: "ユーザー",
+					admin: "管理者",
+					defaultAnchor: "デフォルトアンカー",
+				},
 				status: {
 					ready: "準備完了",
 					error: "エラー",
@@ -846,6 +1342,9 @@ export const resources = {
 					initializing: "初期化中",
 					idle: "アイドル",
 					unknown: "不明",
+					status: "状態",
+					enabled: "有効",
+					disabled: "無効",
 				},
 				placeholders: {
 					menuBarVisibility: "メニューバー表示",
