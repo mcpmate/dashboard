@@ -46,6 +46,10 @@ export function useServerInstallPipeline(
 	const [isImporting, setImporting] = useState(false);
 	const [currentStep, setCurrentStep] = useState<WizardStep>("form");
 	const [importResult, setImportResult] = useState<any>(null);
+	const [targetProfileId, setTargetProfileId] = useState<string | null>(null);
+	const [dryRunResult, setDryRunResult] = useState<any>(null);
+	const [isDryRunLoading, setDryRunLoading] = useState(false);
+	const [dryRunError, setDryRunError] = useState<string | null>(null);
 
 	const reset = useCallback(() => {
 		setDrawerOpen(false);
@@ -57,6 +61,10 @@ export function useServerInstallPipeline(
 		setImporting(false);
 		setCurrentStep("form");
 		setImportResult(null);
+		setTargetProfileId(null);
+		setDryRunResult(null);
+		setDryRunLoading(false);
+		setDryRunError(null);
 	}, []);
 
 	const buildPreviewPayload = useCallback((items: ServerInstallDraft[]) => {
@@ -198,13 +206,43 @@ export function useServerInstallPipeline(
 		[buildPreviewPayload],
 	);
 
+	const performDryRun = useCallback(async () => {
+		if (!drafts.length) return;
+		try {
+			setDryRunLoading(true);
+			setDryRunError(null);
+			const payload = buildImportPayload(drafts);
+			const requestBody = {
+				...payload,
+				dry_run: true,
+				...(targetProfileId ? { target_profile_id: targetProfileId } : {}),
+			};
+			const result = await serversApi.importServers(requestBody);
+			setDryRunResult(result);
+
+			// Check if dry-run indicates any issues
+			if (result?.data?.failed_count > 0) {
+				const failedNames = result.data.failed_servers?.slice(0, 3).join(", ") || "some servers";
+				setDryRunError(`Import validation failed: ${failedNames}`);
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error ?? "");
+			setDryRunError(message || "Failed to validate import");
+		} finally {
+			setDryRunLoading(false);
+		}
+	}, [drafts, buildImportPayload, targetProfileId]);
+
 	const confirmImport = useCallback(async () => {
 		if (!drafts.length) return;
 		try {
 			setImporting(true);
 			setCurrentStep("result");
 			const payload = buildImportPayload(drafts);
-			const result = await serversApi.importServers(payload);
+			const requestBody = targetProfileId
+				? { ...payload, target_profile_id: targetProfileId }
+				: payload;
+			const result = await serversApi.importServers(requestBody);
 			setImportResult(result);
 
 			const didSucceed =
@@ -254,7 +292,7 @@ export function useServerInstallPipeline(
 		} finally {
 			setImporting(false);
 		}
-	}, [drafts, buildImportPayload, opts]);
+	}, [drafts, buildImportPayload, opts, targetProfileId]);
 
 	const state = useMemo(
 		() => ({
@@ -267,6 +305,10 @@ export function useServerInstallPipeline(
 			open: isDrawerOpen,
 			currentStep,
 			importResult,
+			targetProfileId,
+			dryRunResult,
+			isDryRunLoading,
+			dryRunError,
 		}),
 		[
 			drafts,
@@ -278,6 +320,10 @@ export function useServerInstallPipeline(
 			isDrawerOpen,
 			currentStep,
 			importResult,
+			targetProfileId,
+			dryRunResult,
+			isDryRunLoading,
+			dryRunError,
 		],
 	);
 
@@ -290,7 +336,18 @@ export function useServerInstallPipeline(
 			reset,
 			setPreviewState,
 			setCurrentStep,
+			setTargetProfileId,
+			performDryRun,
 		}),
-		[state, begin, confirmImport, reset, setPreviewState, setCurrentStep],
+		[
+			state,
+			begin,
+			confirmImport,
+			reset,
+			setPreviewState,
+			setCurrentStep,
+			setTargetProfileId,
+			performDryRun,
+		],
 	);
 }

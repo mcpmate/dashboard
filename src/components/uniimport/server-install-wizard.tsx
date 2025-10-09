@@ -26,6 +26,7 @@ import {
 	useServerInstallPipeline,
 	type WizardStep,
 } from "../../hooks/use-server-install-pipeline";
+import { useAppStore } from "../../lib/store";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -39,7 +40,6 @@ import {
 } from "../ui/drawer";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { ScrollArea } from "../ui/scroll-area";
 import { Segment } from "../ui/segment";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Textarea } from "../ui/textarea";
@@ -65,7 +65,7 @@ import { FormViewModeToggle } from "./view-mode-toggle";
 const steps: Array<{ id: WizardStep; label: string; hint: string }> = [
 	{ id: "form", label: "Configuration", hint: "Setup" },
 	{ id: "preview", label: "Preview", hint: "Review" },
-	{ id: "result", label: "Import", hint: "Complete" },
+	{ id: "result", label: "Import & Profile", hint: "Complete" },
 ];
 
 interface ServerInstallWizardProps {
@@ -81,10 +81,7 @@ interface ServerInstallWizardProps {
 	pipeline?: ReturnType<typeof useServerInstallPipeline>;
 }
 
-export const ServerInstallWizard = forwardRef<
-	ServerInstallManualFormHandle,
-	ServerInstallWizardProps
->(
+export const ServerInstallWizard = forwardRef(
 	(
 		{
 			isOpen,
@@ -96,7 +93,7 @@ export const ServerInstallWizard = forwardRef<
 			allowProgrammaticIngest = false,
 			pipeline: externalPipeline,
 		}: ServerInstallWizardProps,
-		ref,
+		ref: React.Ref<ServerInstallManualFormHandle>,
 	) => {
 		// Normalize modes: "create"->"new", "market"->"import"
 		const normalizedMode =
@@ -736,8 +733,9 @@ export const ServerInstallWizard = forwardRef<
 					return;
 				}
 				if (step === "result") {
-					if (installPipeline.state.currentStep !== "result") {
-						void handleImport();
+					// Just navigate to result step, don't trigger import yet
+					if (canNavigateToStep(step)) {
+						installPipeline.setCurrentStep(step);
 					}
 					return;
 				}
@@ -745,13 +743,7 @@ export const ServerInstallWizard = forwardRef<
 					installPipeline.setCurrentStep(step);
 				}
 			},
-			[
-				isSubmitting,
-				handlePreview,
-				handleImport,
-				canNavigateToStep,
-				installPipeline,
-			],
+			[isSubmitting, handlePreview, canNavigateToStep, installPipeline],
 		);
 
 		// Overlay close handler (immediate, no delay)
@@ -892,6 +884,23 @@ export const ServerInstallWizard = forwardRef<
 				document.head.removeChild(style);
 			};
 		}, []);
+
+		// Perform dry-run when entering result step
+		useEffect(() => {
+			if (
+				currentStep === "result" &&
+				!installPipeline.state.importResult &&
+				!installPipeline.state.isImporting
+			) {
+				// Only perform dry-run if we haven't already done it or if the drafts have changed
+				if (
+					!installPipeline.state.dryRunResult &&
+					!installPipeline.state.isDryRunLoading
+				) {
+					void installPipeline.performDryRun();
+				}
+			}
+		}, [currentStep, installPipeline]);
 
 		// Expose methods via ref
 		useImperativeHandle(ref, () => ({
@@ -1483,7 +1492,13 @@ export const ServerInstallWizard = forwardRef<
 
 		const renderResultStep = () => {
 			const { state } = installPipeline;
-			const { importResult, isImporting } = state;
+			const {
+				importResult,
+				isImporting,
+				dryRunResult,
+				isDryRunLoading,
+				dryRunError,
+			} = state;
 			const summary = importResult?.summary as
 				| { imported_count?: number | null; skipped_count?: number | null }
 				| undefined;
@@ -1491,23 +1506,53 @@ export const ServerInstallWizard = forwardRef<
 			const skippedCount = summary?.skipped_count ?? 0;
 			const onlySkipped = importedCount === 0 && skippedCount > 0;
 
-			const successSteps: Array<{ label: string; action: NextStepAction }> = [
-				{
-					label:
-						"Close this drawer to continue browsing or queue another server for import.",
-					action: "close",
-				},
-				{
-					label:
-						"Open the Servers dashboard to review and manage the new server.",
-					action: "servers",
-				},
-				{
-					label:
-						"Visit Profiles to add this server to the appropriate activation sets.",
-					action: "profiles",
-				},
-			];
+			// Get auto-add setting from store
+			const autoAddToDefault =
+				useAppStore.getState().dashboardSettings.autoAddServerToDefaultProfile;
+			const selectedProfileName = autoAddToDefault ? "Default" : null;
+
+			// Show ready state UI before import is completed
+			const showReadyState = !importResult && !isImporting;
+
+			// Determine if we can proceed with import based on dry-run
+			const canProceedWithImport =
+				!isDryRunLoading && !dryRunError && dryRunResult;
+
+			const successSteps: Array<{ label: string; action: NextStepAction }> =
+				selectedProfileName
+					? [
+							{
+								label:
+									"Close this drawer to continue browsing or queue another server for import.",
+								action: "close",
+							},
+							{
+								label:
+									"Open the Servers dashboard to review and manage the new server.",
+								action: "servers",
+							},
+							{
+								label: `Open Profiles to verify "${selectedProfileName}" reflects the new server.`,
+								action: "profiles",
+							},
+						]
+					: [
+							{
+								label:
+									"Close this drawer to continue browsing or queue another server for import.",
+								action: "close",
+							},
+							{
+								label:
+									"Open the Servers dashboard to review and manage the new server.",
+								action: "servers",
+							},
+							{
+								label:
+									"Visit Profiles to add this server to the appropriate activation sets.",
+								action: "profiles",
+							},
+						];
 			const failureSteps: Array<{ label: string; action: NextStepAction }> = [
 				{
 					label:
@@ -1562,10 +1607,70 @@ export const ServerInstallWizard = forwardRef<
 				</div>
 			);
 
+			const readySteps: Array<{ label: string; action: NextStepAction }> = [
+				{
+					label:
+						"Review the server configuration and capabilities from the previous step.",
+					action: "none",
+				},
+				{
+					label: autoAddToDefault
+						? "The server will be automatically added to the Default profile based on your settings."
+						: "The server will remain unassigned. You can add it to profiles later from the Profiles page.",
+					action: "none",
+				},
+				{
+					label:
+						"Click the Import button below to install the server to your system.",
+					action: "none",
+				},
+			];
+
 			return (
 				<div className="flex flex-col">
 					<div className="p-4 space-y-4">
-						{isImporting ? (
+						{showReadyState ? (
+							<>
+								{/* Dry-run validation status */}
+								{isDryRunLoading ? (
+									<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+										<Loader2 className="h-4 w-4 animate-spin" /> Validating
+										import...
+									</div>
+								) : dryRunError ? (
+									<Alert variant="destructive">
+										<AlertTriangle className="h-4 w-4" />
+										<AlertTitle>Import Validation Failed</AlertTitle>
+										<AlertDescription>{dryRunError}</AlertDescription>
+									</Alert>
+								) : canProceedWithImport ? (
+									<div className="rounded-lg border p-4">
+										<div className="flex items-center gap-2 mb-2">
+											<div className="h-2 w-2 rounded-full bg-green-500" />
+											<span className="font-medium">Import Validated</span>
+										</div>
+										<p className="text-sm text-muted-foreground">
+											Pre-validation succeeded. The server can be safely
+											imported.
+										</p>
+									</div>
+								) : (
+									<div className="rounded-lg border p-4">
+										<div className="flex items-center gap-2 mb-2">
+											<div className="h-2 w-2 rounded-full bg-blue-500" />
+											<span className="font-medium">Import Ready</span>
+										</div>
+										<p className="text-sm text-muted-foreground">
+											The server configuration is ready to be imported. Review
+											the information below and click Import when ready.
+										</p>
+									</div>
+								)}
+
+								{/* Next Steps */}
+								{!isDryRunLoading && renderNextSteps(readySteps)}
+							</>
+						) : isImporting ? (
 							<div className="flex items-center justify-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
 								<Loader2 className="h-4 w-4 animate-spin" /> Importing servers…
 							</div>
@@ -1586,11 +1691,18 @@ export const ServerInstallWizard = forwardRef<
 										</span>
 									</div>
 									{importResult.success !== false ? (
-										<p className="text-sm text-muted-foreground">
-											{onlySkipped
-												? "All selected servers were already installed. No changes were applied."
-												: "The server has been successfully installed and is ready to use."}
-										</p>
+										<>
+											<p className="text-sm text-muted-foreground">
+												{onlySkipped
+													? "All selected servers were already installed. No changes were applied."
+													: "The server has been successfully installed and is ready to use."}
+											</p>
+											{selectedProfileName ? (
+												<p className="mt-2 text-xs text-muted-foreground">
+													Enabled automatically in "{selectedProfileName}".
+												</p>
+											) : null}
+										</>
 									) : (
 										<p className="text-sm text-red-600">
 											{importResult.error || "An error occurred during import"}
@@ -1775,7 +1887,8 @@ export const ServerInstallWizard = forwardRef<
 					{/* Footer - fixed at bottom with subtle shadow for separation */}
 					<DrawerFooter className="absolute bottom-0 left-0 right-0 z-10 border-t p-4 bg-background">
 						<div className="flex w-full items-center justify-between gap-3">
-							{currentStep === "result" ? (
+							{currentStep === "result" &&
+							installPipeline.state.importResult ? (
 								<div />
 							) : (
 								<Button
@@ -1784,11 +1897,19 @@ export const ServerInstallWizard = forwardRef<
 									onClick={
 										currentStep === "preview"
 											? () => handleStepChange("form")
-											: handleCancelClose
+											: currentStep === "result"
+												? () => handleStepChange("preview")
+												: handleCancelClose
 									}
-									disabled={isSubmitting}
+									disabled={
+										isSubmitting ||
+										(currentStep === "result" &&
+											installPipeline.state.isImporting)
+									}
 								>
-									{currentStep === "preview" ? "Back" : "Cancel"}
+									{currentStep === "preview" || currentStep === "result"
+										? "Back"
+										: "Cancel"}
 								</Button>
 							)}
 							<div className="flex gap-2">
@@ -1811,24 +1932,44 @@ export const ServerInstallWizard = forwardRef<
 								{currentStep === "preview" && (
 									<Button
 										type="button"
-										onClick={handleImport}
-										disabled={isSubmitting || installPipeline.state.isImporting}
+										onClick={() => handleStepChange("result")}
+										disabled={isSubmitting || !canNavigateToStep("result")}
 									>
-										{installPipeline.state.isImporting ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Importing...
-											</>
-										) : (
-											"Confirm"
-										)}
+										Next
 									</Button>
 								)}
-								{currentStep === "result" && (
-									<Button type="button" onClick={handleOverlayClose}>
-										Done
-									</Button>
-								)}
+								{currentStep === "result" &&
+									!installPipeline.state.importResult && (
+										<Button
+											type="button"
+											onClick={handleImport}
+											disabled={
+												installPipeline.state.isImporting ||
+												installPipeline.state.isDryRunLoading ||
+												!!installPipeline.state.dryRunError
+											}
+										>
+											{installPipeline.state.isImporting ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Importing...
+												</>
+											) : installPipeline.state.isDryRunLoading ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Validating...
+												</>
+											) : (
+												"Import"
+											)}
+										</Button>
+									)}
+								{currentStep === "result" &&
+									installPipeline.state.importResult && (
+										<Button type="button" onClick={handleOverlayClose}>
+											Done
+										</Button>
+									)}
 							</div>
 						</div>
 					</DrawerFooter>

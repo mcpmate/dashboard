@@ -919,6 +919,8 @@ export const serversApi = {
 	// Import servers from JSON-like configuration object
 	importServers: async (payload: {
 		mcpServers: Record<string, any>;
+		target_profile_id?: string | null;
+		dry_run?: boolean;
 	}): Promise<ApiWrapper<ServersImportData>> => {
 		return await fetchApi(`/api/mcp/servers/import`, {
 			method: "POST",
