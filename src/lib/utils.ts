@@ -1,5 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { formatDistance } from "date-fns";
+import { zhCN } from "date-fns/locale";
+import { ja } from "date-fns/locale";
 import { twMerge } from "tailwind-merge";
 
 /**
@@ -43,10 +45,24 @@ export function formatUptime(seconds: number) {
 /**
  * Formats a timestamp to a relative time
  */
-export function formatRelativeTime(timestamp: string) {
+export function formatRelativeTime(timestamp: string, locale?: string) {
 	try {
 		const date = new Date(timestamp);
-		return formatDistance(date, new Date(), { addSuffix: true });
+
+		// Select locale based on language
+		let dateLocale;
+		if (locale?.startsWith("zh")) {
+			dateLocale = zhCN;
+		} else if (locale?.startsWith("ja")) {
+			dateLocale = ja;
+		} else {
+			dateLocale = undefined; // Use default English
+		}
+
+		return formatDistance(date, new Date(), {
+			addSuffix: true,
+			locale: dateLocale,
+		});
 	} catch (error) {
 		return "Invalid date";
 	}

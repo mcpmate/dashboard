@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Wrench } from "lucide-react";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { StatusBadge } from "../../components/status-badge";
 import { Button } from "../../components/ui/button";
@@ -22,6 +23,7 @@ import type {
 import { formatBytes, formatRelativeTime } from "../../lib/utils";
 
 export function RuntimePage() {
+	const { t, i18n } = useTranslation();
 	const qc = useQueryClient();
 	const [confirm, setConfirm] = React.useState<
 		| { type: "resetAll" }
@@ -102,7 +104,7 @@ export function RuntimePage() {
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-					Runtime
+					{t("runtime.title")}
 				</h2>
 				<div className="flex items-center gap-2">
 					<Button
@@ -114,7 +116,7 @@ export function RuntimePage() {
 						<RefreshCw
 							className={`mr-2 h-4 w-4 ${resetAllM.isPending ? "animate-spin" : ""}`}
 						/>
-						Reset All Caches
+						{t("runtime.buttons.resetAllCaches")}
 					</Button>
 				</div>
 			</div>
@@ -166,26 +168,34 @@ export function RuntimePage() {
 								<div className="flex items-center justify-between mb-2">
 									<div className="flex items-center gap-2">
 										<Wrench className="h-4 w-4 text-slate-500" />
-										<div className="font-semibold uppercase">{key}</div>
+										<div className="font-semibold uppercase">
+											{t(`runtime.types.${key}`)}
+										</div>
 									</div>
 									<StatusBadge status={statusStr} />
 								</div>
 
 								<div className="space-y-1 text-sm">
 									<div className="flex items-center justify-between">
-										<span className="text-slate-500">Version</span>
+										<span className="text-slate-500">
+											{t("runtime.labels.version")}
+										</span>
 										<span>{st?.version || "N/A"}</span>
 									</div>
 									{folder ? (
 										<div className="flex items-center justify-between">
-											<span className="text-slate-500">Folder</span>
+											<span className="text-slate-500">
+												{t("runtime.labels.folder")}
+											</span>
 											<span className="truncate max-w-[60%]" title={folder}>
 												{folder}
 											</span>
 										</div>
 									) : null}
 									<div className="flex items-center justify-between">
-										<span className="text-slate-500">Message</span>
+										<span className="text-slate-500">
+											{t("runtime.labels.message")}
+										</span>
 										<span
 											className="truncate max-w-[60%]"
 											title={st?.message || ""}
@@ -194,20 +204,28 @@ export function RuntimePage() {
 										</span>
 									</div>
 
-									<div className="mt-3 font-medium">Cache</div>
+									<div className="mt-3 font-medium">
+										{t("runtime.labels.cache")}
+									</div>
 									<div className="flex items-center justify-between">
-										<span className="text-slate-500">Size</span>
+										<span className="text-slate-500">
+											{t("runtime.labels.size")}
+										</span>
 										<span>{formatBytes(c?.size_bytes || 0)}</span>
 									</div>
 									<div className="flex items-center justify-between">
-										<span className="text-slate-500">Packages</span>
+										<span className="text-slate-500">
+											{t("runtime.labels.packages")}
+										</span>
 										<span>{c?.package_count ?? 0}</span>
 									</div>
 									<div className="flex items-center justify-between">
-										<span className="text-slate-500">Last Modified</span>
+										<span className="text-slate-500">
+											{t("runtime.labels.lastModified")}
+										</span>
 										<span>
 											{c?.last_modified
-												? formatRelativeTime(c.last_modified)
+												? formatRelativeTime(c.last_modified, i18n.language)
 												: "—"}
 										</span>
 									</div>
@@ -222,7 +240,7 @@ export function RuntimePage() {
 										<Wrench
 											className={`mr-2 h-4 w-4 ${installM.isPending ? "animate-spin" : ""}`}
 										/>
-										Install / Repair
+										{t("runtime.buttons.installRepair")}
 									</Button>
 									<Button
 										variant="outline"
@@ -233,7 +251,7 @@ export function RuntimePage() {
 										<RefreshCw
 											className={`mr-2 h-4 w-4 ${resetOneM.isPending ? "animate-spin" : ""}`}
 										/>
-										Reset Cache
+										{t("runtime.buttons.resetCache")}
 									</Button>
 								</div>
 							</div>
@@ -245,7 +263,7 @@ export function RuntimePage() {
 			{/* Capabilities Cache */}
 			<Card>
 				<CardHeader>
-					<CardTitle>Capabilities Cache</CardTitle>
+					<CardTitle>{t("runtime.capabilities.title")}</CardTitle>
 				</CardHeader>
 				<CardContent>
 					{capabilitiesStatsQ.isLoading ? (
@@ -258,7 +276,9 @@ export function RuntimePage() {
 						<div className="space-y-4 text-sm">
 							<div className="grid gap-2 md:grid-cols-2">
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">DB Path</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.dbPath")}
+									</span>
 									<span
 										className="truncate max-w-[60%]"
 										title={capStats?.storage?.db_path || ""}
@@ -267,73 +287,108 @@ export function RuntimePage() {
 									</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Cache Size</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.cacheSize")}
+									</span>
 									<span>{formatBytes(capStats.storage.cache_size_bytes)}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Last Cleanup</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.lastCleanup")}
+									</span>
 									<span>
 										{capStats.storage.last_cleanup
-											? formatRelativeTime(capStats.storage.last_cleanup)
+											? formatRelativeTime(
+													capStats.storage.last_cleanup,
+													i18n.language,
+												)
 											: "—"}
 									</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Generated</span>
-									<span>{formatRelativeTime(capStats.generatedAt)}</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.generated")}
+									</span>
+									<span>
+										{formatRelativeTime(capStats.generatedAt, i18n.language)}
+									</span>
 								</div>
 							</div>
 
 							<div className="mt-2 grid gap-2 md:grid-cols-3">
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Servers</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.servers")}
+									</span>
 									<span>{capStats.storage.tables.servers}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Tools</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.tools")}
+									</span>
 									<span>{capStats.storage.tables.tools}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Resources</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.resources")}
+									</span>
 									<span>{capStats.storage.tables.resources}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Prompts</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.prompts")}
+									</span>
 									<span>{capStats.storage.tables.prompts}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Resource Templates</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.resourceTemplates")}
+									</span>
 									<span>{capStats.storage.tables.resourceTemplates}</span>
 								</div>
 							</div>
 
 							<div className="mt-4 grid gap-2 md:grid-cols-3">
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Total Queries</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.totalQueries")}
+									</span>
 									<span>{capStats.metrics.totalQueries}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Cache Hits</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.cacheHits")}
+									</span>
 									<span>{capStats.metrics.cacheHits}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Cache Misses</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.cacheMisses")}
+									</span>
 									<span>{capStats.metrics.cacheMisses}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Hit Ratio</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.hitRatio")}
+									</span>
 									<span>{capStats.metrics.hitRatio.toFixed(2)}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Reads</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.reads")}
+									</span>
 									<span>{capStats.metrics.readOperations}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Writes</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.writes")}
+									</span>
 									<span>{capStats.metrics.writeOperations}</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-slate-500">Invalidations</span>
+									<span className="text-slate-500">
+										{t("runtime.capabilities.labels.invalidations")}
+									</span>
 									<span>{capStats.metrics.cacheInvalidations}</span>
 								</div>
 							</div>
@@ -341,7 +396,9 @@ export function RuntimePage() {
 							{/* Reset Capabilities button removed as requested */}
 						</div>
 					) : (
-						<p className="text-sm text-slate-500">No data.</p>
+						<p className="text-sm text-slate-500">
+							{t("runtime.capabilities.noData")}
+						</p>
 					)}
 				</CardContent>
 			</Card>
@@ -361,26 +418,36 @@ export function RuntimePage() {
 				}}
 				title={
 					confirm?.type === "resetAll"
-						? "Reset all runtime caches?"
+						? t("runtime.dialogs.resetAllTitle")
 						: confirm?.type === "resetOne"
-							? `Reset ${confirm.key.toUpperCase()} cache?`
+							? t("runtime.dialogs.resetOneTitle", {
+									key: confirm.key.toUpperCase(),
+								})
 							: confirm?.type === "install"
-								? `Install/Repair ${confirm.key.toUpperCase()} runtime?`
-								: "Confirm"
+								? t("runtime.dialogs.installTitle", {
+										key: confirm.key.toUpperCase(),
+									})
+								: t("runtime.dialogs.confirm")
 				}
 				description={
 					confirm?.type === "resetAll"
-						? "This will clear all runtime caches. Continue?"
+						? t("runtime.dialogs.resetAllDescription")
 						: confirm?.type === "resetOne"
-							? `This will clear ${confirm.key.toUpperCase()} cache. Continue?`
+							? t("runtime.dialogs.resetOneDescription", {
+									key: confirm.key.toUpperCase(),
+								})
 							: confirm?.type === "install"
-								? `This will install or repair ${confirm.key.toUpperCase()} on the server. Continue?`
+								? t("runtime.dialogs.installDescription", {
+										key: confirm.key.toUpperCase(),
+									})
 								: ""
 				}
 				confirmLabel={
-					confirm?.type === "install" ? "Install / Repair" : "Confirm"
+					confirm?.type === "install"
+						? t("runtime.dialogs.installRepair")
+						: t("runtime.dialogs.confirm")
 				}
-				cancelLabel="Cancel"
+				cancelLabel={t("runtime.dialogs.cancel")}
 				variant={confirm?.type === "install" ? "default" : "destructive"}
 				isLoading={
 					confirm?.type === "resetAll"

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { InstanceSummary } from "../lib/types";
 import { getStatusVariant } from "../lib/utils";
 import { Badge } from "./ui/badge";
@@ -19,6 +20,7 @@ export function StatusBadge({
 	blinkOnError = true,
 	isServerEnabled = false,
 }: StatusBadgeProps) {
+	const { t } = useTranslation();
 	// If instances array is provided, determine overall status based on instance statuses
 	let statusStr = status?.toString().toLowerCase() || "unknown";
 	let shouldBlink = false;
@@ -91,19 +93,19 @@ export function StatusBadge({
 			"fetch",
 		].includes(statusStr)
 	) {
-		displayText = "Ready";
+		displayText = t("common.status.ready");
 	} else if (["error", "unhealthy", "failed"].includes(statusStr)) {
-		displayText = "Error";
+		displayText = t("common.status.error");
 	} else if (
 		["shutdown", "disconnected", "stopped", "disabled"].includes(statusStr)
 	) {
-		displayText = "Disconnected";
+		displayText = t("common.status.disconnected");
 	} else if (["initializing", "starting", "connecting"].includes(statusStr)) {
-		displayText = "Initializing";
+		displayText = t("common.status.initializing");
 	} else if (statusStr === "idle") {
-		displayText = "Idle";
+		displayText = t("common.status.idle");
 	} else {
-		displayText = "Unknown";
+		displayText = t("common.status.unknown");
 	}
 
 	return (
