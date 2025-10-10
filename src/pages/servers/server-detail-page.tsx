@@ -1732,11 +1732,8 @@ function InspectorDebugSection({
 }
 
 function safeLog(value: unknown) {
-	try {
-		return JSON.stringify(value, null, 2);
-	} catch {
-		return String(value);
-	}
+    return smartFormat(value);
 }
 
 export default ServerDetailPage;
+import { smartFormat } from "../../lib/format";

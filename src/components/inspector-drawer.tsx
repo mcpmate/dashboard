@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { inspectorApi } from "../lib/api";
 import { writeClipboardText } from "../lib/clipboard";
 import { usePageTranslations } from "../lib/i18n/usePageTranslations";
+import { smartFormat } from "../lib/format";
 import { notifyError, notifySuccess } from "../lib/notify";
 import type { InspectorSessionOpenData, InspectorSseEvent } from "../lib/types";
 import type {
@@ -244,8 +245,8 @@ function formatEventLabel(
 }
 
 function formatEventDetails(
-	entry: InspectorEventEntry,
-	t: (key: string, options?: Record<string, unknown>) => string,
+    entry: InspectorEventEntry,
+    t: (key: string, options?: Record<string, unknown>) => string,
 ): string | null {
 	const { data } = entry;
 	switch (data.event) {
@@ -253,8 +254,8 @@ function formatEventDetails(
 			return t("eventDetails.session", { sessionId: data.session_id ?? "n/a" });
 		case "progress":
 			return data.message ?? null;
-		case "log":
-			return safeJson(data.data);
+        case "log":
+            return smartFormat(data.data);
 		case "result":
 			return t("eventDetails.elapsed", { elapsedMs: data.elapsed_ms });
 		case "error":
@@ -266,13 +267,7 @@ function formatEventDetails(
 	}
 }
 
-function safeJson(value: unknown): string {
-	try {
-		return JSON.stringify(value, null, 2);
-	} catch {
-		return String(value);
-	}
-}
+// Note: smartFormat centralizes pretty rendering for logs and results
 
 function formatTimestamp(ts: number): string {
 	return new Date(ts).toLocaleTimeString([], {
@@ -827,6 +822,38 @@ export function InspectorDrawer({
 		}
 	}
 
+	// Try to extract text from common MCP/LLM response envelopes
+	function extractHumanText(value: unknown): string | null {
+		if (
+			value &&
+			typeof value === "object" &&
+			!Array.isArray(value)
+		) {
+			const rec = value as Record<string, unknown>;
+			if (rec.type === "text" && typeof rec.text === "string") {
+				return rec.text as string;
+			}
+			if (Array.isArray((rec as any).content)) {
+				const segments = ((rec as any).content as unknown[]).map((seg) => {
+					if (typeof seg === "string") return seg;
+					if (
+						seg &&
+						typeof seg === "object" &&
+						!Array.isArray(seg) &&
+						((seg as any).type === "text" || (seg as any).type === "input_text") &&
+						typeof (seg as any).text === "string"
+					) {
+						return String((seg as any).text);
+					}
+					return null;
+				});
+				const texts = segments.filter((s): s is string => Boolean(s));
+				if (texts.length) return texts.join("\n\n");
+			}
+		}
+		return null;
+	}
+
 	const optionsMap = useMemo(() => {
 		const map = new Map<string, CapabilityRecord>();
 		capOptions.forEach((entry, index) => {
@@ -1306,24 +1333,20 @@ export function InspectorDrawer({
 		}
 	}
 
-	function pretty(value: unknown) {
-		try {
-			return JSON.stringify(value, null, 2);
-		} catch {
-			return String(value);
-		}
-	}
+    function pretty(value: unknown) {
+        return smartFormat(value);
+    }
 
-	const handleCopy = useCallback(async () => {
-		if (result == null) return;
-		try {
-			const text =
-				typeof result === "string" ? result : JSON.stringify(result, null, 2);
-			await writeClipboardText(text);
-			notifySuccess(
-				t("notifications.copySuccess"),
-				t("notifications.copySuccessMessage"),
-			);
+    const handleCopy = useCallback(async () => {
+        if (result == null) return;
+        try {
+            const extracted = extractHumanText(result);
+            const text = extracted ?? pretty(result);
+            await writeClipboardText(text);
+            notifySuccess(
+                t("notifications.copySuccess"),
+                t("notifications.copySuccessMessage"),
+            );
 		} catch (err) {
 			notifyError(
 				t("notifications.copyFailed"),
@@ -1734,7 +1757,9 @@ export function InspectorDrawer({
 									</div>
 								) : null}
 								<div className="p-3 whitespace-pre-wrap break-words">
-									{result ? pretty(result) : t("response.placeholder")}
+									{result
+										? extractHumanText(result) ?? pretty(result)
+										: t("response.placeholder")}
 								</div>
 							</div>
 						</TabsContent>
