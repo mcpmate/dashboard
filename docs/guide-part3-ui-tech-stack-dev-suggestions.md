@@ -54,7 +54,7 @@
 - **实时数据更新**: 对于服务器状态、工具列表、系统指标等动态数据，应实现实时或近实时更新。可以考虑使用以下技术：
     - **WebSocket**: 用于从后端接收实时通知 (如 `notifications/tools/changed`)。
     - **定期轮询 (Polling)**: 对于某些非关键但需要更新的数据，可以采用短轮询或长轮询机制调用 API 获取最新状态。
-    - **Server-Sent Events (SSE)**: 如果后端 API 支持，也可用于单向实时数据流。
+    - **Server-Sent Events (SSE)**: 如果后端 API 支持，也可用于单向实时数据流。Safari / WKWebView（Tauri）存在原生 SSE 兼容性问题，前端已引入 `event-source-polyfill` 作为降级方案；新增 SSE 代码时，优先使用 `NativeEventSource || EventSourcePolyfill` 的构造方式，必要时传入 `{ withCredentials: true }` 以确保跨源 Cookie 能被携带。
 
 ## 6. 开发建议
 

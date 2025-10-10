@@ -1,3 +1,4 @@
+import { EventSourcePolyfill, NativeEventSource } from "event-source-polyfill";
 import {
 	AlertCircle,
 	CheckCircle2,
@@ -9,8 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { inspectorApi } from "../lib/api";
 import { writeClipboardText } from "../lib/clipboard";
-import { usePageTranslations } from "../lib/i18n/usePageTranslations";
 import { smartFormat } from "../lib/format";
+import { usePageTranslations } from "../lib/i18n/usePageTranslations";
 import { notifyError, notifySuccess } from "../lib/notify";
 import type { InspectorSessionOpenData, InspectorSseEvent } from "../lib/types";
 import type {
@@ -245,8 +246,8 @@ function formatEventLabel(
 }
 
 function formatEventDetails(
-    entry: InspectorEventEntry,
-    t: (key: string, options?: Record<string, unknown>) => string,
+	entry: InspectorEventEntry,
+	t: (key: string, options?: Record<string, unknown>) => string,
 ): string | null {
 	const { data } = entry;
 	switch (data.event) {
@@ -254,8 +255,8 @@ function formatEventDetails(
 			return t("eventDetails.session", { sessionId: data.session_id ?? "n/a" });
 		case "progress":
 			return data.message ?? null;
-        case "log":
-            return smartFormat(data.data);
+		case "log":
+			return smartFormat(data.data);
 		case "result":
 			return t("eventDetails.elapsed", { elapsedMs: data.elapsed_ms });
 		case "error":
@@ -824,11 +825,7 @@ export function InspectorDrawer({
 
 	// Try to extract text from common MCP/LLM response envelopes
 	function extractHumanText(value: unknown): string | null {
-		if (
-			value &&
-			typeof value === "object" &&
-			!Array.isArray(value)
-		) {
+		if (value && typeof value === "object" && !Array.isArray(value)) {
 			const rec = value as Record<string, unknown>;
 			if (rec.type === "text" && typeof rec.text === "string") {
 				return rec.text as string;
@@ -840,7 +837,8 @@ export function InspectorDrawer({
 						seg &&
 						typeof seg === "object" &&
 						!Array.isArray(seg) &&
-						((seg as any).type === "text" || (seg as any).type === "input_text") &&
+						((seg as any).type === "text" ||
+							(seg as any).type === "input_text") &&
 						typeof (seg as any).text === "string"
 					) {
 						return String((seg as any).text);
@@ -1091,7 +1089,22 @@ export function InspectorDrawer({
 
 			try {
 				const url = inspectorApi.toolCallEventsUrl(callId);
-				const source = new EventSource(url);
+					// Force polyfill for Safari/WKWebView (Tauri), else prefer native.
+					const shouldForcePolyfill = (() => {
+						try {
+							const isTauri =
+								typeof window !== "undefined" && (window as any).__MCPMATE_IS_TAURI__ === true;
+							const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+							const isSafari = /Safari\//.test(ua) && !/Chrome\//.test(ua) && !/Chromium\//.test(ua) && !/Edg\//.test(ua);
+							return isTauri || isSafari;
+						} catch {
+							return false;
+						}
+					})();
+					const ES = (shouldForcePolyfill
+						? EventSourcePolyfill
+						: (NativeEventSource || EventSourcePolyfill)) as typeof EventSource;
+					const source = new ES(url, { withCredentials: true });
 				eventSourceRef.current = source;
 
 				source.onmessage = (event) => {
@@ -1333,20 +1346,20 @@ export function InspectorDrawer({
 		}
 	}
 
-    function pretty(value: unknown) {
-        return smartFormat(value);
-    }
+	function pretty(value: unknown) {
+		return smartFormat(value);
+	}
 
-    const handleCopy = useCallback(async () => {
-        if (result == null) return;
-        try {
-            const extracted = extractHumanText(result);
-            const text = extracted ?? pretty(result);
-            await writeClipboardText(text);
-            notifySuccess(
-                t("notifications.copySuccess"),
-                t("notifications.copySuccessMessage"),
-            );
+	const handleCopy = useCallback(async () => {
+		if (result == null) return;
+		try {
+			const extracted = extractHumanText(result);
+			const text = extracted ?? pretty(result);
+			await writeClipboardText(text);
+			notifySuccess(
+				t("notifications.copySuccess"),
+				t("notifications.copySuccessMessage"),
+			);
 		} catch (err) {
 			notifyError(
 				t("notifications.copyFailed"),
@@ -1758,7 +1771,7 @@ export function InspectorDrawer({
 								) : null}
 								<div className="p-3 whitespace-pre-wrap break-words">
 									{result
-										? extractHumanText(result) ?? pretty(result)
+										? (extractHumanText(result) ?? pretty(result))
 										: t("response.placeholder")}
 								</div>
 							</div>

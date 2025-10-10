@@ -565,23 +565,31 @@ export const ServerInstallManualForm = forwardRef<
 			}
 		}, [isDropZoneCollapsed, setIsDropZoneCollapsed]);
 
-		const handleDropZoneClick = useCallback(() => {
-			if (!ingestEnabled) return;
-			if (isDropZoneCollapsed) {
-				setIsDropZoneCollapsed(false);
-				setIngestError(null);
-				setIsIngestSuccess(false);
-				setIngestMessage(ingestMessages.defaultMessage);
-			}
-		}, [
-			ingestEnabled,
-			isDropZoneCollapsed,
-			setIsDropZoneCollapsed,
-			setIngestError,
-			setIsIngestSuccess,
-			setIngestMessage,
-			ingestMessages.defaultMessage,
-		]);
+    const handleDropZoneClick = useCallback(() => {
+        if (!ingestEnabled) return;
+        if (isDropZoneCollapsed) {
+            setIsDropZoneCollapsed(false);
+            setIngestError(null);
+            setIsIngestSuccess(false);
+            setIngestMessage(ingestMessages.defaultMessage);
+            // After expanding, try to ingest from clipboard on user gesture
+            setTimeout(() => {
+                void ingestClipboardPayload();
+            }, 0);
+        } else {
+            // Already expanded: attempt clipboard ingest immediately on click
+            void ingestClipboardPayload();
+        }
+    }, [
+        ingestEnabled,
+        ingestClipboardPayload,
+        isDropZoneCollapsed,
+        setIsDropZoneCollapsed,
+        setIngestError,
+        setIsIngestSuccess,
+        setIngestMessage,
+        ingestMessages.defaultMessage,
+    ]);
 
 		// Drag and drop handlers
 		const onDragEnter = (event: React.DragEvent<HTMLButtonElement>) => {
