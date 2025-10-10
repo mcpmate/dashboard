@@ -83,16 +83,21 @@ function sanitizeMarketPortalMeta(
 						typeof locale === "string" && locale.trim().length > 0,
 				)
 			: (fallback?.locales ?? canonical.locales);
-	const localeParamInput =
+  const localeParamInput =
 		(input as Partial<MarketPortalDefinition>).localeParam ??
 		fallback?.localeParam ??
 		canonical.localeParam;
-	let localeParam: MarketPortalDefinition["localeParam"] | undefined;
-	if (localeParamInput && typeof localeParamInput === "object") {
+  let localeParam: MarketPortalDefinition["localeParam"] | undefined;
+  if (localeParamInput && typeof localeParamInput === "object") {
 		const keyRaw = (localeParamInput as { key?: unknown }).key;
 		const key =
 			typeof keyRaw === "string" && keyRaw.trim().length > 0
 				? keyRaw.trim()
+				: undefined;
+		const strategyRaw = (localeParamInput as { strategy?: unknown }).strategy;
+		const strategy =
+			strategyRaw === "path-prefix" || strategyRaw === "query"
+				? (strategyRaw as "path-prefix" | "query")
 				: undefined;
 		const mappingRaw = (localeParamInput as { mapping?: unknown }).mapping;
 		const mapping =
@@ -115,14 +120,16 @@ function sanitizeMarketPortalMeta(
 			typeof (localeParamInput as { fallback?: unknown }).fallback === "string"
 				? ((localeParamInput as { fallback?: string }).fallback ?? "").trim()
 				: undefined;
-		if (key) {
+		if (key || strategy) {
 			localeParam = {
-				key,
+				// Keep key for backward compatibility even if using path-prefix
+				...(key ? { key } : {}),
+				...(strategy ? { strategy } : {}),
 				...(mapping ? { mapping } : {}),
 				...(fallbackLocale ? { fallback: fallbackLocale } : {}),
 			};
 		}
-	}
+  }
 
 	return {
 		id: targetId,

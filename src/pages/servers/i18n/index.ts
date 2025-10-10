@@ -242,6 +242,20 @@ export const serversTranslations = {
 					search: "Search logs...",
 					clear: "Clear Logs",
 					empty: "No inspector events yet.",
+					status: {
+						mode: {
+							proxy: "PROXY",
+							native: "NATIVE",
+						},
+						event: {
+							request: "REQUEST",
+							success: "SUCCESS",
+							error: "ERROR",
+							progress: "PROGRESS",
+							log: "LOG",
+							cancelled: "CANCELLED",
+						},
+					},
 				},
 				results: {
 					lastFetched: "Last listed at {{time}}",
@@ -804,7 +818,7 @@ export const serversTranslations = {
 				channel: {
 					proxy: "代理",
 					native: "本地",
-					fallback: "在代理可用前暂时使用本地模式",
+					fallback: "代理不可用时自动使用本地模式",
 					hintTitle: "代理不可用",
 					hintDescription: "请在某个启用的配置中启用该服务器以使用代理模式。",
 					openProfiles: "打开配置",
@@ -829,6 +843,20 @@ export const serversTranslations = {
 					search: "搜索日志...",
 					clear: "清空日志",
 					empty: "暂无检测事件。",
+					status: {
+						mode: {
+							proxy: "代理",
+							native: "本地",
+						},
+						event: {
+							request: "请求",
+							success: "成功",
+							error: "错误",
+							progress: "进度",
+							log: "日志",
+							cancelled: "已取消",
+						},
+					},
 				},
 				results: {
 					lastFetched: "上次列出时间 {{time}}",
@@ -1100,13 +1128,13 @@ export const serversTranslations = {
 					baseSingle: "已跳过 {{count}} 个服务器",
 					baseMultiple: "已跳过 {{count}} 个服务器",
 					withDetail: "{{base}}：{{detail}}",
-					suffixAlreadyInstalled: "均已存在，可直接使用，无需重新导入。",
+					suffixAlreadyInstalled: "已存在可直接使用，无需重新导入。",
 				},
 				readyStatusTitle: "可执行导入",
 				readyStatusDescription: "配置已就绪，请确认信息后点击“导入”。",
 				importingStatus: "正在导入服务器…",
 				successTitle: "导入成功",
-				successAllSkipped: "所选服务器均已安装，本次未做任何更改。",
+				successAllSkipped: "所选服务器已安装，本次未做任何更改。",
 				successInstalled: "服务器已成功安装，可立即使用。",
 				successAutoEnabled: '已自动启用至 "{{profile}}"。',
 				failureTitle: "导入失败",
@@ -1396,6 +1424,20 @@ export const serversTranslations = {
 					search: "ログを検索...",
 					clear: "ログをクリア",
 					empty: "インスペクターのイベントはありません。",
+					status: {
+						mode: {
+							proxy: "プロキシ",
+							native: "ネイティブ",
+						},
+						event: {
+							request: "リクエスト",
+							success: "成功",
+							error: "エラー",
+							progress: "進行",
+							log: "ログ",
+							cancelled: "キャンセル済み",
+						},
+					},
 				},
 				results: {
 					lastFetched: "最終取得 {{time}}",
@@ -1456,7 +1498,8 @@ export const serversTranslations = {
 				error: "エラー：",
 			},
 			healthMessages: {
-				idlePlaceholder: "インスタンスはアイドル状態です（プレースホルダー、未接続）",
+				idlePlaceholder:
+					"インスタンスはアイドル状態です（プレースホルダー、未接続）",
 			},
 		},
 		manual: {

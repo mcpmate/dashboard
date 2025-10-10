@@ -1,8 +1,10 @@
-import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronsUpDown, ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { inspectorApi } from "../lib/api";
-import { notifyError, notifySuccess } from "../lib/notify";
 import { writeClipboardText } from "../lib/clipboard";
+import { usePageTranslations } from "../lib/i18n/usePageTranslations";
+import { notifyError, notifySuccess } from "../lib/notify";
 import type { InspectorSessionOpenData, InspectorSseEvent } from "../lib/types";
 import type {
 	CapabilityArgument,
@@ -15,6 +17,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
 import { Card, CardContent } from "./ui/card";
+import CapabilityCombobox from "./capability-combobox";
 import {
 	Drawer,
 	DrawerContent,
@@ -25,15 +28,17 @@ import {
 } from "./ui/drawer";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ScrollArea } from "./ui/scroll-area";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "./ui/command";
 import { Textarea } from "./ui/textarea";
 import {
 	Tooltip,
@@ -88,7 +93,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const toCapabilityRecord = (value: unknown): CapabilityRecord | null =>
 	isRecord(value) ? (value as CapabilityRecord) : null;
 
-const toString = (value: unknown): string | undefined =>
+const toStringValue = (value: unknown): string | undefined =>
 	typeof value === "string" ? value : undefined;
 
 const isJsonObjectValue = (value: unknown): value is JsonObject =>
@@ -113,9 +118,9 @@ const normalizeArguments = (value: unknown): CapabilityArgument[] => {
 			return { name: `arg_${index}` };
 		}
 		return {
-			name: toString(record.name) ?? `arg_${index}`,
-			type: toString(record.type) ?? "string",
-			description: toString(record.description),
+			name: toStringValue(record.name) ?? `arg_${index}`,
+			type: toStringValue(record.type) ?? "string",
+			description: toStringValue(record.description),
 			required:
 				typeof record.required === "boolean" ? record.required : undefined,
 		};
@@ -203,44 +208,50 @@ function computeRecordKey(
 				? PROMPT_KIND_KEYS
 				: RESOURCE_KIND_KEYS;
 	for (const key of sources) {
-		const value = toString(record[key]);
+		const value = toStringValue(record[key]);
 		if (value) return value;
 	}
 	return "";
 }
 
-function formatEventLabel(entry: InspectorEventEntry): string {
+function formatEventLabel(
+	entry: InspectorEventEntry,
+	t: (key: string) => string,
+): string {
 	switch (entry.data.event) {
 		case "started":
-			return "Started";
+			return t("eventLabels.started");
 		case "progress":
 			return entry.data.total
-				? `Progress ${entry.data.progress}/${entry.data.total}`
-				: `Progress ${entry.data.progress}`;
+				? `${t("eventLabels.progress")} ${entry.data.progress}/${entry.data.total}`
+				: `${t("eventLabels.progress")} ${entry.data.progress}`;
 		case "log":
-			return entry.data.logger || entry.data.level || "Log";
+			return entry.data.logger || entry.data.level || t("eventLabels.log");
 		case "result":
-			return "Result";
+			return t("eventLabels.result");
 		case "error":
-			return "Error";
+			return t("eventLabels.error");
 		case "cancelled":
-			return "Cancelled";
+			return t("eventLabels.cancelled");
 		default:
 			return entry.data.event;
 	}
 }
 
-function formatEventDetails(entry: InspectorEventEntry): string | null {
+function formatEventDetails(
+	entry: InspectorEventEntry,
+	t: (key: string, options?: Record<string, unknown>) => string,
+): string | null {
 	const { data } = entry;
 	switch (data.event) {
 		case "started":
-			return `Session: ${data.session_id ?? "n/a"}`;
+			return t("eventDetails.session", { sessionId: data.session_id ?? "n/a" });
 		case "progress":
 			return data.message ?? null;
 		case "log":
 			return safeJson(data.data);
 		case "result":
-			return `Elapsed ${data.elapsed_ms} ms`;
+			return t("eventDetails.elapsed", { elapsedMs: data.elapsed_ms });
 		case "error":
 			return data.message;
 		case "cancelled":
@@ -291,9 +302,9 @@ function pickToolNameForMode(
 	mode: "proxy" | "native",
 ): string {
 	if (!source) return "";
-	const uniqueName = toString(source.unique_name);
-	const toolName = toString(source.tool_name);
-	const rawName = toString(source.name);
+	const uniqueName = toStringValue(source.unique_name);
+	const toolName = toStringValue(source.tool_name);
+	const rawName = toStringValue(source.name);
 	if (mode === "proxy") {
 		return uniqueName || toolName || rawName || "";
 	}
@@ -310,6 +321,9 @@ export function InspectorDrawer({
 	mode,
 	onLog,
 }: InspectorDrawerProps) {
+	const { t } = useTranslation("inspector");
+	usePageTranslations("inspector");
+	const drawerContentRef = useRef<HTMLDivElement | null>(null);
 	const [timeoutMs, setTimeoutMs] = useState<number>(8000);
 	const [argsJson, setArgsJson] = useState<string>("{}");
 	const [useRaw, setUseRaw] = useState(false);
@@ -337,7 +351,7 @@ export function InspectorDrawer({
 	const [result, setResult] = useState<unknown>(null);
 	const [events, setEvents] = useState<InspectorEventEntry[]>([]);
 	const eventsEndRef = useRef<HTMLDivElement | null>(null);
-	const [session, setSession] = useState<InspectorSessionOpenData | null>(null);
+  const [session, setSession] = useState<InspectorSessionOpenData | null>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const [activeCallId, setActiveCallId] = useState<string | null>(null);
 	const activeCallIdRef = useRef<string | null>(null);
@@ -346,11 +360,15 @@ export function InspectorDrawer({
 		serverId?: string;
 		serverName?: string;
 	} | null>(null);
-	const [toolOptions, setToolOptions] = useState<CapabilityRecord[]>([]);
-	const [toolOptionsLoading, setToolOptionsLoading] = useState(false);
-	const [toolOptionsError, setToolOptionsError] = useState<string | null>(null);
-	const [view, setView] = useState<"response" | "events">("response");
+  const [capOptions, setCapOptions] = useState<CapabilityRecord[]>([]);
+    const [capOptionsLoading, setCapOptionsLoading] = useState(false);
+    const [capOptionsError, setCapOptionsError] = useState<string | null>(null);
+    const [view, setView] = useState<"response" | "events">("response");
+
+    // combobox open/width is handled in CapabilityCombobox
 	const [formCollapsed, setFormCollapsed] = useState(false);
+
+	// Combobox state is managed directly by Popover component
 	const propItemKey = useMemo(() => computeRecordKey(item, kind), [item, kind]);
 	const currentItemKey = useMemo(
 		() => computeRecordKey(currentItem, kind),
@@ -411,53 +429,86 @@ export function InspectorDrawer({
 		eventsEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
 	}, [events]);
 
-	useEffect(() => {
-		if (!open || kind !== "tool") {
-			setToolOptions([]);
-			setToolOptionsError(null);
-			setToolOptionsLoading(false);
-			return;
-		}
-		if (!serverId && !serverName) {
-			setToolOptions([]);
-			setToolOptionsLoading(false);
-			setToolOptionsError(null);
-			return;
-		}
-		let cancelled = false;
-		setToolOptionsLoading(true);
-		setToolOptionsError(null);
-		(async () => {
-			try {
-				const resp = (await inspectorApi.toolsList({
-					server_id: serverId,
-					server_name: serverName,
-					mode,
-				})) as InspectorResponse<{ tools?: unknown[] }> | undefined;
-				if (cancelled) return;
-				const rawList = Array.isArray(resp?.data?.tools)
-					? resp?.data?.tools
-					: [];
-				const normalized = rawList
-					.map((entry) => toCapabilityRecord(entry))
-					.filter(Boolean) as CapabilityRecord[];
-				setToolOptions(normalized);
-			} catch (error) {
-				if (!cancelled) {
-					setToolOptionsError(
-						error instanceof Error ? error.message : String(error ?? ""),
-					);
-				}
-			} finally {
-				if (!cancelled) {
-					setToolOptionsLoading(false);
-				}
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [open, kind, serverId, serverName, mode, propItemKey]);
+useEffect(() => {
+    if (!open) {
+        return;
+    }
+    // Reset when missing server context
+    if (!serverId && !serverName) {
+        setCapOptions([]);
+        setCapOptionsLoading(false);
+        setCapOptionsError(null);
+        return;
+    }
+    let cancelled = false;
+    setCapOptionsLoading(true);
+    setCapOptionsError(null);
+    (async () => {
+        try {
+            let resp: InspectorResponse<any> | undefined;
+            if (kind === "tool") {
+                resp = (await inspectorApi.toolsList({
+                    server_id: serverId,
+                    server_name: serverName,
+                    mode,
+                })) as InspectorResponse<{ tools?: unknown[] }> | undefined;
+                const rawList = Array.isArray(resp?.data?.tools) ? resp?.data?.tools : [];
+                const normalized = rawList
+                    .map((entry: unknown) => toCapabilityRecord(entry))
+                    .filter(Boolean) as CapabilityRecord[];
+                if (!cancelled) setCapOptions(normalized);
+            } else if (kind === "prompt") {
+                resp = (await inspectorApi.promptsList({
+                    server_id: serverId,
+                    server_name: serverName,
+                    mode,
+                })) as InspectorResponse<{ prompts?: unknown[] }> | undefined;
+                const rawList = Array.isArray(resp?.data?.prompts) ? resp?.data?.prompts : [];
+                const normalized = rawList
+                    .map((entry: unknown) => toCapabilityRecord(entry))
+                    .filter(Boolean) as CapabilityRecord[];
+                if (!cancelled) setCapOptions(normalized);
+            } else if (kind === "resource") {
+                resp = (await inspectorApi.resourcesList({
+                    server_id: serverId,
+                    server_name: serverName,
+                    mode,
+                })) as InspectorResponse<{ resources?: unknown[] }> | undefined;
+                const rawList = Array.isArray(resp?.data?.resources)
+                    ? resp?.data?.resources
+                    : [];
+                const normalized = rawList
+                    .map((entry: unknown) => toCapabilityRecord(entry))
+                    .filter(Boolean) as CapabilityRecord[];
+                if (!cancelled) setCapOptions(normalized);
+            } else {
+                resp = (await inspectorApi.templatesList({
+                    server_id: serverId,
+                    server_name: serverName,
+                    mode,
+                })) as InspectorResponse<{ templates?: unknown[] }> | undefined;
+                const rawList = Array.isArray(resp?.data?.templates)
+                    ? resp?.data?.templates
+                    : [];
+                const normalized = rawList
+                    .map((entry: unknown) => toCapabilityRecord(entry))
+                    .filter(Boolean) as CapabilityRecord[];
+                if (!cancelled) setCapOptions(normalized);
+            }
+        } catch (error) {
+            if (!cancelled) {
+                setCapOptionsError(error instanceof Error ? error.message : String(error ?? ""));
+            }
+        } finally {
+            if (!cancelled) {
+                setCapOptionsLoading(false);
+            }
+        }
+    })();
+    return () => {
+        cancelled = true;
+    };
+}, [open, kind, serverId, serverName, mode, propItemKey]);
 
 	useEffect(() => {
 		activeCallIdRef.current = activeCallId;
@@ -702,18 +753,18 @@ export function InspectorDrawer({
 		} else if (kind === "prompt") {
 			const promptName =
 				(mode === "proxy"
-					? (toString(source?.unique_name) ??
-						toString(source?.prompt_name) ??
-						toString(source?.name))
-					: (toString(source?.prompt_name) ??
-						toString(source?.name) ??
-						toString(source?.unique_name))) ?? "";
+					? (toStringValue(source?.unique_name) ??
+						toStringValue(source?.prompt_name) ??
+						toStringValue(source?.name))
+					: (toStringValue(source?.prompt_name) ??
+						toStringValue(source?.name) ??
+						toStringValue(source?.unique_name))) ?? "";
 			setName(promptName);
 		} else if (kind === "resource") {
 			const resourceUri =
-				toString(source?.resource_uri) ??
-				toString(source?.uri) ??
-				toString(source?.name) ??
+				toStringValue(source?.resource_uri) ??
+				toStringValue(source?.uri) ??
+				toStringValue(source?.name) ??
 				"";
 			setUri(resourceUri);
 		}
@@ -729,54 +780,67 @@ export function InspectorDrawer({
 			}
 			return undefined;
 		} catch {
-			notifyError("Invalid arguments", "Arguments must be valid JSON");
+			notifyError(
+				t("notifications.invalidArgs"),
+				t("notifications.invalidArgsMessage"),
+			);
 			return undefined;
 		}
 	}
 
-	const toolMap = useMemo(() => {
-		const map = new Map<string, CapabilityRecord>();
-		toolOptions.forEach((entry, index) => {
-			const key = computeRecordKey(entry, "tool") || `index:${index}`;
-			map.set(key, entry);
-		});
-		return map;
-	}, [toolOptions]);
-	const sortedTools = useMemo(() => {
-		return Array.from(toolMap.entries()).sort((a, b) => {
-			const labelA = pickToolNameForMode(a[1], mode) || a[0];
-			const labelB = pickToolNameForMode(b[1], mode) || b[0];
-			return labelA.localeCompare(labelB);
-		});
-	}, [toolMap, mode]);
-	const toolSelectValue = useMemo(() => {
-		if (kind !== "tool") {
-			return undefined;
-		}
-		return currentItemKey && toolMap.has(currentItemKey)
-			? currentItemKey
-			: undefined;
-	}, [kind, currentItemKey, toolMap]);
+    const optionsMap = useMemo(() => {
+        const map = new Map<string, CapabilityRecord>();
+        capOptions.forEach((entry, index) => {
+            const key = computeRecordKey(entry, kind) || `index:${index}`;
+            map.set(key, entry);
+        });
+        return map;
+    }, [capOptions, kind]);
 
-	const handleToolSelect = useCallback(
-		(value: string) => {
-			setResult(null);
-			setEvents([]);
-			setView("response");
-			setActiveCallId(null);
-			activeCallIdRef.current = null;
-			setUseRaw(false);
-			const match = toolMap.get(value);
-			if (match) {
-				setOverrideItem(match);
-				setName(pickToolNameForMode(match, mode));
-			} else {
-				setOverrideItem(null);
-				setName(value);
-			}
-		},
-		[toolMap, mode],
-	);
+    const handleCapabilitySelect = useCallback(
+        (value: string) => {
+            setResult(null);
+            setEvents([]);
+            setView("response");
+            setActiveCallId(null);
+            activeCallIdRef.current = null;
+            setUseRaw(false);
+            const match = optionsMap.get(value);
+            if (match) {
+                setOverrideItem(match);
+                if (kind === "tool") setName(pickToolNameForMode(match, mode));
+                else if (kind === "prompt") {
+                    const promptName =
+                        mode === "proxy"
+                            ? (toStringValue((match as any).unique_name) ||
+                               toStringValue((match as any).prompt_name) ||
+                               toStringValue((match as any).name))
+                            : (toStringValue((match as any).prompt_name) ||
+                               toStringValue((match as any).name) ||
+                               toStringValue((match as any).unique_name));
+                    setName(promptName ?? "");
+                } else if (kind === "resource") {
+                    const resourceUri =
+                        toStringValue((match as any).resource_uri) ||
+                        toStringValue((match as any).uri) ||
+                        toStringValue((match as any).name) ||
+                        "";
+                    setUri(resourceUri);
+                } else {
+                    const templateName =
+                        toStringValue((match as any).uri_template) ||
+                        toStringValue((match as any).name) ||
+                        "";
+                    setName(templateName);
+                }
+            } else {
+                setOverrideItem(null);
+                if (kind === "resource") setUri(value);
+                else setName(value);
+            }
+        },
+        [optionsMap, kind, mode],
+    );
 
 	const handleCancel = useCallback(async () => {
 		if (!activeCallId) {
@@ -888,7 +952,10 @@ export function InspectorDrawer({
 						mode,
 						payload,
 					});
-					notifySuccess("Inspector executed", "See response below");
+					notifySuccess(
+						t("notifications.executed"),
+						t("notifications.executedMessage"),
+					);
 					if (eventSourceRef.current) {
 						eventSourceRef.current.close();
 						eventSourceRef.current = null;
@@ -910,7 +977,7 @@ export function InspectorDrawer({
 						message: payload.message,
 						payload,
 					});
-					notifyError("Inspector request failed", payload.message);
+					notifyError(t("notifications.failed"), payload.message);
 					if (eventSourceRef.current) {
 						eventSourceRef.current.close();
 						eventSourceRef.current = null;
@@ -933,8 +1000,8 @@ export function InspectorDrawer({
 						payload,
 					});
 					notifyError(
-						"Inspector call cancelled",
-						payload.reason ?? "Call cancelled",
+						t("notifications.cancelled"),
+						payload.reason ?? t("notifications.cancelledMessage"),
 					);
 					if (eventSourceRef.current) {
 						eventSourceRef.current.close();
@@ -945,7 +1012,7 @@ export function InspectorDrawer({
 					break;
 			}
 		},
-		[mode, onLog],
+		[mode, onLog, t],
 	);
 
 	const subscribeToCall = useCallback(
@@ -1007,7 +1074,7 @@ export function InspectorDrawer({
 
 				const effectiveServerId = session?.server_id ?? serverId;
 				if (!effectiveServerId && !serverName) {
-					throw new Error("Inspector session missing server context");
+					throw new Error(t("errors.sessionMissing"));
 				}
 
 				onLog?.({
@@ -1083,7 +1150,10 @@ export function InspectorDrawer({
 					method: "prompts/get",
 					payload: data,
 				});
-				notifySuccess("Inspector executed", "See response below");
+				notifySuccess(
+					t("notifications.executed"),
+					t("notifications.executedMessage"),
+				);
 			} else {
 				onLog?.({
 					...baseLog,
@@ -1110,7 +1180,10 @@ export function InspectorDrawer({
 					method: "resources/read",
 					payload: data,
 				});
-				notifySuccess("Inspector executed", "See response below");
+				notifySuccess(
+					t("notifications.executed"),
+					t("notifications.executedMessage"),
+				);
 			}
 			if (kind !== "tool") {
 				setSubmitting(false);
@@ -1155,16 +1228,16 @@ export function InspectorDrawer({
 				typeof result === "string" ? result : JSON.stringify(result, null, 2);
 			await writeClipboardText(text);
 			notifySuccess(
-				"Response copied",
-				"Inspector response copied to clipboard.",
+				t("notifications.copySuccess"),
+				t("notifications.copySuccessMessage"),
 			);
 		} catch (err) {
 			notifyError(
-				"Copy failed",
+				t("notifications.copyFailed"),
 				err instanceof Error ? err.message : String(err),
 			);
 		}
-	}, [result]);
+	}, [result, t]);
 
 	const sessionActive = Boolean(session);
 	const sessionIndicator =
@@ -1176,9 +1249,7 @@ export function InspectorDrawer({
 							type="button"
 							className="inline-flex h-8 w-8 items-center justify-center text-slate-500 transition hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100"
 							aria-label={
-								sessionActive
-									? "Inspector session active"
-									: "Inspector session pending"
+								sessionActive ? t("session.active") : t("session.pending")
 							}
 						>
 							{sessionActive ? (
@@ -1195,15 +1266,13 @@ export function InspectorDrawer({
 					>
 						{sessionActive ? (
 							<p>
-								Connected to {serverName || session?.server_id}. Follow-up tools
-								reuse this session required for chaining actions. Expires{" "}
-								{sessionExpiry ?? "soon"}.
+								{t("session.connected", {
+									serverName: serverName || session?.server_id,
+									expiry: sessionExpiry ?? "soon",
+								})}
 							</p>
 						) : (
-							<p>
-								No inspector session yet. We create one automatically on the
-								next run and keep it alive until you close the drawer.
-							</p>
+							<p>{t("session.notConnected")}</p>
 						)}
 					</TooltipContent>
 				</Tooltip>
@@ -1214,11 +1283,12 @@ export function InspectorDrawer({
 		(event: React.MouseEvent<HTMLDivElement>) => {
 			if (formCollapsed) return;
 			const target = event.target as HTMLElement;
-			// 排除按钮和链接点击
+			// 排除交互控件（按钮、链接、弹层等）点击，避免误触发折叠
 			if (
 				target.closest("button") ||
 				target.closest("a") ||
-				target.closest('[data-prevent-collapse="true"]')
+				target.closest('[data-prevent-collapse="true"]') ||
+				target.closest("[data-radix-popper-content-wrapper]")
 			) {
 				return;
 			}
@@ -1229,22 +1299,22 @@ export function InspectorDrawer({
 
 	return (
 		<Drawer open={open} onOpenChange={onOpenChange}>
-			<DrawerContent className="flex h-full flex-col overflow-hidden">
+			<DrawerContent
+				ref={drawerContentRef}
+				className="flex h-full flex-col overflow-hidden"
+			>
 				<DrawerHeader className="shrink-0">
 					<div className="flex items-start justify-between gap-3">
 						<div>
 							<DrawerTitle>
-								Inspector ·{" "}
+								{t("title")} ·{" "}
 								{kind === "tool"
-									? "Tool Call"
+									? t("modes.toolCall")
 									: kind === "resource"
-										? "Read Resource"
-										: "Get Prompt"}
+										? t("modes.readResource")
+										: t("modes.getPrompt")}
 							</DrawerTitle>
-							<DrawerDescription>
-								Run quick calls against server capabilities without leaving the
-								page.
-							</DrawerDescription>
+							<DrawerDescription>{t("subtitle")}</DrawerDescription>
 						</div>
 						{sessionIndicator}
 					</div>
@@ -1252,8 +1322,8 @@ export function InspectorDrawer({
 
 				<div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
 					<div
-						className={`transition-all duration-300 ease-in-out overflow-hidden ${
-							formCollapsed ? "max-h-10" : "max-h-[800px]"
+						className={`transition-all duration-300 ease-in-out ${
+							formCollapsed ? "max-h-12 overflow-hidden" : "max-h-[800px]"
 						}`}
 					>
 						{formCollapsed ? (
@@ -1267,34 +1337,41 @@ export function InspectorDrawer({
 									}
 								}}
 								tabIndex={0}
-								className="flex cursor-pointer items-center justify-between rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900/40"
+								className="flex h-10 cursor-pointer items-center justify-between rounded-md border border-dashed border-slate-200 px-3 text-sm text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900/40"
 							>
-								<span>Parameters</span>
-								<Info className="h-3.5 w-3.5" />
+								<span>
+									{t("form.parametersCollapsedHint", {
+										defaultValue: "click to expand tool input",
+									})}
+								</span>
+								<ChevronsUpDown
+									className="h-4 w-4 opacity-70"
+									aria-hidden="true"
+								/>
 							</div>
 						) : (
 							<div className="space-y-4">
 								<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 									<div className="space-y-1">
-										<Label>Mode</Label>
+										<Label>{t("form.mode")}</Label>
 										<Input value={mode} disabled className="font-mono" />
 									</div>
 									{kind === "tool" ? (
 										<div className="space-y-1">
-											<Label>Timeout (ms)</Label>
+											<Label>{t("form.timeout")}</Label>
 											<Input
 												type="number"
 												min={1000}
 												step={500}
 												value={timeoutMs}
 												onChange={(e) =>
-													setTimeoutMs(parseInt(e.target.value) || 8000)
+													setTimeoutMs(parseInt(e.target.value, 10) || 8000)
 												}
 											/>
 										</div>
 									) : null}
 									<div className="space-y-1">
-										<Label>Server</Label>
+										<Label>{t("form.server")}</Label>
 										<TooltipProvider delayDuration={200}>
 											<Tooltip>
 												<TooltipTrigger asChild>
@@ -1316,85 +1393,81 @@ export function InspectorDrawer({
 									</div>
 								</div>
 
-								{kind === "resource" ? (
+								{kind === "resource" || kind === "template" ? (
 									<div className="space-y-1">
-										<Label>Resource URI</Label>
-										<Input
-											value={uri}
-											onChange={(e) => setUri(e.target.value)}
+										<Label>
+											{kind === "resource" ? t("form.resourceUri") : t("form.template")}
+										</Label>
+										<CapabilityCombobox
+											kind={kind as any}
+											items={capOptions}
+											value={currentItemKey || undefined}
+											onChange={(key) => handleCapabilitySelect(key)}
+											loading={capOptionsLoading}
+											error={capOptionsError}
+											container={drawerContentRef.current}
+											placeholder={
+												kind === "resource"
+													? (t("form.selectResource", { defaultValue: "Select resource" }) as string)
+													: (t("form.selectTemplate", { defaultValue: "Select template" }) as string)
+											}
+											getKey={(it) => computeRecordKey(it as CapabilityRecord, kind)}
+											getLabel={(it) => {
+												const entry = it as CapabilityRecord;
+												return (
+													toStringValue((entry as any).resource_uri) ||
+													toStringValue((entry as any).uri) ||
+													toStringValue((entry as any).name) ||
+													computeRecordKey(entry, kind)
+												) as string;
+											}}
+											getDescription={(it) => {
+												const entry = it as CapabilityRecord;
+												return toStringValue((entry as any).description) || undefined;
+											}}
 										/>
 									</div>
 								) : (
 									<div className="space-y-2">
 										<div className="space-y-1">
-											<Label>{kind === "tool" ? "Tool" : "Prompt"}</Label>
-											{kind === "tool" ? (
-												<Select
-													value={toolSelectValue}
-													onValueChange={handleToolSelect}
-													disabled={
-														toolOptionsLoading && toolOptions.length === 0
+											<Label>
+												{kind === "tool" ? t("form.tool") : t("form.prompt")}
+											</Label>
+											<CapabilityCombobox
+												kind={kind as any}
+												items={capOptions}
+												value={currentItemKey || undefined}
+												onChange={(key) => handleCapabilitySelect(key)}
+												loading={capOptionsLoading}
+												error={capOptionsError}
+												container={drawerContentRef.current}
+												placeholder={
+													kind === "tool"
+														? (t("form.selectTool", { defaultValue: "Select tool" }) as string)
+														: (t("form.selectPrompt", { defaultValue: "Select prompt" }) as string)
+												}
+												getKey={(it) => computeRecordKey(it as CapabilityRecord, kind)}
+												getLabel={(it) => {
+													const entry = it as CapabilityRecord;
+													if (kind === "tool") {
+														return pickToolNameForMode(entry, mode) || computeRecordKey(entry, kind);
+													} else {
+														const uniqueName = toStringValue((entry as any).unique_name);
+														const promptName = toStringValue((entry as any).prompt_name);
+														const rawName = toStringValue((entry as any).name);
+														return (
+															mode === "proxy"
+																? uniqueName || promptName || rawName
+																: promptName || rawName || uniqueName
+														) || computeRecordKey(entry, kind);
 													}
-												>
-													<SelectTrigger className="justify-between">
-														<SelectValue
-															placeholder={
-																toolOptionsLoading
-																	? "Loading tools..."
-																	: "选择需要执行的工具"
-															}
-														/>
-													</SelectTrigger>
-													<SelectContent>
-														{toolOptionsLoading ? (
-															<SelectItem value="__loading" disabled>
-																Loading…
-															</SelectItem>
-														) : null}
-														{sortedTools.map(([value, entry]) => {
-															const display =
-																pickToolNameForMode(entry, mode) || value;
-															const description = toString(entry.description);
-															return (
-																<SelectItem key={value} value={value}>
-																	<div className="flex items-center gap-2">
-																		<TooltipProvider delayDuration={100}>
-																			<Tooltip>
-																				<TooltipTrigger asChild>
-																					<span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200">
-																						<Info className="h-3.5 w-3.5" />
-																					</span>
-																				</TooltipTrigger>
-																				<TooltipContent
-																					side="right"
-																					align="center"
-																					className="max-w-xs text-xs leading-relaxed"
-																				>
-																					{description?.trim().length
-																						? description
-																						: "该工具暂无描述"}
-																				</TooltipContent>
-																			</Tooltip>
-																		</TooltipProvider>
-																		<span className="text-sm font-medium text-slate-700 dark:text-slate-100">
-																			{display}
-																		</span>
-																	</div>
-																</SelectItem>
-															);
-														})}
-													</SelectContent>
-												</Select>
-											) : (
-												<Input
-													value={name}
-													onChange={(e) => setName(e.target.value)}
-												/>
-											)}
+												}}
+												getDescription={(it) => {
+													const entry = it as CapabilityRecord;
+													return toStringValue((entry as any).description) || undefined;
+												}}
+											/>
 										</div>
-										{toolOptionsError ? (
-											<p className="text-xs text-red-500">{toolOptionsError}</p>
-										) : null}
 									</div>
 								)}
 
@@ -1402,7 +1475,7 @@ export function InspectorDrawer({
 									expectsArguments ? (
 										<div className="space-y-4">
 											<div className="flex items-center justify-between">
-												<Label>Parameters</Label>
+												<Label>{t("form.parameters")}</Label>
 												<ButtonGroup>
 													<Button
 														size="sm"
@@ -1421,7 +1494,7 @@ export function InspectorDrawer({
 															}
 														}}
 													>
-														Fill Mock
+														{t("actions.fillMock")}
 													</Button>
 													<Button
 														size="sm"
@@ -1431,14 +1504,14 @@ export function InspectorDrawer({
 															setArgsJson("{}");
 														}}
 													>
-														Clean
+														{t("actions.clean")}
 													</Button>
 													<Button
 														size="sm"
 														variant={useRaw ? "default" : "outline"}
 														onClick={() => setUseRaw((v) => !v)}
 													>
-														{useRaw ? "Form" : "JSON"}
+														{useRaw ? t("actions.form") : t("actions.json")}
 													</Button>
 												</ButtonGroup>
 											</div>
@@ -1474,7 +1547,7 @@ export function InspectorDrawer({
 										</div>
 									) : (
 										<div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-2 py-1.5 text-xs leading-relaxed text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
-											No arguments required for this capability.
+											{t("errors.noArguments")}
 										</div>
 									)
 								) : null}
@@ -1488,8 +1561,8 @@ export function InspectorDrawer({
 						className="space-y-3"
 					>
 						<TabsList className="grid w-full grid-cols-2 text-sm">
-							<TabsTrigger value="response">Response</TabsTrigger>
-							<TabsTrigger value="events">Events</TabsTrigger>
+							<TabsTrigger value="response">{t("tabs.response")}</TabsTrigger>
+							<TabsTrigger value="events">{t("tabs.events")}</TabsTrigger>
 						</TabsList>
 						<TabsContent
 							value="response"
@@ -1497,40 +1570,40 @@ export function InspectorDrawer({
 							onClick={handleCollapseFormClick}
 						>
 							<div className="flex items-center justify-between gap-2 text-sm">
-								<Label>Response</Label>
+								<Label>{t("tabs.response")}</Label>
 								{result ? (
 									<ButtonGroup>
 										<Button
 											type="button"
 											variant="outline"
 											size="sm"
+											className="h-8 px-2"
 											onClick={(event) => {
 												event.stopPropagation();
 												handleCopy();
 											}}
 											data-prevent-collapse="true"
 										>
-											Copy
+											{t("actions.copy")}
 										</Button>
 										<Button
 											type="button"
 											variant="outline"
 											size="sm"
+											className="h-8 px-2"
 											onClick={(event) => {
 												event.stopPropagation();
 												clearOutput();
 											}}
 											data-prevent-collapse="true"
 										>
-											Clear
+											{t("actions.clear")}
 										</Button>
 									</ButtonGroup>
 								) : null}
 							</div>
 							<div className="max-h-[40vh] overflow-auto rounded border border-slate-200 bg-white p-3 font-mono text-xs text-slate-700 whitespace-pre-wrap break-words dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
-								{result
-									? pretty(result)
-									: "Run a capability to view its structured response here."}
+								{result ? pretty(result) : t("response.placeholder")}
 							</div>
 						</TabsContent>
 						<TabsContent
@@ -1539,24 +1612,18 @@ export function InspectorDrawer({
 							onClick={handleCollapseFormClick}
 						>
 							<div className="flex items-center justify-between">
-								<Label>Event Stream</Label>
-								{events.length ? (
-									<Badge variant="outline" className="text-[11px] font-medium">
-										{events.length}
-									</Badge>
-								) : null}
+								<Label>{t("events.title")}</Label>
 							</div>
 							{events.length === 0 ? (
 								<div className="rounded border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300">
-									Streaming progress, logs, and cancellations will appear here
-									once you run a tool call.
+									{t("events.placeholder")}
 								</div>
 							) : (
-								<ScrollArea className="max-h-[32vh] pr-2">
+								<ScrollArea className="max-h-[32vh]">
 									<ul className="space-y-2">
 										{events.map((entry, index) => {
-											const label = formatEventLabel(entry);
-											const detail = formatEventDetails(entry);
+											const label = formatEventLabel(entry, t);
+											const detail = formatEventDetails(entry, t);
 											const key = `${entry.data.event}-${entry.timestamp}-${index}`;
 											return (
 												<li
@@ -1602,7 +1669,7 @@ export function InspectorDrawer({
 							onClick={() => onOpenChange(false)}
 							className="w-full sm:w-auto"
 						>
-							Close
+							{t("actions.close")}
 						</Button>
 						<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
 							{kind === "tool" && activeCallId && submitting ? (
@@ -1612,7 +1679,7 @@ export function InspectorDrawer({
 									disabled={cancelling}
 									className="w-full sm:w-auto"
 								>
-									{cancelling ? "Cancelling..." : "Cancel"}
+									{cancelling ? t("actions.cancelling") : t("actions.cancel")}
 								</Button>
 							) : null}
 							<Button
@@ -1620,7 +1687,7 @@ export function InspectorDrawer({
 								disabled={submitting}
 								className="w-full sm:w-auto"
 							>
-								{submitting ? "Running..." : "Run"}
+								{submitting ? t("actions.running") : t("actions.run")}
 							</Button>
 						</div>
 					</div>

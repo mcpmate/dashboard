@@ -527,20 +527,20 @@ export function CapabilityList<T = CapabilityRecord>({
 						onClick={(e) => e.stopPropagation()}
 					/>
 				) : null}
-				{renderAction ? (
-					<button
-						onClick={(e) => e.stopPropagation()}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault();
-								e.stopPropagation();
-							}
-						}}
-						type="button"
-					>
-						{renderAction(mapped, item)}
-					</button>
-				) : null}
+					{renderAction ? (
+						<div
+							role="presentation"
+							onClick={(e) => e.stopPropagation()}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									e.stopPropagation();
+								}
+							}}
+						>
+							{renderAction(mapped, item)}
+						</div>
+					) : null}
 			</>
 		);
 

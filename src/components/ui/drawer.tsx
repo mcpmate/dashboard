@@ -6,70 +6,14 @@ import { Drawer as DrawerPrimitive } from "vaul";
 import { cn } from "../../lib/utils";
 
 function cleanupBodyLocks() {
-	try {
-		// Remove body styles/attributes that can block interaction
-		document.body.style.removeProperty("pointer-events");
-		document.body.style.removeProperty("overflow");
-		document.body.style.removeProperty("padding-right");
-		document.body.removeAttribute("data-scroll-locked");
-		document.body.removeAttribute("aria-hidden");
-		document.documentElement?.removeAttribute("aria-hidden");
-		setAppInert(false);
-
-		// Remove pointer-events from all overlays when no drawers are open
-		// to ensure they can respond to clicks properly
-		const overlays = document.querySelectorAll<HTMLElement>(
-			"[data-vaul-overlay], [data-vaul-drawer-wrapper], [data-radix-dialog-overlay], [data-radix-popper-content-wrapper]",
-		);
-		overlays.forEach((overlay) => {
-			// Always remove pointer-events style to let the overlay work naturally
-			overlay.style.removeProperty("pointer-events");
-		});
-	} catch {
-		/* noop */
-	}
+	// No-op; rely on Vaul/Radix internals
 }
 
-function hasAnyOpenLayer() {
-	try {
-		return !!document.querySelector(
-			'[data-state="open"][data-vaul-overlay], [data-state="open"][data-vaul-drawer], [data-state="open"][data-radix-dialog-overlay], [data-state="open"][role="dialog"]',
-		);
-	} catch {
-		return false;
-	}
-}
+function hasAnyOpenLayer() { return true; }
 
-function ensureBodyInteractive() {
-	try {
-		if (!hasAnyOpenLayer()) {
-			document.body.style.removeProperty("pointer-events");
-			document.documentElement?.style?.removeProperty?.("pointer-events");
-			setAppInert(false);
-		}
-	} catch {
-		/* noop */
-	}
-}
+function ensureBodyInteractive() { /* no-op */ }
 
-function setAppInert(inert: boolean) {
-	try {
-		const root =
-			document.getElementById("root") ?? document.querySelector("#root");
-		if (!root) return;
-		if (inert) {
-			root.setAttribute("data-app-inert", "true");
-			root.setAttribute("inert", "");
-			root.removeAttribute("aria-hidden");
-		} else {
-			root.removeAttribute("data-app-inert");
-			root.removeAttribute("inert");
-			root.removeAttribute("aria-hidden");
-		}
-	} catch {
-		/* noop */
-	}
-}
+function setAppInert(_inert: boolean) { /* no-op */ }
 
 // Create a context to share the close handler with DrawerOverlay
 const DrawerContext = React.createContext<{
@@ -111,59 +55,11 @@ const Drawer = ({
 		handleOpenChange(false);
 	}, [handleOpenChange]);
 
-	// Install global guard (once) to keep body interactive if styles linger
-	React.useEffect(() => {
-		const w = window as unknown as { __mcpDrawerGuardInstalled?: boolean };
-		if (!w.__mcpDrawerGuardInstalled) {
-			try {
-				const mo = new MutationObserver(() => ensureBodyInteractive());
-				mo.observe(document.body, {
-					attributes: true,
-					attributeFilter: ["style"],
-				});
-				window.addEventListener("pointerdown", ensureBodyInteractive, true);
-				window.addEventListener("keydown", ensureBodyInteractive, true);
-				window.addEventListener("resize", ensureBodyInteractive);
-				document.addEventListener("visibilitychange", ensureBodyInteractive);
-				// mark installed
-				(w as any).__mcpDrawerGuardInstalled = true;
-				// store cleanup on window to avoid double attaching
-				(window as any).__mcpDrawerGuardCleanup = () => {
-					try {
-						mo.disconnect();
-						window.removeEventListener(
-							"pointerdown",
-							ensureBodyInteractive,
-							true,
-						);
-						window.removeEventListener("keydown", ensureBodyInteractive, true);
-						window.removeEventListener("resize", ensureBodyInteractive);
-						document.removeEventListener(
-							"visibilitychange",
-							ensureBodyInteractive,
-						);
-					} catch {
-						/* noop */
-					}
-				};
-			} catch {
-				/* noop */
-			}
-		}
-		return () => {
-			/* no-op, keep single global guard */
-		};
-	}, []);
+    // Removed global guard to avoid interfering with focus/aria
+    React.useEffect(() => {}, []);
 
-	// Safety net: cleanup when component unmounts (e.g. route change while open)
-	React.useEffect(
-		() => () => {
-			cleanupBodyLocks();
-			ensureBodyInteractive();
-			setAppInert(false);
-		},
-		[],
-	);
+    // No-op cleanup on unmount
+    React.useEffect(() => () => {}, []);
 
 	return (
 		<DrawerContext.Provider value={{ onClose: handleClose }}>
@@ -189,7 +85,7 @@ const DrawerClose = DrawerPrimitive.Close;
 const DrawerOverlay = React.forwardRef<
 	React.ElementRef<typeof DrawerPrimitive.Overlay>,
 	React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
->(({ className, onClick, ...props }, ref) => {
+>(({ className, onClick, style, ...props }, ref) => {
 	const { onClose } = React.useContext(DrawerContext);
 
 	const handleClick = React.useCallback(
@@ -207,7 +103,8 @@ const DrawerOverlay = React.forwardRef<
 	return (
 		<DrawerPrimitive.Overlay
 			ref={ref}
-			className={cn("fixed inset-0 z-50 bg-black/80", className)}
+			className={cn("fixed inset-0 z-40 bg-black/80", className)}
+			style={style}
 			onClick={handleClick}
 			{...props}
 		/>

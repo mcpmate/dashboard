@@ -8,6 +8,11 @@ export interface MarketPortalDefinition {
   proxyFavicon?: string;
   locales?: string[];
   localeParam?: {
+    // Strategy to pass locale to third‑party portal
+    // "query" (default): use query string like ?lang=en
+    // "path-prefix": use path segment like /en or /zh
+    strategy?: "query" | "path-prefix";
+    // Query parameter key (only used when strategy === "query")
     key: string;
     mapping?: Record<string, string>;
     fallback?: string;
@@ -47,6 +52,8 @@ export const BUILTIN_MARKET_PORTALS: MarketPortalDefinition[] = [
     favicon: "https://mcpmarket.cn/static/img/favicon.ico",
     proxyFavicon: `${MARKET_PROXY_BASE}/mcpmarket/static/img/favicon.ico`,
     localeParam: {
+      // MCP Market uses query parameters like ?lang=en
+      strategy: "query",
       key: "lang",
       mapping: {
         en: "en",
@@ -140,7 +147,7 @@ export const buildPortalUrlWithLocale = (
   language: string | undefined,
 ): string => {
   const localeParam = portal.localeParam;
-  if (!localeParam || !localeParam.key) {
+  if (!localeParam) {
     return baseUrl;
   }
 
@@ -156,21 +163,79 @@ export const buildPortalUrlWithLocale = (
 
   try {
     const absoluteScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
-    const target = new URL(
-      baseUrl,
-      typeof window !== "undefined" ? window.location.origin : portal.remoteOrigin,
-    );
-    target.searchParams.set(localeParam.key, value);
-    // Preserve relative URLs when original was relative
-    if (!absoluteScheme.test(baseUrl)) {
-      return `${target.pathname}${target.search}${target.hash}`;
+    const base = typeof window !== "undefined" ? window.location.origin : portal.remoteOrigin;
+    const target = new URL(baseUrl, base);
+
+    // Default to query strategy when unspecified
+    const strategy = localeParam.strategy ?? "query";
+
+    if (strategy === "path-prefix") {
+      // Remove legacy query param if present
+      if (localeParam.key) {
+        try { target.searchParams.delete(localeParam.key); } catch {}
+      }
+      // Compute insertion point and rebuild pathname as /<prefix><locale>/<rest>
+      const proxyPrefix = ensureTrailingSlash(portal.proxyPath);
+      const pathname = target.pathname || "/";
+
+      // Determine prefix part and the remaining path after the proxy root
+      let prefix = "";
+      let rest = pathname;
+      if (pathname.startsWith(proxyPrefix)) {
+        prefix = proxyPrefix; // already includes trailing '/'
+        rest = pathname.slice(proxyPrefix.length - 1); // keep leading '/'
+      }
+
+      // Normalize rest to always start with '/'
+      if (!rest.startsWith("/")) rest = `/${rest}`;
+
+      // Remove existing locale segment if present (e.g., /en, /zh, /ja)
+      const allowed = new Set(
+        Object.values(localeParam.mapping ?? {}).map((v) => v.toLowerCase()),
+      );
+      // Common fallbacks if mapping is absent
+      if (allowed.size === 0) {
+        ["en", "zh", "ja"].forEach((s) => allowed.add(s));
+      }
+      const segmentMatch = rest.match(/^\/([a-zA-Z-]+)(?:\/|$)/);
+      if (segmentMatch) {
+        const seg = segmentMatch[1].toLowerCase();
+        if (allowed.has(seg)) {
+          rest = rest.slice(segmentMatch[0].length - 1); // remove matched segment, keep leading '/'
+          if (!rest.startsWith("/")) rest = `/${rest}`;
+        }
+      }
+
+      // Build new pathname
+      const newPathname = `${prefix}${value}${rest === "/" ? "" : rest}`;
+
+      // Preserve search/hash
+      const relative = !absoluteScheme.test(baseUrl);
+      return relative
+        ? `${newPathname}${target.search}${target.hash}`
+        : new URL(`${newPathname}${target.search}${target.hash}`, base).toString();
     }
-    if (absoluteScheme.test(baseUrl)) {
-      return target.toString();
+
+    // Query strategy (legacy/default): ?<key>=<value>
+    if (localeParam.key) {
+      target.searchParams.set(localeParam.key, value);
+      // Preserve relative URLs when original was relative
+      if (!absoluteScheme.test(baseUrl)) {
+        return `${target.pathname}${target.search}${target.hash}`;
+      }
+      if (absoluteScheme.test(baseUrl)) {
+        return target.toString();
+      }
     }
     return baseUrl;
   } catch {
+    if ((localeParam.strategy ?? "query") === "path-prefix") {
+      const cleaned = baseUrl.replace(/\/(en|zh|ja)(\/|$)/, "/");
+      const needsSlash = cleaned.startsWith("/") ? "" : "/";
+      return `${needsSlash}${value}${cleaned.startsWith("/") ? cleaned : `/${cleaned}`}`;
+    }
+    const key = localeParam.key || "lang";
     const separator = baseUrl.includes("?") ? "&" : "?";
-    return `${baseUrl}${separator}${localeParam.key}=${encodeURIComponent(value)}`;
+    return `${baseUrl}${separator}${key}=${encodeURIComponent(value)}`;
   }
 };

@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 
@@ -52,6 +53,7 @@ export function Pagination({
 	onNextPage,
 	className,
 }: PaginationProps) {
+	const { t } = useTranslation();
 	const startItem = (currentPage - 1) * itemsPerPage + 1;
 	const endItem = startItem + currentPageItemCount - 1;
 
@@ -66,7 +68,7 @@ export function Pagination({
 					className="gap-1"
 				>
 					<ChevronLeft className="h-4 w-4" />
-					Previous
+					{t("pagination.previous", { defaultValue: "Previous" })}
 				</Button>
 				<Button
 					variant="outline"
@@ -75,16 +77,25 @@ export function Pagination({
 					disabled={!hasNextPage || isLoading}
 					className="gap-1"
 				>
-					Next
+					{t("pagination.next", { defaultValue: "Next" })}
 					<ChevronRight className="h-4 w-4" />
 				</Button>
 			</div>
 
 			<div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400">
-				<span>Page {currentPage}</span>
+				<span>
+					{t("pagination.page", {
+						page: currentPage,
+						defaultValue: "Page {{page}}",
+					})}
+				</span>
 				{currentPageItemCount > 0 ? (
 					<span>
-						Showing {startItem}-{endItem} items
+						{t("pagination.showing", {
+							start: startItem,
+							end: endItem,
+							defaultValue: "Showing {{start}}-{{end}} items",
+						})}
 					</span>
 				) : null}
 			</div>

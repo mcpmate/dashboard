@@ -9,6 +9,7 @@ import { profilesTranslations } from "../../pages/profiles/i18n";
 import { runtimeTranslations } from "../../pages/runtime/i18n";
 import { settingsTranslations } from "../../pages/settings/i18n";
 import { serversTranslations } from "../../pages/servers/i18n";
+import { inspectorTranslations } from "../../components/i18n/inspector";
 import { commonTranslations } from "./common";
 import { navigationTranslations } from "./navigation";
 
@@ -65,6 +66,9 @@ export const loadPageTranslations = {
 	},
 	servers: () => {
 		loadTranslations("servers", serversTranslations);
+	},
+	inspector: () => {
+		loadTranslations("inspector", inspectorTranslations);
 	},
 };
 

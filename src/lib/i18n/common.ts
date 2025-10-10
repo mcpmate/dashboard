@@ -32,6 +32,12 @@ export const commonTranslations = {
 			recent: "Most Recently Hidden",
 			name: "Name (A-Z)",
 		},
+		pagination: {
+			previous: "Previous",
+			next: "Next",
+			page: "Page {{page}}",
+			showing: "Showing {{start}}-{{end}} items",
+		},
 	},
 	"zh-CN": {
 		wip: "开发中",
@@ -66,6 +72,12 @@ export const commonTranslations = {
 			recent: "最近隐藏时间",
 			name: "名称 (A-Z)",
 		},
+		pagination: {
+			previous: "上一页",
+			next: "下一页",
+			page: "第 {{page}} 页",
+			showing: "显示第 {{start}}-{{end}} 项",
+		},
 	},
 	"ja-JP": {
 		wip: "開発中",
@@ -99,6 +111,12 @@ export const commonTranslations = {
 		sort: {
 			recent: "最近非表示",
 			name: "名前 (A-Z)",
+		},
+		pagination: {
+			previous: "前へ",
+			next: "次へ",
+			page: "ページ {{page}}",
+			showing: "{{start}}-{{end}} 件を表示",
 		},
 	},
 } as const;

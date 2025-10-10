@@ -562,6 +562,7 @@ export function ServerDetailPage() {
 			server?.name,
 			serverId,
 			updateDebugState,
+			t,
 		],
 	);
 
@@ -1669,7 +1670,9 @@ function InspectorDebugSection({
 												variant="outline"
 												className="text-[10px] uppercase"
 											>
-												{entry.mode}
+												{t(`detail.inspector.logs.status.mode.${entry.mode}`, {
+													defaultValue: entry.mode.toUpperCase(),
+												})}
 											</Badge>
 											<Badge
 												variant={
@@ -1681,7 +1684,12 @@ function InspectorDebugSection({
 												}
 												className="text-[10px] uppercase"
 											>
-												{entry.event}
+												{t(
+													`detail.inspector.logs.status.event.${entry.event}`,
+													{
+														defaultValue: entry.event.toUpperCase(),
+													},
+												)}
 											</Badge>
 										</div>
 									</div>
