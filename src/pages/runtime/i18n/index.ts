@@ -25,6 +25,10 @@ export const runtimeTranslations = {
 		},
 		capabilities: {
 			title: "Capabilities Cache",
+			reset: "Reset Capabilities",
+			resetConfirmTitle: "Reset capabilities cache?",
+			resetConfirmDesc:
+				"This clears both memory and on-disk capability cache. It will be repopulated on next access.",
 			labels: {
 				dbPath: "DB Path",
 				cacheSize: "Cache Size",
@@ -84,6 +88,10 @@ export const runtimeTranslations = {
 		},
 		capabilities: {
 			title: "能力缓存",
+			reset: "重置能力缓存",
+			resetConfirmTitle: "重置能力缓存？",
+			resetConfirmDesc:
+				"这将清除内存与磁盘上的能力缓存，下一次访问会自动重新生成。",
 			labels: {
 				dbPath: "数据库路径",
 				cacheSize: "缓存大小",
@@ -142,6 +150,10 @@ export const runtimeTranslations = {
 		},
 		capabilities: {
 			title: "機能キャッシュ",
+			reset: "機能キャッシュをリセット",
+			resetConfirmTitle: "機能キャッシュをリセットしますか？",
+			resetConfirmDesc:
+				"メモリとディスク上の機能キャッシュをクリアします。次回アクセス時に再生成されます。",
 			labels: {
 				dbPath: "DBパス",
 				cacheSize: "キャッシュサイズ",

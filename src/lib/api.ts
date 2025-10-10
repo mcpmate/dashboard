@@ -1264,6 +1264,17 @@ export const toolsApi = {
 export const systemApi = {
 	getStatus: () => fetchApi<SystemStatus>("/api/system/status"),
 	getMetrics: () => fetchApi<SystemMetrics>("/api/system/metrics"),
+
+	shutdown: () =>
+		fetchApi<{ status: string; message?: string }>("/api/system/shutdown", {
+			method: "POST",
+		}),
+
+	restart: () =>
+		fetchApi<{ status: string; message?: string; mcp_port?: number }>(
+			"/api/system/restart",
+			{ method: "POST" },
+		),
 };
 
 // Runtime Management API

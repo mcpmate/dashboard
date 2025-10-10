@@ -89,7 +89,19 @@ export function RuntimePage() {
 		onError: (e) => notifyError("Install failed", e.message),
 	});
 
-	// Capabilities cache reset button removed per latest requirement
+	// Capabilities cache reset
+	const capResetM = useMutation<ClearCacheResponse, Error, void>({
+		mutationFn: async () => capabilitiesApi.reset(),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["capabilities", "stats"] });
+			notifySuccess(
+				"Capabilities cache cleared",
+				"Capability data will be rehydrated on next access.",
+			);
+			setConfirm(null);
+		},
+		onError: (e) => notifyError("Reset failed", e.message),
+	});
 
 	const isBusy =
 		resetAllM.isPending || resetOneM.isPending || installM.isPending;
@@ -102,19 +114,19 @@ export function RuntimePage() {
 
 	const kinds: Array<"uv" | "bun"> = ["uv", "bun"];
 
-    return (
-        <div className="space-y-4">
-            <div className="flex items-center gap-2 min-w-0">
-                <p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
-                    {t("runtime:title")}
-                </p>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={isBusy || runtimeCacheQ.isLoading}
-                        onClick={() => setConfirm({ type: "resetAll" })}
-                    >
+	return (
+		<div className="space-y-4">
+			<div className="flex items-center gap-2 min-w-0">
+				<p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
+					{t("runtime:title")}
+				</p>
+				<div className="flex items-center gap-2 flex-shrink-0">
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={isBusy || runtimeCacheQ.isLoading}
+						onClick={() => setConfirm({ type: "resetAll" })}
+					>
 						<RefreshCw
 							className={`mr-2 h-4 w-4 ${resetAllM.isPending ? "animate-spin" : ""}`}
 						/>
@@ -265,7 +277,22 @@ export function RuntimePage() {
 			{/* Capabilities Cache */}
 			<Card>
 				<CardHeader>
-					<CardTitle>{t("runtime:capabilities.title")}</CardTitle>
+					<div className="flex items-center justify-between">
+						<CardTitle>{t("runtime:capabilities.title")}</CardTitle>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={capResetM.isPending || capabilitiesStatsQ.isLoading}
+							onClick={() => setConfirm({ type: "capabilitiesReset" })}
+						>
+							<RefreshCw
+								className={`mr-2 h-4 w-4 ${capResetM.isPending ? "animate-spin" : ""}`}
+							/>
+							{t("runtime:capabilities.reset", {
+								defaultValue: "Reset Capabilities",
+							})}
+						</Button>
+					</div>
 				</CardHeader>
 				<CardContent>
 					{capabilitiesStatsQ.isLoading ? (
@@ -416,6 +443,8 @@ export function RuntimePage() {
 						resetOneM.mutate(confirm.key);
 					} else if (confirm.type === "install") {
 						installM.mutate(confirm.key);
+					} else if (confirm.type === "capabilitiesReset") {
+						capResetM.mutate();
 					}
 				}}
 				title={
@@ -429,7 +458,9 @@ export function RuntimePage() {
 								? t("runtime:dialogs.installTitle", {
 										key: confirm.key.toUpperCase(),
 									})
-								: t("runtime:dialogs.confirm")
+								: t("runtime:capabilities.resetConfirmTitle", {
+										defaultValue: "Reset capabilities cache?",
+									})
 				}
 				description={
 					confirm?.type === "resetAll"
@@ -442,7 +473,10 @@ export function RuntimePage() {
 								? t("runtime:dialogs.installDescription", {
 										key: confirm.key.toUpperCase(),
 									})
-								: ""
+								: t("runtime:capabilities.resetConfirmDesc", {
+										defaultValue:
+											"This clears both memory and on-disk capability cache. It will be repopulated on next access.",
+									})
 				}
 				confirmLabel={
 					confirm?.type === "install"
@@ -458,7 +492,9 @@ export function RuntimePage() {
 							? resetOneM.isPending
 							: confirm?.type === "install"
 								? installM.isPending
-								: false
+								: confirm?.type === "capabilitiesReset"
+									? capResetM.isPending
+									: false
 				}
 			/>
 		</div>

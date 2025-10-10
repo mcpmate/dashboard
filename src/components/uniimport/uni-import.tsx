@@ -12,9 +12,9 @@ import {
 } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { parseJsonDrafts } from "../../lib/install-normalizer";
 import { readClipboardText } from "../../lib/clipboard";
 import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
+import { parseJsonDrafts } from "../../lib/install-normalizer";
 import { Button } from "../ui/button";
 import {
 	Drawer,
@@ -44,10 +44,10 @@ import {
 } from "./hooks";
 import {
 	breathingAnimation,
+	DEFAULT_INGEST_MESSAGE,
 	type ManualServerFormValues,
 	manualServerSchema,
 	SERVER_TYPE_OPTIONS,
-	DEFAULT_INGEST_MESSAGE,
 	type ServerInstallManualFormHandle,
 	type ServerInstallManualFormProps,
 } from "./types";
@@ -253,8 +253,7 @@ export const ServerInstallManualForm = forwardRef<
 					defaultValue: "No servers found in JSON payload",
 				}),
 				jsonMultipleServers: t("manual.errors.jsonMultipleServers", {
-					defaultValue:
-						"Manual entry accepts exactly one server in JSON mode",
+					defaultValue: "Manual entry accepts exactly one server in JSON mode",
 				}),
 				jsonParseFailedTitle: t("manual.errors.jsonParseFailedTitle", {
 					defaultValue: "Invalid JSON",
@@ -272,7 +271,9 @@ export const ServerInstallManualForm = forwardRef<
 				},
 				pending: {
 					edit: t("manual.buttons.saving", { defaultValue: "Saving..." }),
-					market: t("manual.buttons.importing", { defaultValue: "Importing..." }),
+					market: t("manual.buttons.importing", {
+						defaultValue: "Importing...",
+					}),
 					create: t("manual.buttons.processing", {
 						defaultValue: "Processing...",
 					}),
@@ -565,31 +566,24 @@ export const ServerInstallManualForm = forwardRef<
 			}
 		}, [isDropZoneCollapsed, setIsDropZoneCollapsed]);
 
-    const handleDropZoneClick = useCallback(() => {
-        if (!ingestEnabled) return;
-        if (isDropZoneCollapsed) {
-            setIsDropZoneCollapsed(false);
-            setIngestError(null);
-            setIsIngestSuccess(false);
-            setIngestMessage(ingestMessages.defaultMessage);
-            // After expanding, try to ingest from clipboard on user gesture
-            setTimeout(() => {
-                void ingestClipboardPayload();
-            }, 0);
-        } else {
-            // Already expanded: attempt clipboard ingest immediately on click
-            void ingestClipboardPayload();
-        }
-    }, [
-        ingestEnabled,
-        ingestClipboardPayload,
-        isDropZoneCollapsed,
-        setIsDropZoneCollapsed,
-        setIngestError,
-        setIsIngestSuccess,
-        setIngestMessage,
-        ingestMessages.defaultMessage,
-    ]);
+		const handleDropZoneClick = useCallback(() => {
+			if (!ingestEnabled) return;
+			if (isDropZoneCollapsed) {
+				setIsDropZoneCollapsed(false);
+				setIngestError(null);
+				setIsIngestSuccess(false);
+				setIngestMessage(ingestMessages.defaultMessage);
+			}
+			// Do not auto-read clipboard on click; paste must be triggered via Cmd/Ctrl+V
+		}, [
+			ingestEnabled,
+			isDropZoneCollapsed,
+			setIsDropZoneCollapsed,
+			setIngestError,
+			setIsIngestSuccess,
+			setIngestMessage,
+			ingestMessages.defaultMessage,
+		]);
 
 		// Drag and drop handlers
 		const onDragEnter = (event: React.DragEvent<HTMLButtonElement>) => {
@@ -686,12 +680,7 @@ export const ServerInstallManualForm = forwardRef<
 					event.clipboardData?.getData("text/plain") ?? null,
 				);
 			},
-			[
-				ingestClipboardPayload,
-				ingestEnabled,
-				isDropZoneCollapsed,
-				isIngesting,
-			],
+			[ingestClipboardPayload, ingestEnabled, isDropZoneCollapsed, isIngesting],
 		);
 
 		// Paste listener
@@ -1018,11 +1007,7 @@ export const ServerInstallManualForm = forwardRef<
 															placeholder={namePlaceholder}
 															readOnly={isEditMode}
 															aria-readonly={isEditMode}
-															title={
-																isEditMode
-																	? nameReadOnlyTitle
-																	: undefined
-															}
+															title={isEditMode ? nameReadOnlyTitle : undefined}
 															className={
 																isEditMode
 																	? "cursor-not-allowed bg-muted text-muted-foreground"

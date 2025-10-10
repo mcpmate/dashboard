@@ -1051,18 +1051,11 @@ export const ServerInstallWizard = forwardRef(
 						{/* New-mode drop zone (top) */}
 						{ingestEnabled ? (
 							<div className="px-4 py-4">
-									<button
-										type="button"
-										ref={dropZoneRef}
+								<button
+									type="button"
+									ref={dropZoneRef}
 									onFocus={handleDropZoneActivate}
-									onClick={() => {
-										// Expand zone then attempt clipboard ingest on user gesture
-										handleDropZoneActivate();
-										// Schedule after state commit
-										setTimeout(() => {
-											void ingestClipboardPayload();
-										}, 0);
-									}}
+									onClick={handleDropZoneActivate}
 									onMouseDown={handleDropZoneActivate}
 									onDragOver={(e) => {
 										if (!canIngestFromDataTransfer(e.dataTransfer)) return;
