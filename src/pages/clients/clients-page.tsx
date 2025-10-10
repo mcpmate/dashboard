@@ -29,20 +29,26 @@ export function ClientsPage() {
 		setDashboardSetting: state.setDashboardSetting,
 	}));
 
-	const { data, isLoading, isRefetching, refetch } = useQuery({
+	const { data, isLoading, isRefetching, refetch, error, isError } = useQuery({
 		queryKey: ["clients"],
 		queryFn: async () => {
 			const resp = await clientsApi.list(false);
 			return resp;
 		},
 		staleTime: 10_000,
+		retry: false,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false,
 	});
 
-	const clients = data?.client ?? [];
+	// Use a stable empty array reference to avoid re-render loops when data is undefined or on errors
+	const EMPTY: any[] = React.useMemo(() => [], []);
+	const clients =
+		data && Array.isArray((data as any).client) ? (data as any).client : EMPTY;
 	const detectedCount = clients.filter((c: any) => !!c.detected).length;
 	const managedCount = clients.filter((c: any) => !!c.managed).length;
 	const configuredCount = clients.filter((c: any) => !!c.has_mcp_config).length;
-	// 转换数据格式以适配 Entity 接口，保持引用稳定
+
 	const clientsAsEntities = React.useMemo(() => {
 		const mapped = clients.map((client: any) => ({
 			id: client.identifier || client.display_name || "",
@@ -66,7 +72,10 @@ export function ClientsPage() {
 
 	// 同步最新数据源
 	React.useEffect(() => {
-		setSortedClients(clientsAsEntities);
+		// Only update when reference actually changed to prevent update depth issues
+		setSortedClients((prev) =>
+			prev === clientsAsEntities ? prev : clientsAsEntities,
+		);
 	}, [clientsAsEntities]);
 	const [search, setSearch] = React.useState("");
 
