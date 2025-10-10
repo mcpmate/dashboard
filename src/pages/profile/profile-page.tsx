@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { EntityCard } from "../../components/entity-card";
 import { EntityListItem } from "../../components/entity-list-item";
@@ -33,6 +32,7 @@ import {
 import { PageToolbar } from "../../components/ui/page-toolbar";
 import { Switch } from "../../components/ui/switch";
 import { configSuitsApi, serversApi } from "../../lib/api";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { notifyError, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
 import type {
@@ -129,16 +129,20 @@ export function ProfilePage() {
 	});
 
 	// Get all active suits for aggregated statistics
-	const rawSuits = suitsResponse?.suits || [];
+	// Use a stable empty array reference to avoid render loops when data is not ready
+	const EMPTY_SUITS = React.useMemo<ConfigSuit[]>(() => [], []);
+	const rawSuits = Array.isArray(suitsResponse?.suits)
+		? (suitsResponse!.suits as ConfigSuit[])
+		: EMPTY_SUITS;
 	const suits = useMemo(
 		() => arrangeSuitsWithDefaultAnchor(rawSuits),
 		[rawSuits],
 	);
 	const activeSuits = suits.filter((suit) => suit.is_active);
 
-	// 当 suits 数据变化时更新 sortedSuits
+	// 当 suits 数据变化时更新 sortedSuits（仅在引用变化时）
 	React.useEffect(() => {
-		setSortedSuits(suits);
+		setSortedSuits((prev) => (prev === suits ? prev : suits));
 	}, [suits]);
 
 	// Get active suit IDs for query keys
@@ -499,7 +503,9 @@ export function ProfilePage() {
 						label: t("profiles:badges.multiSelect", {
 							defaultValue: "Multi-select",
 						}),
-						value: suit.multi_select ? t("yes", { defaultValue: "Yes" }) : t("no", { defaultValue: "No" }),
+						value: suit.multi_select
+							? t("yes", { defaultValue: "Yes" })
+							: t("no", { defaultValue: "No" }),
 					},
 					{
 						label: t("profiles:badges.priority", { defaultValue: "Priority" }),

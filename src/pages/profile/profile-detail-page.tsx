@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	BadgeCheck,
-	Bug,
-	Check,
-	Edit3,
-	Play,
-	RefreshCw,
-	Square,
-	Trash2,
+    BadgeCheck,
+    Bug,
+    Check,
+    Edit3,
+    Play,
+    RefreshCw,
+    Square,
+    Trash2,
+    Eye,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -98,19 +99,29 @@ export function ProfileDetailPage() {
 		(state) => state.dashboardSettings.openDebugInNewWindow,
 	);
 
-	const openDebug = (
-		targetServerId: string,
-		channel: "proxy" | "native" = "proxy",
-	) => {
-		const url = `/servers/${encodeURIComponent(targetServerId)}?view=debug&channel=${channel}`;
-		if (openDebugInNewWindow) {
-			if (typeof window !== "undefined") {
-				window.open(url, "_blank", "noopener,noreferrer");
-			}
-			return;
-		}
-		navigate(url);
-	};
+    const openDebug = (
+        targetServerId: string,
+        channel: "proxy" | "native" = "proxy",
+    ) => {
+        const url = `/servers/${encodeURIComponent(targetServerId)}?view=debug&channel=${channel}`;
+        if (openDebugInNewWindow) {
+            if (typeof window !== "undefined") {
+                window.open(url, "_blank", "noopener,noreferrer");
+            }
+            return;
+        }
+        navigate(url);
+    };
+    const openBrowse = (targetServerId: string) => {
+        const url = `/servers/${encodeURIComponent(targetServerId)}?view=browse`;
+        if (openDebugInNewWindow) {
+            if (typeof window !== "undefined") {
+                window.open(url, "_blank", "noopener,noreferrer");
+            }
+            return;
+        }
+        navigate(url);
+    };
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	// Filters: servers
@@ -141,6 +152,7 @@ export function ProfileDetailPage() {
 	const [selectedToolIds, setSelectedToolIds] = useState<string[]>([]);
 	const [selectedResourceIds, setSelectedResourceIds] = useState<string[]>([]);
 	const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
+	const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
 
 	// Bulk mutations using server-side batch manage to improve reliability
 	const bulkToolsM = useMutation({
@@ -200,6 +212,27 @@ export function ProfileDetailPage() {
 		},
 		onError: (e) => notifyError(
 			t("profiles:detail.messages.promptsUpdateFailed", { defaultValue: "Prompts update failed" }),
+			String(e)
+		),
+	});
+
+	const bulkTemplatesM = useMutation({
+		mutationFn: ({ enable }: { enable: boolean }) =>
+			configSuitsApi.bulkResourceTemplates(
+				profileId!,
+				selectedTemplateIds,
+				enable ? "enable" : "disable",
+			),
+		onSuccess: () => {
+			setSelectedTemplateIds([]);
+			refetchTemplates();
+			notifySuccess(
+				t("profiles:detail.messages.templatesUpdated", { defaultValue: "Templates updated" }),
+				t("profiles:detail.messages.bulkOperationCompleted", { defaultValue: "Bulk operation completed" })
+			);
+		},
+		onError: (e) => notifyError(
+			t("profiles:detail.messages.templatesUpdateFailed", { defaultValue: "Templates update failed" }),
 			String(e)
 		),
 	});
@@ -340,6 +373,21 @@ export function ProfileDetailPage() {
 		retry: 1,
 	});
 
+	// Fetch resource templates in suit
+	const {
+		data: templatesResponse,
+		isLoading: isLoadingTemplates,
+		refetch: refetchTemplates,
+	} = useQuery({
+		queryKey: ["configSuitResourceTemplates", profileId],
+		queryFn: () =>
+			profileId
+				? configSuitsApi.getResourceTemplates(profileId)
+				: Promise.resolve(undefined),
+		enabled: !!profileId,
+		retry: 1,
+	});
+
 	// Activation/deactivation mutations
 	const activateSuitMutation = useMutation({
 		mutationFn: () => configSuitsApi.activateSuit(profileId!),
@@ -436,12 +484,13 @@ export function ProfileDetailPage() {
 				? configSuitsApi.enableServer(profileId!, serverId)
 				: configSuitsApi.disableServer(profileId!, serverId);
 		},
-		onSuccess: () => {
-			// Refetch all capability data to update counts in tabs
-			refetchServers();
-			refetchTools();
-			refetchResources();
-			refetchPrompts();
+	onSuccess: () => {
+		// Refetch all capability data to update counts in tabs
+		refetchServers();
+		refetchTools();
+		refetchResources();
+		refetchPrompts();
+		refetchTemplates();
 
 			// Invalidate profile statistics cache for config page
 			queryClient.invalidateQueries({
@@ -468,8 +517,9 @@ export function ProfileDetailPage() {
 				? configSuitsApi.enableTool(profileId!, toolId)
 				: configSuitsApi.disableTool(profileId!, toolId);
 		},
-		onSuccess: () => {
-			refetchTools();
+	onSuccess: () => {
+		refetchTools();
+		refetchTemplates();
 			notifySuccess(
 				t("profiles:detail.messages.toolUpdated", { defaultValue: "Tool updated" }),
 				"Tool status has been updated"
@@ -496,8 +546,9 @@ export function ProfileDetailPage() {
 				? configSuitsApi.enableResource(profileId!, resourceId)
 				: configSuitsApi.disableResource(profileId!, resourceId);
 		},
-		onSuccess: () => {
-			refetchResources();
+	onSuccess: () => {
+		refetchResources();
+		refetchTemplates();
 			notifySuccess(
 				t("profiles:detail.messages.resourceUpdated", { defaultValue: "Resource updated" }),
 				"Resource status has been updated"
@@ -524,8 +575,9 @@ export function ProfileDetailPage() {
 				? configSuitsApi.enablePrompt(profileId!, promptId)
 				: configSuitsApi.disablePrompt(profileId!, promptId);
 		},
-		onSuccess: () => {
-			refetchPrompts();
+	onSuccess: () => {
+		refetchPrompts();
+		refetchTemplates();
 			notifySuccess(
 				t("profiles:detail.messages.promptUpdated", { defaultValue: "Prompt updated" }),
 				"Prompt status has been updated"
@@ -585,6 +637,7 @@ export function ProfileDetailPage() {
 		refetchTools();
 		refetchResources();
 		refetchPrompts();
+		refetchTemplates();
 	};
 
 	const handleEditDrawerClose = (open: boolean) => {
@@ -593,9 +646,9 @@ export function ProfileDetailPage() {
 
 	const servers = (serversResponse?.servers ?? []) as ConfigSuitServer[];
 	const tools = (toolsResponse?.tools ?? []) as ConfigSuitTool[];
-	const resources = (resourcesResponse?.resources ??
-		[]) as ConfigSuitResource[];
+	const resources = (resourcesResponse?.resources ?? []) as ConfigSuitResource[];
 	const prompts = (promptsResponse?.prompts ?? []) as ConfigSuitPrompt[];
+	const templates = (templatesResponse?.templates ?? []) as any[];
 
 	const enabledServers = servers.filter((s: ConfigSuitServer) => s.enabled);
 	const enabledTools = tools.filter((t: ConfigSuitTool) => t.enabled);
@@ -603,6 +656,7 @@ export function ProfileDetailPage() {
 		(r: ConfigSuitResource) => r.enabled,
 	);
 	const enabledPrompts = prompts.filter((p: ConfigSuitPrompt) => p.enabled);
+	const enabledTemplates = templates.filter((t: any) => t.enabled);
 
 	// Global servers for availability(connected) calculation
 	const { data: globalServersResp } = useQuery({
@@ -622,6 +676,7 @@ export function ProfileDetailPage() {
 				...tools.map((t: ConfigSuitTool) => t.server_name),
 				...resources.map((r: ConfigSuitResource) => r.server_name),
 				...prompts.map((p: ConfigSuitPrompt) => p.server_name),
+				...templates.map((r: any) => r.server_name),
 			].filter(Boolean),
 		),
 	).sort();
@@ -670,6 +725,45 @@ export function ProfileDetailPage() {
 			(promptStatus === "enabled" ? p.enabled : !p.enabled);
 		const serverPass = promptServer === "all" || p.server_name === promptServer;
 		return queryPass && statusPass && serverPass;
+	});
+
+	// Filters: templates
+	const [templateQuery, setTemplateQuery] = useState("");
+	const [templateStatus, setTemplateStatus] = useState<
+		"all" | "enabled" | "disabled"
+	>("all");
+	const [templateServer, setTemplateServer] = useState<string>("all");
+
+	const visibleTemplates = templates.filter((r: any) => {
+		const text = `${r.uri_template ?? ""} ${r.server_name ?? ""}`.toLowerCase();
+		const queryPass =
+			templateQuery.trim() === "" || text.includes(templateQuery.toLowerCase());
+		const statusPass =
+			templateStatus === "all" ||
+			(templateStatus === "enabled" ? r.enabled : !r.enabled);
+		const serverPass = templateServer === "all" || r.server_name === templateServer;
+		return queryPass && statusPass && serverPass;
+	});
+
+	// Template toggle mutations
+	const templateToggleMutation = useMutation({
+		mutationFn: ({ templateId, enable }: { templateId: string; enable: boolean }) =>
+			enable
+				? configSuitsApi.enableResourceTemplate(profileId!, templateId)
+				: configSuitsApi.disableResourceTemplate(profileId!, templateId),
+		onSuccess: () => {
+			refetchTemplates();
+			notifySuccess(
+				t("profiles:detail.messages.templateUpdated", { defaultValue: "Template updated" }),
+				"Template status has been updated",
+			);
+		},
+		onError: (error) => {
+			notifyError(
+				t("profiles:detail.messages.templateUpdateFailed", { defaultValue: "Template update failed" }),
+				`Failed to update template: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		},
 	});
 
 	return (
@@ -744,6 +838,9 @@ export function ProfileDetailPage() {
 							</TabsTrigger>
 							<TabsTrigger value="resources">
 								{t("profiles:detail.tabs.resources", { defaultValue: "Resources" })} ({enabledResources.length}/{resources.length})
+							</TabsTrigger>
+							<TabsTrigger value="templates">
+								{t("profiles:detail.tabs.templates", { defaultValue: "Templates" })} ({enabledTemplates.length}/{templates.length})
 							</TabsTrigger>
 						</TabsList>
 					</div>
@@ -1139,25 +1236,40 @@ export function ProfileDetailPage() {
 															</div>
 														</div>
 														<div className="ml-auto flex items-center gap-2">
-															{/* Inspect button with hover logic - positioned on the left */}
-															{enableServerDebug && (
-																<div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-																	<button
-																		type="button"
-																		onClick={(ev) => {
-																			ev.stopPropagation();
-																			openDebug(
-																				server.id,
-																				server.enabled ? "proxy" : "native",
-																			);
-																		}}
-																		aria-label={t("profiles:detail.labels.debugServer", { defaultValue: "Inspect server" })}
-																		className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
-																	>
-																		<Bug size={20} />
-																	</button>
-																</div>
-															)}
+                                            {/* Hover actions: Browse (left) + Inspect (right) */}
+                                            {enableServerDebug && (
+                                                <>
+                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(ev) => {
+                                                                ev.stopPropagation();
+                                                                openBrowse(server.id);
+                                                            }}
+                                                            aria-label={t("profiles:detail.labels.browseServer", { defaultValue: "Browse server" })}
+                                                            className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+                                                        >
+                                                            <Eye size={20} />
+                                                        </button>
+                                                    </div>
+                                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(ev) => {
+                                                                ev.stopPropagation();
+                                                                openDebug(
+                                                                    server.id,
+                                                                    server.enabled ? "proxy" : "native",
+                                                                );
+                                                            }}
+                                                            aria-label={t("profiles:detail.labels.debugServer", { defaultValue: "Inspect server" })}
+                                                            className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+                                                        >
+                                                            <Bug size={20} />
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
 
 															{/* Global status badges and switch - positioned on the right */}
 															{globallyEnabled !== undefined &&
@@ -1654,6 +1766,99 @@ export function ProfileDetailPage() {
 									}}
 									renderAction={undefined}
 								/>
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					<TabsContent value="templates">
+						<Card>
+							<CardHeader>
+								<div className="flex items-center justify-between gap-2">
+									<div>
+										<CardTitle>
+											{t("profiles:detail.labels.templates", { defaultValue: "Templates" })}
+										</CardTitle>
+										<CardDescription>
+											{t("profiles:detail.descriptions.templates", {
+												defaultValue: "Manage resource templates included in this profile",
+											})}
+										</CardDescription>
+									</div>
+									{!isLoadingTemplates && (
+										<div className="flex flex-wrap items-center gap-2">
+											<Input
+												placeholder={t("profiles:detail.placeholders.searchTemplates", { defaultValue: "Search templates..." })}
+												value={templateQuery}
+												onChange={(e) => setTemplateQuery(e.target.value)}
+												className="w-48 h-9"
+											/>
+											<div className="hidden xl:block">
+												<Select
+													value={templateStatus}
+													onValueChange={(v) => setTemplateStatus(v as "all" | "enabled" | "disabled")}
+												>
+													<SelectTrigger className="w-36 h-9">
+														<SelectValue placeholder={t("profiles:detail.placeholders.status", { defaultValue: "Status" })} />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">{t("profiles:detail.filters.status.all", { defaultValue: "All" })}</SelectItem>
+														<SelectItem value="enabled">{t("profiles:detail.filters.status.enabled", { defaultValue: "Enabled" })}</SelectItem>
+														<SelectItem value="disabled">{t("profiles:detail.filters.status.disabled", { defaultValue: "Disabled" })}</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+											<div className="hidden xl:block">
+												<Select value={templateServer} onValueChange={(v) => setTemplateServer(v)}>
+													<SelectTrigger className="w-40 h-9">
+														<SelectValue placeholder={t("profiles:detail.placeholders.server", { defaultValue: "Server" })} />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="all">{t("profiles:detail.filters.server.all", { defaultValue: "All Servers" })}</SelectItem>
+														{serverNameOptions.map((name) => (
+															<SelectItem key={`tpl-sel-${name}`} value={name}>
+																{name}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+											<ButtonGroup className="hidden md:flex ml-2">
+												<Button variant="outline" size="sm" onClick={() => setSelectedTemplateIds(visibleTemplates.map((p: any) => p.id))}>
+													{t("profiles:detail.buttons.selectAll", { defaultValue: "Select all" })}
+												</Button>
+												<Button variant="outline" size="sm" onClick={() => setSelectedTemplateIds([])}>
+													{t("profiles:detail.buttons.clearSelection", { defaultValue: "Clear" })}
+												</Button>
+												<Button size="sm" disabled={bulkTemplatesM.isPending || selectedTemplateIds.length === 0} onClick={() => bulkTemplatesM.mutate({ enable: true })}>
+													{t("profiles:detail.buttons.enable", { defaultValue: "Enable" })}
+												</Button>
+												<Button size="sm" variant="secondary" disabled={bulkTemplatesM.isPending || selectedTemplateIds.length === 0} onClick={() => bulkTemplatesM.mutate({ enable: false })}>
+													{t("profiles:detail.buttons.disable", { defaultValue: "Disable" })}
+												</Button>
+											</ButtonGroup>
+										</div>
+									)}
+								</div>
+							</CardHeader>
+							<CardContent>
+                        <CapabilityList
+                            asCard={false}
+                            title={t("profiles:detail.labels.templates", { defaultValue: "Templates" })}
+                            kind="templates"
+                            context="profile"
+                            items={visibleTemplates as any}
+                            loading={isLoadingTemplates}
+                            enableToggle
+                            getId={(p: any) => p.id}
+                            getEnabled={(p: any) => !!p.enabled}
+                            onToggle={(id, next) => templateToggleMutation.mutate({ templateId: id, enable: next })}
+                            emptyText={t("profiles:detail.emptyStates.noTemplates", { defaultValue: "No templates found in this profile" })}
+                            filterText={templateQuery}
+                            selectable
+                            selectedIds={selectedTemplateIds}
+                            onSelectToggle={(id) => setSelectedTemplateIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
+                            renderAction={undefined}
+                        />
 							</CardContent>
 						</Card>
 					</TabsContent>
