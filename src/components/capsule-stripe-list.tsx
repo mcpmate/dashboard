@@ -32,21 +32,21 @@ export const CapsuleStripeListItem = React.forwardRef<
 	HTMLDivElement,
 	CapsuleStripeListItemProps
 >(({ className, interactive = false, role, tabIndex, ...rest }, ref) => {
-	return (
-		<div
-			ref={ref}
-			role={role ?? (interactive ? "button" : undefined)}
-			tabIndex={tabIndex ?? (interactive ? 0 : undefined)}
-			className={cn(
-				"px-3 py-2 text-sm flex items-center justify-between gap-3",
-				"even:bg-white odd:bg-slate-50 dark:even:bg-slate-950 dark:odd:bg-slate-900",
-				interactive &&
-					"cursor-pointer transition-colors hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-				className,
-			)}
-			{...rest}
-		/>
-	);
+    return (
+        <div
+            ref={ref}
+            role={role ?? (interactive ? "button" : undefined)}
+            tabIndex={tabIndex ?? (interactive ? 0 : undefined)}
+            className={cn(
+                "p-2 text-sm flex items-center justify-between gap-3",
+                "even:bg-white odd:bg-slate-50 dark:even:bg-slate-950 dark:odd:bg-slate-900",
+                interactive &&
+                    "cursor-pointer transition-colors hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                className,
+            )}
+            {...rest}
+        />
+    );
 });
 
 CapsuleStripeListItem.displayName = "CapsuleStripeListItem";

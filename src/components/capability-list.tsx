@@ -37,7 +37,15 @@ export interface CapabilityListProps<T = CapabilityRecord> {
 	selectedIds?: string[];
 	onSelectToggle?: (id: string, item: T) => void;
 	asCard?: boolean;
-	renderAction?: (mapped: CapabilityMapItem<T>, item: T) => ReactNode;
+	/** Dense spacing between list items (space-y-2). */
+	dense?: boolean;
+    /** Render using CapsuleStripeList visual style. */
+    capsule?: boolean;
+    /** Hide actions until item hover. */
+    hoverActions?: boolean;
+    /** Clicking an item toggles the details block (if present). */
+    clickToToggleDetails?: boolean;
+    renderAction?: (mapped: CapabilityMapItem<T>, item: T) => ReactNode;
 }
 
 function asString(v: unknown): string | undefined {
@@ -198,31 +206,14 @@ function mapItem<T>(kind: CapabilityKind, item: T): CapabilityMapItem<T> {
 		};
 	}
 
-	// Templates: parse {placeholder} from uriTemplate
+	// Templates: show concise row like other capabilities, with server only
 	const uriTemplate = asString(record.uriTemplate) ?? asString(record.uri_template);
 	const title = uriTemplate || asString(record.name) || "Template";
-	const description = normalizeMultiline(asString(record.description));
-
-	// Extract placeholders from uriTemplate like {id}, {path}, etc.
-	const args: CapabilityArgument[] = [];
-	if (uriTemplate) {
-		const placeholderRegex = /\{([^}]+)\}/g;
-		const matches = [...uriTemplate.matchAll(placeholderRegex)];
-		matches.forEach((match) => {
-			args.push({
-				name: match[1],
-				type: "string",
-				required: true,
-				description: `Value for {${match[1]}} placeholder`,
-			});
-		});
-	}
-
 	return {
 		title,
-		subtitle: asString(record.server_name),
-		description,
-		args: args.length > 0 ? args : undefined,
+		subtitle: undefined,
+		server: asString(record.server_name),
+		description: undefined,
 		raw: item,
 		icon: extractIconSrc(record),
 	};
@@ -260,19 +251,26 @@ export function CapabilityList<T = CapabilityRecord>({
 	selectedIds,
 	onSelectToggle,
 	asCard,
-	renderAction,
+	dense,
+    capsule,
+    hoverActions,
+    clickToToggleDetails,
+    renderAction,
 }: CapabilityListProps<T>) {
-	const [internalFilter, setInternalFilter] = useState("");
+    const [internalFilter, setInternalFilter] = useState("");
+    const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
 	const search = filterText ?? internalFilter;
 	const showRawJson = useAppStore(
 		(state) => state.dashboardSettings.showRawCapabilityJson,
 	);
 	const { t } = useTranslation();
 
-	const mappedItems = useMemo(
-		() => (items || []).map((it) => mapItem(kind, it)),
-		[items, kind],
-	);
+    const useCapsule = capsule ?? (context === "server");
+
+    const mappedItems = useMemo(
+        () => (items || []).map((it) => mapItem(kind, it)),
+        [items, kind],
+    );
 	const data = useMemo(
 		() => mappedItems.filter((m) => matchText(m, search)),
 		[mappedItems, search],
@@ -317,7 +315,18 @@ export function CapabilityList<T = CapabilityRecord>({
 		const hasSchema = schemaEntries.length > 0;
 		const hasOutSchema = outputSchemaEntries.length > 0;
 		const hasRaw = showRawJson && mapped.raw != null;
-		const hasDetails = hasArgs || hasSchema || hasOutSchema || hasRaw;
+        const hasDetails = hasArgs || hasSchema || hasOutSchema || hasRaw;
+
+        const isInteractiveTarget = (el: HTMLElement | null): boolean => {
+            if (!el) return false;
+            const selector = "button, a, input, textarea, select, [role=button]";
+            let cur: HTMLElement | null = el;
+            while (cur && cur !== (document.body as HTMLElement)) {
+                if (cur.matches?.(selector)) return true;
+                cur = cur.parentElement as HTMLElement | null;
+            }
+            return false;
+        };
 
 		const indicatorClass = isSelected
 			? "border-primary bg-primary text-white shadow-sm"
@@ -343,8 +352,15 @@ export function CapabilityList<T = CapabilityRecord>({
 			</div>
 		) : null;
 
-		const detailsBlock = hasDetails ? (
-			<details className="mt-2">
+        const detailsBlock = hasDetails ? (
+            <details
+                className="mt-2"
+                open={!!openMap[id]}
+                onToggle={(e) => {
+                    const isOpen = (e.currentTarget as HTMLDetailsElement).open;
+                    setOpenMap((prev) => ({ ...prev, [id]: isOpen }));
+                }}
+            >
 				<summary className="cursor-pointer text-xs text-slate-500">
 					{t("servers:capabilityList.detailsToggle", {
 						defaultValue: "Details",
@@ -562,9 +578,11 @@ export function CapabilityList<T = CapabilityRecord>({
 			</>
 		);
 
-		const actionSection = (
-			<div className="ml-auto flex items-start gap-2">{actions}</div>
-		);
+        const actionSection = (
+            <div className={`ml-auto flex items-start gap-2 ${
+                hoverActions ? "opacity-0 group-hover:opacity-100 transition-opacity" : ""
+            }`}>{actions}</div>
+        );
 
 		if (context === "profile") {
 			return (
@@ -590,6 +608,45 @@ export function CapabilityList<T = CapabilityRecord>({
 			);
 		}
 
+        if (useCapsule) {
+            return (
+                <CapsuleStripeListItem
+                    key={id}
+                    interactive={false}
+                    className="group"
+                    onClick={(e) => {
+                        if (!clickToToggleDetails) return;
+                        const sel = typeof window !== "undefined" ? window.getSelection()?.toString() : "";
+                        if (sel && sel.trim().length > 0) return;
+                        if (isInteractiveTarget(e.target as HTMLElement)) return;
+                        const tgt = e.target as HTMLElement;
+                        if (tgt.closest('summary') || tgt.closest('details')) return;
+                        const detailsEl = (e.currentTarget as HTMLElement).querySelector("details") as HTMLDetailsElement | null;
+                        if (detailsEl) {
+                            detailsEl.open = !detailsEl.open;
+                            setOpenMap((prev) => ({ ...prev, [id]: detailsEl.open }));
+                        }
+                    }}
+                    onKeyDown={(e) => {
+                        if (!clickToToggleDetails) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            const detailsEl = (e.currentTarget as HTMLElement).querySelector("details") as HTMLDetailsElement | null;
+                            if (detailsEl) {
+                                detailsEl.open = !detailsEl.open;
+                                setOpenMap((prev) => ({ ...prev, [id]: detailsEl.open }));
+                            }
+                        }
+                    }}
+                >
+                    <div className="flex w-full items-start justify-between gap-3">
+                        {leftSection}
+                        {actionSection}
+                    </div>
+                </CapsuleStripeListItem>
+            );
+        }
+
 		return (
 			<li
 				key={id}
@@ -607,12 +664,14 @@ export function CapabilityList<T = CapabilityRecord>({
 		);
 	});
 
-	const listContent =
-		context === "profile" ? (
-			<CapsuleStripeList>{renderedItems}</CapsuleStripeList>
-		) : (
-			<ul className="space-y-4 text-sm">{renderedItems}</ul>
-		);
+    const listContent =
+        context === "profile" || useCapsule ? (
+            <CapsuleStripeList>{renderedItems}</CapsuleStripeList>
+        ) : (
+            <ul className={`${dense || asCard === false ? "space-y-2" : "space-y-4"} text-sm`}>
+                {renderedItems}
+            </ul>
+        );
 
 	const list = (
 		<div>
