@@ -467,15 +467,11 @@ export function MarketPage() {
 		<>
 			<div className="space-y-4">
 				<div className="sticky top-0 z-10 -mx-1 rounded-b-xl px-1 backdrop-blur">
-					<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-						<div className="space-y-1">
-							<h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-								{t("market:title", { defaultValue: "Market" })}
-								<sup className="ml-2 align-super text-xs font-normal text-slate-500 dark:text-slate-400">
-									{t("market:alpha", { defaultValue: "alpha" })}
-								</sup>
-							</h2>
-						</div>
+					{/* Header: single-line description + right controls */}
+					<div className="flex items-center gap-2 min-w-0">
+						<p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
+							{t("market:title", { defaultValue: "Market" })}
+						</p>
 
 						{/* Search, Sort, and Refresh Controls */}
 						{isOfficialTab ? (
@@ -488,7 +484,7 @@ export function MarketPage() {
 								isLoading={isPageLoading}
 							/>
 						) : (
-							<div className="flex justify-end">
+							<div className="flex justify-end flex-shrink-0">
 								<Button
 									variant="outline"
 									size="sm"

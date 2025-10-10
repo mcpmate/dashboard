@@ -102,19 +102,19 @@ export function RuntimePage() {
 
 	const kinds: Array<"uv" | "bun"> = ["uv", "bun"];
 
-	return (
-		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<h2 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-					{t("runtime:title")}
-				</h2>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={isBusy || runtimeCacheQ.isLoading}
-						onClick={() => setConfirm({ type: "resetAll" })}
-					>
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center gap-2 min-w-0">
+                <p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
+                    {t("runtime:title")}
+                </p>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isBusy || runtimeCacheQ.isLoading}
+                        onClick={() => setConfirm({ type: "resetAll" })}
+                    >
 						<RefreshCw
 							className={`mr-2 h-4 w-4 ${resetAllM.isPending ? "animate-spin" : ""}`}
 						/>

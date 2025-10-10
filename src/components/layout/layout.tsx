@@ -119,7 +119,11 @@ export function Layout() {
 		return () => window.removeEventListener("resize", handler);
 	}, [sidebarOpen, setSidebarOpen]);
 
-	return (
+    const appVersion = (import.meta as any).env?.VITE_APP_VERSION ?? "0.1.0";
+    const buildTag = (import.meta as any).env?.VITE_BUILD_TAG as string | undefined;
+    const versionDisplay = `v${String(appVersion)}${buildTag ? ` (${buildTag})` : ""}`;
+
+    return (
 		<div className="min-h-screen">
 			<Sidebar />
 			<Header />
@@ -135,11 +139,11 @@ export function Layout() {
 					</div>
 					<footer className="mt-6 text-[11px] text-slate-500 border-t border-slate-200 dark:border-slate-900 pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
 						<div>
-							{t("layout.versionFooter", {
-								defaultValue: "MCPMate Board",
-							})}{" "}
-							<span className="font-mono">v0.1.0</span>
-						</div>
+                        {t("layout.versionFooter", {
+                            defaultValue: "MCPMate Board",
+                        })}{" "}
+                        <span className="font-mono">{versionDisplay}</span>
+                    </div>
 						<div className="flex items-center gap-3">
 							<a
 								className="hover:underline"

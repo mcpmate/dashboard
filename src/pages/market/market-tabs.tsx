@@ -31,7 +31,7 @@ export function MarketTabs({
 		<div className="mt-4">
 			<div className="flex items-center border-b border-slate-200 dark:border-slate-700">
 				{/* Tab triggers */}
-				<div className="flex items-center">
+				<div className="flex items-center flex-1 overflow-x-auto">
 					{tabs.map((tab, index) => (
 						<div
 							key={tab.id}
@@ -77,15 +77,15 @@ export function MarketTabs({
 					))}
 				</div>
 
-				{/* Add tab button */}
-				<div className="ml-4">
+				{/* Add tab button (right-aligned) */}
+				<div className="ml-auto flex-shrink-0 pl-2">
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button variant="ghost" size="sm" className="h-8 w-8 p-0">
 								<Plus className="h-4 w-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="start">
+						<DropdownMenuContent align="end">
 							<DropdownMenuItem
 								onClick={onAddOfficial}
 								className="flex items-center gap-2"

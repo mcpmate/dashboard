@@ -8,11 +8,11 @@ import {
 } from "./ui/card";
 
 export interface PageLayoutProps {
-	title: string;
-	children: ReactNode;
-	headerActions?: ReactNode;
-	statsCards?: ReactNode;
-	className?: string;
+    title: string;
+    children: ReactNode;
+    headerActions?: ReactNode;
+    statsCards?: ReactNode;
+    className?: string;
 }
 
 export function PageLayout({
@@ -22,24 +22,26 @@ export function PageLayout({
 	statsCards,
 	className = "",
 }: PageLayoutProps) {
-	return (
-		<div className={`space-y-4 ${className}`}>
-			{/* Page header */}
-			<div className="flex items-center justify-between gap-4">
-				<h2 className="text-3xl font-bold tracking-tight">{title}</h2>
-				{headerActions && (
-					<div className="flex items-center gap-3 whitespace-nowrap">
-						{headerActions}
-					</div>
-				)}
-			</div>
+    return (
+        <div className={`space-y-4 ${className}`}>
+            {/* Page header (single-line, squeezable description) */}
+            <div className="flex items-center gap-2 min-w-0">
+                <p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
+                    {title}
+                </p>
+                {headerActions && (
+                    <div className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
+                        {headerActions}
+                    </div>
+                )}
+            </div>
 
-			{/* Stats cards */}
-			{statsCards && (
-				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-					{statsCards}
-				</div>
-			)}
+        {/* Stats cards */}
+        {statsCards && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {statsCards}
+            </div>
+        )}
 
 			{/* Main content */}
 			{children}

@@ -1,6 +1,6 @@
 export const runtimeTranslations = {
-	en: {
-		title: "Runtime",
+    en: {
+        title: "Observe runtime status, queues, and cache",
 		types: {
 			uv: "UV",
 			bun: "BUN",
@@ -58,8 +58,8 @@ export const runtimeTranslations = {
 			cancel: "Cancel",
 		},
 	},
-	"zh-CN": {
-		title: "运行时",
+    "zh-CN": {
+        title: "维护内建运行时与缓存",
 		types: {
 			uv: "UV",
 			bun: "BUN",
@@ -116,8 +116,8 @@ export const runtimeTranslations = {
 			cancel: "取消",
 		},
 	},
-	"ja-JP": {
-		title: "ランタイム",
+    "ja-JP": {
+        title: "ランタイム状態・キュー・キャッシュの監視",
 		types: {
 			uv: "UV",
 			bun: "BUN",
@@ -177,4 +177,3 @@ export const runtimeTranslations = {
 		},
 	},
 } as const;
-

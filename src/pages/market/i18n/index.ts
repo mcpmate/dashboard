@@ -1,6 +1,6 @@
 export const marketTranslations = {
-	en: {
-		title: "Market",
+    en: {
+        title: "Explore and install MCP servers",
 		alpha: "alpha",
 		buttons: {
 			refresh: "Refresh",
@@ -39,8 +39,8 @@ export const marketTranslations = {
 		},
 		officialRegistry: "Official MCP Registry",
 	},
-	"zh-CN": {
-		title: "服务源",
+    "zh-CN": {
+        title: "浏览并获取 MCP 服务源",
 		alpha: "alpha",
 		buttons: {
 			refresh: "刷新",
@@ -78,8 +78,8 @@ export const marketTranslations = {
 		},
 		officialRegistry: "官方 MCP 注册中心",
 	},
-	"ja-JP": {
-		title: "マーケット",
+    "ja-JP": {
+        title: "MCP サーバーを探索・インストール",
 		alpha: "alpha",
 		buttons: {
 			refresh: "更新",
