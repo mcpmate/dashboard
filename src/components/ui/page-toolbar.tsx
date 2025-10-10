@@ -87,19 +87,21 @@ export interface PageToolbarCallbacks<T extends Entity = Entity> {
 
 // 工具栏属性
 export interface PageToolbarProps<T extends Entity = Entity> {
-	config: PageToolbarConfig<T>;
-	state: PageToolbarState;
-	callbacks: PageToolbarCallbacks<T>;
-	actions?: React.ReactNode;
-	className?: string;
+    config: PageToolbarConfig<T>;
+    state: PageToolbarState;
+    callbacks: PageToolbarCallbacks<T>;
+    actions?: React.ReactNode;
+    filters?: React.ReactNode;
+    className?: string;
 }
 
 export function PageToolbar<T extends Entity = Entity>({
-	config,
-	state,
-	callbacks,
-	actions,
-	className,
+    config,
+    state,
+    callbacks,
+    actions,
+    filters,
+    className,
 }: PageToolbarProps<T>) {
 	const {
 		data = [],
@@ -342,14 +344,17 @@ export function PageToolbar<T extends Entity = Entity>({
 
 			{/* 控制按钮组 */}
 			<div className="flex items-center gap-2">
-				{/* 视图切换 */}
-				{renderViewMode()}
+            {/* 排序 */}
+            {renderSort()}
 
-				{/* 排序 */}
-				{renderSort()}
+            {/* 过滤器（在展开模式下显示） */}
+            {isExpanded && filters}
 
-				{/* 自定义操作 */}
-				{actions}
+            {/* 视图切换：位于过滤之后 */}
+            {renderViewMode()}
+
+            {/* 自定义操作（刷新 / 新增） */}
+            {actions}
 			</div>
 		</div>
 	);

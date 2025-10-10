@@ -1,6 +1,6 @@
 export const clientsTranslations = {
-	en: {
-		title: "Clients",
+    en: {
+        title: "Discover and manage client connections and visibility",
 		toolbar: {
 			search: {
 				placeholder: "Search clients...",
@@ -8,6 +8,14 @@ export const clientsTranslations = {
 					displayName: "Display Name",
 					identifier: "Identifier",
 					description: "Description",
+				},
+			},
+			filters: {
+				title: "Filter",
+				options: {
+					all: "All",
+					detected: "Detected",
+					managed: "Managed",
 				},
 			},
 			sort: {
@@ -349,8 +357,8 @@ export const clientsTranslations = {
 			},
 		},
 	},
-	"zh-CN": {
-		title: "客户端",
+    "zh-CN": {
+        title: "发现并管理客户端连接与可见性",
 		toolbar: {
 			search: {
 				placeholder: "搜索客户端...",
@@ -358,6 +366,14 @@ export const clientsTranslations = {
 					displayName: "显示名称",
 					identifier: "标识符",
 					description: "描述",
+				},
+			},
+			filters: {
+				title: "筛选",
+				options: {
+					all: "全部",
+					detected: "已检测",
+					managed: "已管理",
 				},
 			},
 			sort: {
@@ -689,8 +705,8 @@ export const clientsTranslations = {
 			},
 		},
 	},
-	"ja-JP": {
-		title: "クライアント",
+    "ja-JP": {
+        title: "クライアント接続と可視性の管理",
 		toolbar: {
 			search: {
 				placeholder: "クライアントを検索...",
@@ -698,6 +714,14 @@ export const clientsTranslations = {
 					displayName: "表示名",
 					identifier: "識別子",
 					description: "説明",
+				},
+			},
+			filters: {
+				title: "フィルター",
+				options: {
+					all: "すべて",
+					detected: "検出済み",
+					managed: "管理中",
 				},
 			},
 			sort: {

@@ -30,6 +30,7 @@ import {
 import {
 	type ClientBackupStrategy,
 	type ClientDefaultMode,
+	type ClientListDefaultFilter,
 	type DashboardAppMode,
 	type DashboardDefaultView,
 	type DashboardLanguage,
@@ -62,6 +63,24 @@ const THEME_CONFIG = [
 		labelKey: "settings:options.theme.dark",
 		fallback: "Dark",
 	},
+];
+
+const CLIENT_FILTER_CONFIG = [
+    {
+        value: "all" as const,
+        labelKey: "settings:clients.defaultVisibility.all",
+        fallback: "All",
+    },
+    {
+        value: "detected" as const,
+        labelKey: "settings:clients.defaultVisibility.detected",
+        fallback: "Detected",
+    },
+    {
+        value: "managed" as const,
+        labelKey: "settings:clients.defaultVisibility.managed",
+        fallback: "Managed",
+    },
 ];
 
 const DEFAULT_VIEW_CONFIG = [
@@ -207,6 +226,15 @@ export function SettingsPage() {
 		[t, i18n.language],
 	);
 
+	const clientFilterOptions = useMemo<SegmentOption[]>(
+		() =>
+			CLIENT_FILTER_CONFIG.map(({ value, labelKey, fallback }) => ({
+				value,
+				label: t(labelKey, { defaultValue: fallback }),
+			})),
+		[t, i18n.language],
+	);
+
 	const backupStrategyOptions = useMemo<SegmentOption[]>(
 		() =>
 			BACKUP_STRATEGY_CONFIG.map(({ value, labelKey, fallback }) => ({
@@ -338,11 +366,13 @@ export function SettingsPage() {
 
 	const showLicenseTab = licenseLoaded && licenseDocument !== null;
 
-	return (
-		<div className="space-y-4">
-			<h2 className="text-3xl font-bold tracking-tight">
-				{t("settings:title", { defaultValue: "Settings" })}
-			</h2>
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center gap-2 min-w-0">
+                <p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
+                    {t("settings:title", { defaultValue: "Settings" })}
+                </p>
+            </div>
 
 			<Tabs
 				defaultValue="general"
@@ -750,6 +780,37 @@ export function SettingsPage() {
 												setDashboardSetting(
 													"clientDefaultMode",
 													value as ClientDefaultMode,
+												)
+											}
+											showDots={false}
+										/>
+									</div>
+								</div>
+
+								{/* {t("settings:clients.backupStrategyTitle", { defaultValue: "Client Backup Strategy" })} */}
+								{/* Default Client Visibility */}
+								<div className="flex items-center justify-between gap-4">
+									<div className="space-y-0.5">
+										<h3 className="text-base font-medium">
+											{t("settings:clients.defaultVisibilityTitle", {
+												defaultValue: "Default Client Visibility",
+											})}
+										</h3>
+										<p className="text-sm text-slate-500">
+											{t("settings:clients.defaultVisibilityDescription", {
+												defaultValue:
+													"Choose which client statuses are shown by default on the Clients page.",
+											})}
+										</p>
+									</div>
+									<div className="w-64">
+										<Segment
+											options={clientFilterOptions}
+											value={dashboardSettings.clientListDefaultFilter}
+											onValueChange={(value) =>
+												setDashboardSetting(
+													"clientListDefaultFilter",
+													value as ClientListDefaultFilter,
 												)
 											}
 											showDots={false}

@@ -13,10 +13,19 @@ import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { PageToolbar } from "../../components/ui/page-toolbar";
 import { Switch } from "../../components/ui/switch";
+import type { SegmentOption } from "../../components/ui/segment";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "../../components/ui/select";
 import { clientsApi } from "../../lib/api";
 import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import { useAppStore } from "../../lib/store";
+import type { ClientListDefaultFilter } from "../../lib/store";
 
 export function ClientsPage() {
 	const navigate = useNavigate();
@@ -24,12 +33,13 @@ export function ClientsPage() {
 	const [refreshing, setRefreshing] = useState(false);
 	usePageTranslations("clients");
 	const { t, i18n } = useTranslation("clients");
-	const { defaultView, setDashboardSetting } = useAppStore((state) => ({
-		defaultView: state.dashboardSettings.defaultView,
-		setDashboardSetting: state.setDashboardSetting,
-	}));
+    const { defaultView, defaultFilter, setDashboardSetting } = useAppStore((state) => ({
+        defaultView: state.dashboardSettings.defaultView,
+        defaultFilter: state.dashboardSettings.clientListDefaultFilter,
+        setDashboardSetting: state.setDashboardSetting,
+    }));
 
-	const { data, isLoading, isRefetching, refetch, error, isError } = useQuery({
+    const { data, isLoading, isRefetching, refetch, error, isError } = useQuery({
 		queryKey: ["clients"],
 		queryFn: async () => {
 			const resp = await clientsApi.list(false);
@@ -49,34 +59,55 @@ export function ClientsPage() {
 	const managedCount = clients.filter((c: any) => !!c.managed).length;
 	const configuredCount = clients.filter((c: any) => !!c.has_mcp_config).length;
 
-	const clientsAsEntities = React.useMemo(() => {
-		const mapped = clients.map((client: any) => ({
-			id: client.identifier || client.display_name || "",
-			name: client.display_name || client.identifier || "",
-			description: client.description || "",
-			...client,
-		}));
-		// Default stable sort by name A→Z, tie-breaker by id
-		mapped.sort((a, b) => {
-			const byName = a.name.localeCompare(b.name, undefined, {
-				sensitivity: "base",
-			});
-			if (byName !== 0) return byName;
-			return a.id.localeCompare(b.id, undefined, { sensitivity: "base" });
-		});
-		return mapped;
-	}, [clients]);
+    const clientsAsEntities = React.useMemo(() => {
+        const mapped = clients.map((client: any) => ({
+            id: client.identifier || client.display_name || "",
+            name: client.display_name || client.identifier || "",
+            description: client.description || "",
+            ...client,
+        }));
+        // Default stable sort by name A→Z, tie-breaker by id
+        mapped.sort((a, b) => {
+            const byName = a.name.localeCompare(b.name, undefined, {
+                sensitivity: "base",
+            });
+            if (byName !== 0) return byName;
+            return a.id.localeCompare(b.id, undefined, { sensitivity: "base" });
+        });
+        return mapped;
+    }, [clients]);
+
+    // Temporary filter state in toolbar; initialized from Settings
+    const [filter, setFilter] = React.useState<ClientListDefaultFilter>(defaultFilter);
+
+    // Keep in sync with Settings if changed elsewhere
+    React.useEffect(() => {
+        setFilter(defaultFilter);
+    }, [defaultFilter]);
+
+    // Apply visibility filter from toolbar
+    const filteredClientsAsEntities = React.useMemo(() => {
+        if (filter === "detected") {
+            return clientsAsEntities.filter((c: any) => !!c.detected);
+        }
+        if (filter === "managed") {
+            return clientsAsEntities.filter((c: any) => !!c.managed);
+        }
+        return clientsAsEntities;
+    }, [clientsAsEntities, filter]);
 
 	// 排序后的数据状态
-	const [sortedClients, setSortedClients] = React.useState(clientsAsEntities);
+    const [sortedClients, setSortedClients] = React.useState(
+        filteredClientsAsEntities,
+    );
 
 	// 同步最新数据源
-	React.useEffect(() => {
-		// Only update when reference actually changed to prevent update depth issues
-		setSortedClients((prev) =>
-			prev === clientsAsEntities ? prev : clientsAsEntities,
-		);
-	}, [clientsAsEntities]);
+    React.useEffect(() => {
+        // Only update when reference actually changed to prevent update depth issues
+        setSortedClients((prev) =>
+            prev === filteredClientsAsEntities ? prev : filteredClientsAsEntities,
+        );
+    }, [filteredClientsAsEntities]);
 	const [search, setSearch] = React.useState("");
 
 	const manageMutation = useMutation({
@@ -415,9 +446,9 @@ export function ClientsPage() {
 	const [expanded, setExpanded] = useState(false);
 
 	// 工具栏配置
-	const toolbarConfig = React.useMemo(
-		() => ({
-			data: clientsAsEntities,
+    const toolbarConfig = React.useMemo(
+        () => ({
+        data: filteredClientsAsEntities,
 			search: {
 				placeholder: t("toolbar.search.placeholder", {
 					defaultValue: "Search clients...",
@@ -478,9 +509,9 @@ export function ClientsPage() {
 				],
 				defaultSort: "display_name",
 			},
-		}),
-		[clientsAsEntities, defaultView, i18n.language, t],
-	);
+        }),
+        [filteredClientsAsEntities, defaultView, i18n.language, t],
+    );
 
 	// 工具栏状态
 	const toolbarState = {
@@ -501,66 +532,98 @@ export function ClientsPage() {
 		onExpandedChange: setExpanded,
 	};
 
-	// 操作按钮
-	const actions = (
-		<div className="flex items-center gap-2">
-			<Button
-				onClick={handleRefresh}
-				disabled={isRefetching || refreshing}
-				variant="outline"
-				size="sm"
-				className="h-9 w-9 p-0"
-				onMouseUp={() =>
-					notifyInfo(
-						t("toolbar.actions.refresh.notificationTitle", {
-							defaultValue: "Refresh triggered",
-						}),
-						t("toolbar.actions.refresh.notificationMessage", {
-							defaultValue: "Latest client state will sync to the list",
-						}),
-					)
-				}
-				title={t("toolbar.actions.refresh.title", {
-					defaultValue: "Refresh",
-				})}
-			>
-				<RefreshCw
-					className={`h-4 w-4 ${isRefetching || refreshing ? "animate-spin" : ""}`}
-				/>
-			</Button>
-			<Button
-				size="sm"
-				className="h-9 w-9 p-0"
-				onClick={() =>
-					notifyInfo(
-						t("toolbar.actions.add.notificationTitle", {
-							defaultValue: "Feature in Development",
-						}),
-						t("toolbar.actions.add.notificationMessage", {
-							defaultValue:
-								"This feature is being implemented, please stay tuned",
-						}),
-					)
-				}
-				title={t("toolbar.actions.add.title", {
-					defaultValue: "Add Client",
-				})}
-			>
-				<Plus className="h-4 w-4" />
-			</Button>
-		</div>
-	);
+    // Toolbar: quick filter options (All / Detected / Managed)
+    const filterOptions: SegmentOption[] = React.useMemo(
+        () => [
+            { value: "all", label: t("toolbar.filters.options.all", { defaultValue: "All" }) },
+            { value: "detected", label: t("toolbar.filters.options.detected", { defaultValue: "Detected" }) },
+            { value: "managed", label: t("toolbar.filters.options.managed", { defaultValue: "Managed" }) },
+        ],
+        [t, i18n.language],
+    );
+
+    // 过滤器节点（由 PageToolbar 控制显示时机）
+    const filterNode = (
+        <div className="w-32">
+            <Select
+                value={filter}
+                onValueChange={(value) => setFilter(value as ClientListDefaultFilter)}
+            >
+                <SelectTrigger className="h-9 w-full" aria-label={t("toolbar.filters.title", { defaultValue: "Filter" })}>
+                    <SelectValue placeholder={t("toolbar.filters.title", { defaultValue: "Filter" })} />
+                </SelectTrigger>
+                <SelectContent align="end">
+                    {filterOptions.map((opt) => (
+                        <SelectItem key={opt.value as string} value={opt.value as string}>
+                            {opt.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    );
+
+    // 操作按钮（刷新 / 新增）
+    const actions = (
+        <div className="flex items-center gap-2">
+            <Button
+                onClick={handleRefresh}
+                disabled={isRefetching || refreshing}
+                variant="outline"
+                size="sm"
+                className="h-9 w-9 p-0"
+                onMouseUp={() =>
+                    notifyInfo(
+                        t("toolbar.actions.refresh.notificationTitle", {
+                            defaultValue: "Refresh triggered",
+                        }),
+                        t("toolbar.actions.refresh.notificationMessage", {
+                            defaultValue: "Latest client state will sync to the list",
+                        }),
+                    )
+                }
+                title={t("toolbar.actions.refresh.title", {
+                    defaultValue: "Refresh",
+                })}
+            >
+                <RefreshCw
+                    className={`h-4 w-4 ${isRefetching || refreshing ? "animate-spin" : ""}`}
+                />
+            </Button>
+            <Button
+                size="sm"
+                className="h-9 w-9 p-0"
+                onClick={() =>
+                    notifyInfo(
+                        t("toolbar.actions.add.notificationTitle", {
+                            defaultValue: "Feature in Development",
+                        }),
+                        t("toolbar.actions.add.notificationMessage", {
+                            defaultValue:
+                                "This feature is being implemented, please stay tuned",
+                        }),
+                    )
+                }
+                title={t("toolbar.actions.add.title", {
+                    defaultValue: "Add Client",
+                })}
+            >
+                <Plus className="h-4 w-4" />
+            </Button>
+        </div>
+    );
 
 	return (
 		<PageLayout
 			title={t("title", { defaultValue: "Clients" })}
 			headerActions={
-				<PageToolbar
-					config={toolbarConfig}
-					state={toolbarState}
-					callbacks={toolbarCallbacks}
-					actions={actions}
-				/>
+                    <PageToolbar
+                        config={toolbarConfig}
+                        state={toolbarState}
+                        callbacks={toolbarCallbacks}
+                        filters={filterNode}
+                        actions={actions}
+                    />
 			}
 			statsCards={<StatsCards cards={statsCards} />}
 		>

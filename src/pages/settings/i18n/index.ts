@@ -1,6 +1,6 @@
 export const settingsTranslations = {
-	en: {
-		title: "Settings",
+en: {
+    title: "Tune dashboard preferences and defaults",
 		tabs: {
 			general: "General",
 			appearance: "Appearance",
@@ -82,9 +82,17 @@ export const settingsTranslations = {
 			title: "Client Defaults",
 			description:
 				"Configure default rollout and backup behavior for client apps.",
-			modeTitle: "Client Application Mode",
-			modeDescription:
-				"Choose how client applications should operate by default.",
+			defaultVisibilityTitle: "Default Client Visibility",
+			defaultVisibilityDescription:
+				"Choose which client statuses are shown by default on the Clients page.",
+			defaultVisibility: {
+				all: "All",
+				detected: "Detected",
+				managed: "Managed",
+			},
+            modeTitle: "Client Management Mode",
+            modeDescription:
+                "Choose how client configurations should be managed by default.",
 			backupStrategyTitle: "Client Backup Strategy",
 			backupStrategyDescription:
 				"Define how client configurations should be backed up.",
@@ -151,8 +159,8 @@ export const settingsTranslations = {
 				"The Dock icon is hidden. The menu bar icon will remain visible so you can reopen MCPMate.",
 		},
 	},
-	"zh-CN": {
-		title: "偏好设置",
+"zh-CN": {
+    title: "调整面板偏好与默认行为",
 		tabs: {
 			general: "通用",
 			appearance: "外观",
@@ -230,8 +238,16 @@ export const settingsTranslations = {
 		clients: {
 			title: "客户端",
 			description: "配置客户端应用的默认部署和备份行为。",
-			modeTitle: "客户端应用模式",
-			modeDescription: "选择客户端应用默认应如何操作。",
+			defaultVisibilityTitle: "默认显示内容",
+			defaultVisibilityDescription:
+				"选择在“客户端”页面默认展示哪些状态的记录。",
+			defaultVisibility: {
+				all: "全部",
+				detected: "已检测",
+				managed: "已管理",
+			},
+            modeTitle: "客户端管理模式",
+            modeDescription: "选择客户端配置默认应如何由 MCPMate 管理。",
 			backupStrategyTitle: "客户端备份策略",
 			backupStrategyDescription: "定义客户端配置应如何备份。",
 			backupLimitTitle: "最大备份副本数",
@@ -288,8 +304,8 @@ export const settingsTranslations = {
 			dockHidden: "Dock 图标已隐藏，菜单栏图标会保持可见以便重新打开 MCPMate。",
 		},
 	},
-	"ja-JP": {
-		title: "設定",
+"ja-JP": {
+    title: "ダッシュボード設定と既定値の調整",
 		tabs: {
 			general: "一般",
 			appearance: "外観",
@@ -373,9 +389,17 @@ export const settingsTranslations = {
 			title: "クライアント",
 			description:
 				"クライアントアプリのデフォルトロールアウトとバックアップ動作を設定します。",
-			modeTitle: "クライアントアプリケーションモード",
-			modeDescription:
-				"クライアントアプリケーションがデフォルトでどのように動作するかを選択します。",
+			defaultVisibilityTitle: "既定の表示内容",
+			defaultVisibilityDescription:
+				"クライアントページで既定として表示するステータスを選択します。",
+			defaultVisibility: {
+				all: "すべて",
+				detected: "検出済み",
+				managed: "管理中",
+			},
+            modeTitle: "クライアント管理モード",
+            modeDescription:
+                "クライアント設定をデフォルトでどのように管理するかを選択します。",
 			backupStrategyTitle: "クライアントバックアップ戦略",
 			backupStrategyDescription:
 				"クライアント設定をどのようにバックアップするかを定義します。",

@@ -14,6 +14,7 @@ export type DashboardDefaultView = "list" | "grid";
 export type DashboardAppMode = "express" | "expert";
 export type DashboardLanguage = "en" | "zh-cn" | "ja";
 export type ClientDefaultMode = "hosted" | "transparent";
+export type ClientListDefaultFilter = "all" | "detected" | "managed";
 export type ClientBackupStrategy = "keep_n" | "keep_last" | "none";
 export type MenuBarIconMode = "runtime" | "hidden";
 export type DefaultMarket = "official" | MarketPortalId;
@@ -158,6 +159,8 @@ export interface DashboardSettings {
 	menuBarIconMode: MenuBarIconMode;
 	showDockIcon: boolean;
 	clientDefaultMode: ClientDefaultMode;
+	// Default filter applied to Clients list page
+	clientListDefaultFilter: ClientListDefaultFilter;
 	clientBackupStrategy: ClientBackupStrategy;
 	clientBackupLimit: number;
 	marketBlacklist: MarketBlacklistEntry[];
@@ -207,6 +210,7 @@ const defaultDashboardSettings: DashboardSettings = {
 	menuBarIconMode: "runtime",
 	showDockIcon: true,
 	clientDefaultMode: "hosted",
+	clientListDefaultFilter: "all",
 	clientBackupStrategy: "keep_n",
 	clientBackupLimit: 5,
 	marketBlacklist: [],
@@ -309,6 +313,14 @@ function normalizeDashboardSettings(
 		patch.clientDefaultMode === "transparent"
 	) {
 		next.clientDefaultMode = patch.clientDefaultMode;
+	}
+
+	if (
+		patch.clientListDefaultFilter === "all" ||
+		patch.clientListDefaultFilter === "detected" ||
+		patch.clientListDefaultFilter === "managed"
+	) {
+		next.clientListDefaultFilter = patch.clientListDefaultFilter;
 	}
 
 	if (
