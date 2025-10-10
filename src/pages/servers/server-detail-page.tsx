@@ -1294,6 +1294,9 @@ function ServerCapabilityList({
 			loading={q.isLoading}
 			filterText={search}
 			onFilterTextChange={setSearch}
+			dense
+			hoverActions
+			clickToToggleDetails
 			emptyText={t("detail.capabilityList.empty", {
 				label: label.toLowerCase(),
 				defaultValue: "No {{label}} from this server",
@@ -1588,19 +1591,11 @@ function InspectorDebugSection({
 
 			<TabsContent value="results" className="space-y-4">
 				<Card className="min-h-[220px]">
-					<CardHeader className="px-4 pt-4 pb-0">
-						{state.lastFetched ? (
-							<p className="text-xs text-slate-500">
-								{t("detail.inspector.results.lastFetched", {
-									time: new Date(state.lastFetched).toLocaleTimeString(),
-									defaultValue: "Last listed at {{time}}",
-								})}
-							</p>
-						) : null}
-						{state.error ? (
+					{state.error ? (
+						<CardHeader className="pl-4 pt-4 pr-0 pb-0">
 							<p className="text-xs text-red-500 mt-1">{state.error}</p>
-						) : null}
-					</CardHeader>
+						</CardHeader>
+					) : null}
 					<CardContent className="p-4">
 						<CapabilityList
 							asCard={false}
@@ -1610,6 +1605,8 @@ function InspectorDebugSection({
 							items={state.fetched ? state.items : []}
 							loading={state.loading}
 							filterText={filter}
+							hoverActions
+							clickToToggleDetails
 							emptyText={
 								state.fetched
 									? t("detail.inspector.results.emptyFetched", {
@@ -1650,75 +1647,82 @@ function InspectorDebugSection({
 								})}
 							</p>
 						) : (
-							sectionLogs.map((entry) => (
-								<div
-									key={entry.id}
-									className="border rounded-md p-2 bg-slate-50 dark:bg-slate-900 text-xs"
-								>
-									{/* 第一行：时间戳 + 请求类型（左），状态信息（右） */}
-									<div className="flex items-center justify-between gap-2 mb-2">
-										<div className="flex items-center gap-2">
-											<span className="font-mono text-[11px] text-slate-500">
-												{new Date(entry.timestamp).toLocaleTimeString()}
-											</span>
-											<span className="font-mono text-[11px] text-slate-500">
-												{entry.method}
-											</span>
-										</div>
-										<div className="flex items-center gap-2">
-											<Badge
-												variant="outline"
-												className="text-[10px] uppercase"
-											>
-												{t(`detail.inspector.logs.status.mode.${entry.mode}`, {
-													defaultValue: entry.mode.toUpperCase(),
-												})}
-											</Badge>
-											<Badge
-												variant={
-													entry.event === "error"
-														? "destructive"
-														: entry.event === "success"
-															? "success"
-															: "secondary"
-												}
-												className="text-[10px] uppercase"
-											>
-												{t(
-													`detail.inspector.logs.status.event.${entry.event}`,
-													{
-														defaultValue: entry.event.toUpperCase(),
-													},
-												)}
-											</Badge>
-										</div>
-									</div>
+							<CapsuleStripeList>
+								{sectionLogs.map((entry) => (
+									<CapsuleStripeListItem
+										key={entry.id}
+										className="group items-start text-xs"
+									>
+										{/* 错误消息 */}
+										{entry.message ? (
+											<p className="text-red-500 mb-1">{entry.message}</p>
+										) : null}
 
-									{/* 错误消息 */}
-									{entry.message ? (
-										<p className="text-red-500 mb-2">{entry.message}</p>
-									) : null}
-
-									{/* 日志内容区域，带悬停复制按钮 */}
-									{entry.payload !== undefined ? (
-										<div className="relative group">
-											<pre className="bg-white dark:bg-slate-950 border rounded p-2 max-h-48 overflow-auto pr-8">
-												{safeLog(entry.payload)}
-											</pre>
-											<Button
-												size="sm"
-												variant="outline"
-												className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-												onClick={() => {
-													void writeClipboardText(safeLog(entry.payload));
-												}}
-											>
-												<Copy className="h-3 w-3" />
-											</Button>
-										</div>
-									) : null}
-								</div>
-							))
+										{/* 日志内容区域：悬浮信息移至文本区右下角 */}
+										{entry.payload !== undefined ? (
+											<div className="relative group w-full">
+												<pre className="bg-transparent border-0 rounded-none p-0 max-h-48 overflow-auto pr-8">
+													{safeLog(entry.payload)}
+												</pre>
+												{/* 复制按钮（右上角，悬停显示） */}
+												<Button
+													size="sm"
+													variant="outline"
+													className="absolute top-0 right-0 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+													onClick={() => {
+														void writeClipboardText(safeLog(entry.payload));
+													}}
+												>
+													<Copy className="h-3 w-3" />
+												</Button>
+												{/* 右下角：时间戳、Action、Mode、Event 徽标（悬停显示） */}
+												<div className="absolute bottom-0 right-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+													<Badge
+														variant="secondary"
+														className="text-[10px] font-mono pointer-events-none"
+													>
+														{new Date(entry.timestamp).toLocaleTimeString()}
+													</Badge>
+													<Badge
+														variant="outline"
+														className="text-[10px] font-mono pointer-events-none"
+													>
+														{entry.method}
+													</Badge>
+													<Badge
+														variant="outline"
+														className="text-[10px] uppercase pointer-events-none"
+													>
+														{t(
+															`detail.inspector.logs.status.mode.${entry.mode}`,
+															{
+																defaultValue: entry.mode.toUpperCase(),
+															},
+														)}
+													</Badge>
+													<Badge
+														variant={
+															entry.event === "error"
+																? "destructive"
+																: entry.event === "success"
+																	? "success"
+																	: "secondary"
+														}
+														className="text-[10px] uppercase pointer-events-none"
+													>
+														{t(
+															`detail.inspector.logs.status.event.${entry.event}`,
+															{
+																defaultValue: entry.event.toUpperCase(),
+															},
+														)}
+													</Badge>
+												</div>
+											</div>
+										) : null}
+									</CapsuleStripeListItem>
+								))}
+							</CapsuleStripeList>
 						)}
 					</CardContent>
 				</Card>

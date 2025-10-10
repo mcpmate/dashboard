@@ -1,6 +1,6 @@
 export const serversTranslations = {
-	en: {
-		title: "Servers",
+    en: {
+            title: "Connect and monitor MCP servers",
 		toolbar: {
 			search: {
 				placeholder: "Search servers...",
@@ -604,8 +604,8 @@ export const serversTranslations = {
 			cancel: "Cancel",
 		},
 	},
-	"zh-CN": {
-		title: "服务器",
+    "zh-CN": {
+            title: "接入与监控 MCP 服务器运行状态",
 		toolbar: {
 			search: {
 				placeholder: "搜索服务器...",
@@ -1181,8 +1181,8 @@ export const serversTranslations = {
 			cancel: "取消",
 		},
 	},
-	"ja-JP": {
-		title: "サーバー",
+    "ja-JP": {
+            title: "MCP サーバーの接続と監視",
 		toolbar: {
 			search: {
 				placeholder: "サーバーを検索...",
