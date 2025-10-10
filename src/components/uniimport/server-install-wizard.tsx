@@ -3,6 +3,7 @@ import {
 	AlertTriangle,
 	ChevronDown,
 	ChevronRight,
+	Copy,
 	Loader2,
 	RefreshCw,
 	Target,
@@ -27,7 +28,7 @@ import {
 	useServerInstallPipeline,
 	type WizardStep,
 } from "../../hooks/use-server-install-pipeline";
-import { readClipboardText } from "../../lib/clipboard";
+import { readClipboardText, writeClipboardText } from "../../lib/clipboard";
 import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { useAppStore } from "../../lib/store";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
@@ -1343,7 +1344,26 @@ export const ServerInstallWizard = forwardRef(
 														})}
 													</Label>
 													<div className="flex-1 flex flex-col">
-														<div className="flex-1 min-h-[400px] border border-input rounded-md flex flex-col">
+														<div className="group relative flex-1 min-h-[400px] border border-input rounded-md flex flex-col">
+															{jsonText && (
+																<div className="pointer-events-none absolute top-0 right-0 z-10 flex w-full justify-end p-2">
+																	<Button
+																		type="button"
+																		variant="outline"
+																		size="sm"
+																		className="pointer-events-auto h-7 w-7 p-0 bg-white/95 backdrop-blur-sm opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:bg-slate-900/95"
+																		onClick={async (event) => {
+																			event.stopPropagation();
+																			await writeClipboardText(jsonText);
+																		}}
+																		title={t("manual.fields.json.copy", {
+																			defaultValue: "Copy JSON",
+																		})}
+																	>
+																		<Copy className="h-3.5 w-3.5" />
+																	</Button>
+																</div>
+															)}
 															<Textarea
 																id={manualJsonId}
 																value={jsonText}

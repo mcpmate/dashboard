@@ -198,13 +198,31 @@ function mapItem<T>(kind: CapabilityKind, item: T): CapabilityMapItem<T> {
 		};
 	}
 
-	const title =
-		asString(record.uri_template) || asString(record.name) || "Template";
+	// Templates: parse {placeholder} from uriTemplate
+	const uriTemplate = asString(record.uriTemplate) ?? asString(record.uri_template);
+	const title = uriTemplate || asString(record.name) || "Template";
 	const description = normalizeMultiline(asString(record.description));
+
+	// Extract placeholders from uriTemplate like {id}, {path}, etc.
+	const args: CapabilityArgument[] = [];
+	if (uriTemplate) {
+		const placeholderRegex = /\{([^}]+)\}/g;
+		const matches = [...uriTemplate.matchAll(placeholderRegex)];
+		matches.forEach((match) => {
+			args.push({
+				name: match[1],
+				type: "string",
+				required: true,
+				description: `Value for {${match[1]}} placeholder`,
+			});
+		});
+	}
+
 	return {
 		title,
 		subtitle: asString(record.server_name),
 		description,
+		args: args.length > 0 ? args : undefined,
 		raw: item,
 		icon: extractIconSrc(record),
 	};

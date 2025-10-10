@@ -1,4 +1,10 @@
-import { AlertCircle, CheckCircle2, ChevronsUpDown, ChevronDown } from "lucide-react";
+import {
+	AlertCircle,
+	CheckCircle2,
+	ChevronsUpDown,
+	Copy,
+	Eraser,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { inspectorApi } from "../lib/api";
@@ -11,13 +17,13 @@ import type {
 	CapabilityRecord,
 } from "../types/capabilities";
 import type { JsonObject, JsonSchema, JsonValue } from "../types/json";
+import CapabilityCombobox from "./capability-combobox";
 import { SchemaForm } from "./schema-form";
 import { defaultFromSchema } from "./schema-form-utils";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { ButtonGroup } from "./ui/button-group";
 import { Card, CardContent } from "./ui/card";
-import CapabilityCombobox from "./capability-combobox";
 import {
 	Drawer,
 	DrawerContent,
@@ -28,17 +34,8 @@ import {
 } from "./ui/drawer";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ScrollArea } from "./ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "./ui/command";
 import { Textarea } from "./ui/textarea";
 import {
 	Tooltip,
@@ -196,6 +193,12 @@ const RESOURCE_KIND_KEYS: Array<keyof CapabilityRecord> = [
 	"name",
 ];
 
+const TEMPLATE_KIND_KEYS: Array<keyof CapabilityRecord> = [
+	"uriTemplate",
+	"uri_template",
+	"name",
+];
+
 function computeRecordKey(
 	record: CapabilityRecord | null,
 	kind: InspectorKind,
@@ -206,7 +209,9 @@ function computeRecordKey(
 			? TOOL_KIND_KEYS
 			: kind === "prompt"
 				? PROMPT_KIND_KEYS
-				: RESOURCE_KIND_KEYS;
+				: kind === "template"
+					? TEMPLATE_KIND_KEYS
+					: RESOURCE_KIND_KEYS;
 	for (const key of sources) {
 		const value = toStringValue(record[key]);
 		if (value) return value;
@@ -351,7 +356,7 @@ export function InspectorDrawer({
 	const [result, setResult] = useState<unknown>(null);
 	const [events, setEvents] = useState<InspectorEventEntry[]>([]);
 	const eventsEndRef = useRef<HTMLDivElement | null>(null);
-  const [session, setSession] = useState<InspectorSessionOpenData | null>(null);
+	const [session, setSession] = useState<InspectorSessionOpenData | null>(null);
 	const eventSourceRef = useRef<EventSource | null>(null);
 	const [activeCallId, setActiveCallId] = useState<string | null>(null);
 	const activeCallIdRef = useRef<string | null>(null);
@@ -360,12 +365,12 @@ export function InspectorDrawer({
 		serverId?: string;
 		serverName?: string;
 	} | null>(null);
-  const [capOptions, setCapOptions] = useState<CapabilityRecord[]>([]);
-    const [capOptionsLoading, setCapOptionsLoading] = useState(false);
-    const [capOptionsError, setCapOptionsError] = useState<string | null>(null);
-    const [view, setView] = useState<"response" | "events">("response");
+	const [capOptions, setCapOptions] = useState<CapabilityRecord[]>([]);
+	const [capOptionsLoading, setCapOptionsLoading] = useState(false);
+	const [capOptionsError, setCapOptionsError] = useState<string | null>(null);
+	const [view, setView] = useState<"response" | "events">("response");
 
-    // combobox open/width is handled in CapabilityCombobox
+	// combobox open/width is handled in CapabilityCombobox
 	const [formCollapsed, setFormCollapsed] = useState(false);
 
 	// Combobox state is managed directly by Popover component
@@ -429,86 +434,92 @@ export function InspectorDrawer({
 		eventsEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
 	}, [events]);
 
-useEffect(() => {
-    if (!open) {
-        return;
-    }
-    // Reset when missing server context
-    if (!serverId && !serverName) {
-        setCapOptions([]);
-        setCapOptionsLoading(false);
-        setCapOptionsError(null);
-        return;
-    }
-    let cancelled = false;
-    setCapOptionsLoading(true);
-    setCapOptionsError(null);
-    (async () => {
-        try {
-            let resp: InspectorResponse<any> | undefined;
-            if (kind === "tool") {
-                resp = (await inspectorApi.toolsList({
-                    server_id: serverId,
-                    server_name: serverName,
-                    mode,
-                })) as InspectorResponse<{ tools?: unknown[] }> | undefined;
-                const rawList = Array.isArray(resp?.data?.tools) ? resp?.data?.tools : [];
-                const normalized = rawList
-                    .map((entry: unknown) => toCapabilityRecord(entry))
-                    .filter(Boolean) as CapabilityRecord[];
-                if (!cancelled) setCapOptions(normalized);
-            } else if (kind === "prompt") {
-                resp = (await inspectorApi.promptsList({
-                    server_id: serverId,
-                    server_name: serverName,
-                    mode,
-                })) as InspectorResponse<{ prompts?: unknown[] }> | undefined;
-                const rawList = Array.isArray(resp?.data?.prompts) ? resp?.data?.prompts : [];
-                const normalized = rawList
-                    .map((entry: unknown) => toCapabilityRecord(entry))
-                    .filter(Boolean) as CapabilityRecord[];
-                if (!cancelled) setCapOptions(normalized);
-            } else if (kind === "resource") {
-                resp = (await inspectorApi.resourcesList({
-                    server_id: serverId,
-                    server_name: serverName,
-                    mode,
-                })) as InspectorResponse<{ resources?: unknown[] }> | undefined;
-                const rawList = Array.isArray(resp?.data?.resources)
-                    ? resp?.data?.resources
-                    : [];
-                const normalized = rawList
-                    .map((entry: unknown) => toCapabilityRecord(entry))
-                    .filter(Boolean) as CapabilityRecord[];
-                if (!cancelled) setCapOptions(normalized);
-            } else {
-                resp = (await inspectorApi.templatesList({
-                    server_id: serverId,
-                    server_name: serverName,
-                    mode,
-                })) as InspectorResponse<{ templates?: unknown[] }> | undefined;
-                const rawList = Array.isArray(resp?.data?.templates)
-                    ? resp?.data?.templates
-                    : [];
-                const normalized = rawList
-                    .map((entry: unknown) => toCapabilityRecord(entry))
-                    .filter(Boolean) as CapabilityRecord[];
-                if (!cancelled) setCapOptions(normalized);
-            }
-        } catch (error) {
-            if (!cancelled) {
-                setCapOptionsError(error instanceof Error ? error.message : String(error ?? ""));
-            }
-        } finally {
-            if (!cancelled) {
-                setCapOptionsLoading(false);
-            }
-        }
-    })();
-    return () => {
-        cancelled = true;
-    };
-}, [open, kind, serverId, serverName, mode, propItemKey]);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		// Reset when missing server context
+		if (!serverId && !serverName) {
+			setCapOptions([]);
+			setCapOptionsLoading(false);
+			setCapOptionsError(null);
+			return;
+		}
+		let cancelled = false;
+		setCapOptionsLoading(true);
+		setCapOptionsError(null);
+		(async () => {
+			try {
+				let resp: InspectorResponse<any> | undefined;
+				if (kind === "tool") {
+					resp = (await inspectorApi.toolsList({
+						server_id: serverId,
+						server_name: serverName,
+						mode,
+					})) as InspectorResponse<{ tools?: unknown[] }> | undefined;
+					const rawList = Array.isArray(resp?.data?.tools)
+						? resp?.data?.tools
+						: [];
+					const normalized = rawList
+						.map((entry: unknown) => toCapabilityRecord(entry))
+						.filter(Boolean) as CapabilityRecord[];
+					if (!cancelled) setCapOptions(normalized);
+				} else if (kind === "prompt") {
+					resp = (await inspectorApi.promptsList({
+						server_id: serverId,
+						server_name: serverName,
+						mode,
+					})) as InspectorResponse<{ prompts?: unknown[] }> | undefined;
+					const rawList = Array.isArray(resp?.data?.prompts)
+						? resp?.data?.prompts
+						: [];
+					const normalized = rawList
+						.map((entry: unknown) => toCapabilityRecord(entry))
+						.filter(Boolean) as CapabilityRecord[];
+					if (!cancelled) setCapOptions(normalized);
+				} else if (kind === "resource") {
+					resp = (await inspectorApi.resourcesList({
+						server_id: serverId,
+						server_name: serverName,
+						mode,
+					})) as InspectorResponse<{ resources?: unknown[] }> | undefined;
+					const rawList = Array.isArray(resp?.data?.resources)
+						? resp?.data?.resources
+						: [];
+					const normalized = rawList
+						.map((entry: unknown) => toCapabilityRecord(entry))
+						.filter(Boolean) as CapabilityRecord[];
+					if (!cancelled) setCapOptions(normalized);
+				} else {
+					resp = (await inspectorApi.templatesList({
+						server_id: serverId,
+						server_name: serverName,
+						mode,
+					})) as InspectorResponse<{ templates?: unknown[] }> | undefined;
+					const rawList = Array.isArray(resp?.data?.templates)
+						? resp?.data?.templates
+						: [];
+					const normalized = rawList
+						.map((entry: unknown) => toCapabilityRecord(entry))
+						.filter(Boolean) as CapabilityRecord[];
+					if (!cancelled) setCapOptions(normalized);
+				}
+			} catch (error) {
+				if (!cancelled) {
+					setCapOptionsError(
+						error instanceof Error ? error.message : String(error ?? ""),
+					);
+				}
+			} finally {
+				if (!cancelled) {
+					setCapOptionsLoading(false);
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [open, kind, serverId, serverName, mode, propItemKey]);
 
 	useEffect(() => {
 		activeCallIdRef.current = activeCallId;
@@ -639,7 +650,7 @@ useEffect(() => {
 	}
 
 	function deriveFields(sourceItem: CapabilityRecord | null): Field[] {
-		// Tools: item.input_schema?.properties; Prompts: item.arguments (array)
+		// Tools: item.input_schema?.properties; Prompts: item.arguments (array); Templates: parse {placeholder} from uriTemplate
 		try {
 			if (kind === "tool") {
 				const schema = extractToolSchema(sourceItem);
@@ -683,6 +694,21 @@ useEffect(() => {
 					description: arg.description,
 				}));
 			}
+			if (kind === "template") {
+				// Parse {placeholder} from uriTemplate
+				const uriTemplate =
+					toStringValue(sourceItem?.uriTemplate) ??
+					toStringValue(sourceItem?.uri_template) ??
+					"";
+				const placeholderRegex = /\{([^}]+)\}/g;
+				const matches = [...uriTemplate.matchAll(placeholderRegex)];
+				return matches.map((match) => ({
+					name: match[1],
+					type: "string",
+					required: true,
+					description: `Value for {${match[1]}} placeholder`,
+				}));
+			}
 			return [];
 		} catch {
 			return [];
@@ -716,6 +742,12 @@ useEffect(() => {
 			const args = normalizeArguments(source?.arguments);
 			if (args.length > 0) {
 				schema = buildSchemaFromArguments(args);
+			}
+		} else if (kind === "template") {
+			// For templates, derive fields from uriTemplate placeholders
+			const fs = deriveFields(source);
+			if (fs.length > 0) {
+				schema = buildSchemaFromFields(fs);
 			}
 		}
 
@@ -767,6 +799,13 @@ useEffect(() => {
 				toStringValue(source?.name) ??
 				"";
 			setUri(resourceUri);
+		} else if (kind === "template") {
+			const templateName =
+				toStringValue(source?.uriTemplate) ??
+				toStringValue(source?.uri_template) ??
+				toStringValue(source?.name) ??
+				"";
+			setName(templateName);
 		}
 		// Maintaining manual dependency list—internal helpers are stable within this component lifecycle.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -788,59 +827,60 @@ useEffect(() => {
 		}
 	}
 
-    const optionsMap = useMemo(() => {
-        const map = new Map<string, CapabilityRecord>();
-        capOptions.forEach((entry, index) => {
-            const key = computeRecordKey(entry, kind) || `index:${index}`;
-            map.set(key, entry);
-        });
-        return map;
-    }, [capOptions, kind]);
+	const optionsMap = useMemo(() => {
+		const map = new Map<string, CapabilityRecord>();
+		capOptions.forEach((entry, index) => {
+			const key = computeRecordKey(entry, kind) || `index:${index}`;
+			map.set(key, entry);
+		});
+		return map;
+	}, [capOptions, kind]);
 
-    const handleCapabilitySelect = useCallback(
-        (value: string) => {
-            setResult(null);
-            setEvents([]);
-            setView("response");
-            setActiveCallId(null);
-            activeCallIdRef.current = null;
-            setUseRaw(false);
-            const match = optionsMap.get(value);
-            if (match) {
-                setOverrideItem(match);
-                if (kind === "tool") setName(pickToolNameForMode(match, mode));
-                else if (kind === "prompt") {
-                    const promptName =
-                        mode === "proxy"
-                            ? (toStringValue((match as any).unique_name) ||
-                               toStringValue((match as any).prompt_name) ||
-                               toStringValue((match as any).name))
-                            : (toStringValue((match as any).prompt_name) ||
-                               toStringValue((match as any).name) ||
-                               toStringValue((match as any).unique_name));
-                    setName(promptName ?? "");
-                } else if (kind === "resource") {
-                    const resourceUri =
-                        toStringValue((match as any).resource_uri) ||
-                        toStringValue((match as any).uri) ||
-                        toStringValue((match as any).name) ||
-                        "";
-                    setUri(resourceUri);
-                } else {
-                    const templateName =
-                        toStringValue((match as any).uri_template) ||
-                        toStringValue((match as any).name) ||
-                        "";
-                    setName(templateName);
-                }
-            } else {
-                setOverrideItem(null);
-                if (kind === "resource") setUri(value);
-                else setName(value);
-            }
-        },
-        [optionsMap, kind, mode],
-    );
+	const handleCapabilitySelect = useCallback(
+		(value: string) => {
+			setResult(null);
+			setEvents([]);
+			setView("response");
+			setActiveCallId(null);
+			activeCallIdRef.current = null;
+			setUseRaw(false);
+			const match = optionsMap.get(value);
+			if (match) {
+				setOverrideItem(match);
+				if (kind === "tool") setName(pickToolNameForMode(match, mode));
+				else if (kind === "prompt") {
+					const promptName =
+						mode === "proxy"
+							? toStringValue((match as any).unique_name) ||
+								toStringValue((match as any).prompt_name) ||
+								toStringValue((match as any).name)
+							: toStringValue((match as any).prompt_name) ||
+								toStringValue((match as any).name) ||
+								toStringValue((match as any).unique_name);
+					setName(promptName ?? "");
+				} else if (kind === "resource") {
+					const resourceUri =
+						toStringValue((match as any).resource_uri) ||
+						toStringValue((match as any).uri) ||
+						toStringValue((match as any).name) ||
+						"";
+					setUri(resourceUri);
+				} else if (kind === "template") {
+					const templateName =
+						toStringValue((match as any).uriTemplate) ||
+						toStringValue((match as any).uri_template) ||
+						toStringValue((match as any).name) ||
+						"";
+					setName(templateName);
+				}
+			} else {
+				setOverrideItem(null);
+				if (kind === "resource") setUri(value);
+				else setName(value);
+			}
+		},
+		[optionsMap, kind, mode],
+	);
 
 	const handleCancel = useCallback(async () => {
 		if (!activeCallId) {
@@ -1154,6 +1194,57 @@ useEffect(() => {
 					t("notifications.executed"),
 					t("notifications.executedMessage"),
 				);
+			} else if (kind === "template") {
+				const args = expectsArguments
+					? useRaw
+						? parseArgs()
+						: values
+					: undefined;
+				if (expectsArguments && args === undefined) return;
+
+				// Generate URI from template by replacing {arg} placeholders
+				let generatedUri = name;
+				if (args) {
+					Object.entries(args).forEach(([key, value]) => {
+						generatedUri = generatedUri.replace(`{${key}}`, String(value));
+					});
+				}
+
+				onLog?.({
+					...baseLog,
+					event: "request",
+					method: "resources/read",
+					payload: {
+						uri: generatedUri,
+						template: name,
+						arguments: args,
+						server_id: serverId,
+						server_name: serverName,
+					},
+				});
+				resp = (await inspectorApi.resourceRead({
+					uri: generatedUri,
+					server_id: serverId,
+					server_name: serverName,
+					mode,
+				})) as InspectorResponse<Record<string, unknown>>;
+				if (!resp?.success) {
+					throw new Error(
+						resp?.error ? String(resp.error) : "Template read failed",
+					);
+				}
+				const data = (resp.data ?? {}) as Record<string, unknown>;
+				setResult((data.result as unknown) ?? data);
+				onLog?.({
+					...baseLog,
+					event: "success",
+					method: "resources/read",
+					payload: data,
+				});
+				notifySuccess(
+					t("notifications.executed"),
+					t("notifications.executedMessage"),
+				);
 			} else {
 				onLog?.({
 					...baseLog,
@@ -1199,7 +1290,9 @@ useEffect(() => {
 						? "tools/call"
 						: kind === "prompt"
 							? "prompts/get"
-							: "resources/read",
+							: kind === "template"
+								? "templates/read"
+								: "resources/read",
 				mode,
 				message: e instanceof Error ? e.message : String(e),
 				payload: e,
@@ -1312,7 +1405,9 @@ useEffect(() => {
 									? t("modes.toolCall")
 									: kind === "resource"
 										? t("modes.readResource")
-										: t("modes.getPrompt")}
+										: kind === "template"
+											? t("modes.getTemplate")
+											: t("modes.getPrompt")}
 							</DrawerTitle>
 							<DrawerDescription>{t("subtitle")}</DrawerDescription>
 						</div>
@@ -1396,7 +1491,9 @@ useEffect(() => {
 								{kind === "resource" || kind === "template" ? (
 									<div className="space-y-1">
 										<Label>
-											{kind === "resource" ? t("form.resourceUri") : t("form.template")}
+											{kind === "resource"
+												? t("form.resourceUri")
+												: t("form.template")}
 										</Label>
 										<CapabilityCombobox
 											kind={kind as any}
@@ -1408,22 +1505,34 @@ useEffect(() => {
 											container={drawerContentRef.current}
 											placeholder={
 												kind === "resource"
-													? (t("form.selectResource", { defaultValue: "Select resource" }) as string)
-													: (t("form.selectTemplate", { defaultValue: "Select template" }) as string)
+													? (t("form.selectResource", {
+															defaultValue: "Select resource",
+														}) as string)
+													: (t("form.selectTemplate", {
+															defaultValue: "Select template",
+														}) as string)
 											}
-											getKey={(it) => computeRecordKey(it as CapabilityRecord, kind)}
+											getKey={(it) =>
+												computeRecordKey(it as CapabilityRecord, kind)
+											}
 											getLabel={(it) => {
 												const entry = it as CapabilityRecord;
-												return (
-													toStringValue((entry as any).resource_uri) ||
+												if (kind === "template") {
+													return (toStringValue((entry as any).uriTemplate) ||
+														toStringValue((entry as any).uri_template) ||
+														toStringValue((entry as any).name) ||
+														computeRecordKey(entry, kind)) as string;
+												}
+												return (toStringValue((entry as any).resource_uri) ||
 													toStringValue((entry as any).uri) ||
 													toStringValue((entry as any).name) ||
-													computeRecordKey(entry, kind)
-												) as string;
+													computeRecordKey(entry, kind)) as string;
 											}}
 											getDescription={(it) => {
 												const entry = it as CapabilityRecord;
-												return toStringValue((entry as any).description) || undefined;
+												return (
+													toStringValue((entry as any).description) || undefined
+												);
 											}}
 										/>
 									</div>
@@ -1443,28 +1552,45 @@ useEffect(() => {
 												container={drawerContentRef.current}
 												placeholder={
 													kind === "tool"
-														? (t("form.selectTool", { defaultValue: "Select tool" }) as string)
-														: (t("form.selectPrompt", { defaultValue: "Select prompt" }) as string)
+														? (t("form.selectTool", {
+																defaultValue: "Select tool",
+															}) as string)
+														: (t("form.selectPrompt", {
+																defaultValue: "Select prompt",
+															}) as string)
 												}
-												getKey={(it) => computeRecordKey(it as CapabilityRecord, kind)}
+												getKey={(it) =>
+													computeRecordKey(it as CapabilityRecord, kind)
+												}
 												getLabel={(it) => {
 													const entry = it as CapabilityRecord;
 													if (kind === "tool") {
-														return pickToolNameForMode(entry, mode) || computeRecordKey(entry, kind);
+														return (
+															pickToolNameForMode(entry, mode) ||
+															computeRecordKey(entry, kind)
+														);
 													} else {
-														const uniqueName = toStringValue((entry as any).unique_name);
-														const promptName = toStringValue((entry as any).prompt_name);
+														const uniqueName = toStringValue(
+															(entry as any).unique_name,
+														);
+														const promptName = toStringValue(
+															(entry as any).prompt_name,
+														);
 														const rawName = toStringValue((entry as any).name);
 														return (
-															mode === "proxy"
+															(mode === "proxy"
 																? uniqueName || promptName || rawName
-																: promptName || rawName || uniqueName
-														) || computeRecordKey(entry, kind);
+																: promptName || rawName || uniqueName) ||
+															computeRecordKey(entry, kind)
+														);
 													}
 												}}
 												getDescription={(it) => {
 													const entry = it as CapabilityRecord;
-													return toStringValue((entry as any).description) || undefined;
+													return (
+														toStringValue((entry as any).description) ||
+														undefined
+													);
 												}}
 											/>
 										</div>
@@ -1569,41 +1695,47 @@ useEffect(() => {
 							className="space-y-2"
 							onClick={handleCollapseFormClick}
 						>
-							<div className="flex items-center justify-between gap-2 text-sm">
+							<div className="flex items-center justify-between gap-2 text-sm mb-2">
 								<Label>{t("tabs.response")}</Label>
-								{result ? (
-									<ButtonGroup>
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											className="h-8 px-2"
-											onClick={(event) => {
-												event.stopPropagation();
-												handleCopy();
-											}}
-											data-prevent-collapse="true"
-										>
-											{t("actions.copy")}
-										</Button>
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											className="h-8 px-2"
-											onClick={(event) => {
-												event.stopPropagation();
-												clearOutput();
-											}}
-											data-prevent-collapse="true"
-										>
-											{t("actions.clear")}
-										</Button>
-									</ButtonGroup>
-								) : null}
 							</div>
-							<div className="max-h-[40vh] overflow-auto rounded border border-slate-200 bg-white p-3 font-mono text-xs text-slate-700 whitespace-pre-wrap break-words dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
-								{result ? pretty(result) : t("response.placeholder")}
+							<div className="group relative max-h-[40vh] overflow-auto rounded border border-slate-200 bg-white font-mono text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-200">
+								{result ? (
+									<div className="pointer-events-none absolute top-0 right-0 z-10 flex w-full justify-end p-2">
+										<ButtonGroup className="pointer-events-auto bg-white/95 backdrop-blur-sm opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:bg-slate-900/95">
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="h-7 w-7 p-0"
+												onClick={(event) => {
+													event.stopPropagation();
+													handleCopy();
+												}}
+												data-prevent-collapse="true"
+												title={t("actions.copy")}
+											>
+												<Copy className="h-3.5 w-3.5" />
+											</Button>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="h-7 w-7 p-0"
+												onClick={(event) => {
+													event.stopPropagation();
+													clearOutput();
+												}}
+												data-prevent-collapse="true"
+												title={t("actions.clear")}
+											>
+												<Eraser className="h-3.5 w-3.5" />
+											</Button>
+										</ButtonGroup>
+									</div>
+								) : null}
+								<div className="p-3 whitespace-pre-wrap break-words">
+									{result ? pretty(result) : t("response.placeholder")}
+								</div>
 							</div>
 						</TabsContent>
 						<TabsContent
