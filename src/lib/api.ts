@@ -29,6 +29,7 @@ import type {
 	ConfigSuitServersResponse,
 	ConfigSuitTool,
 	ConfigSuitToolsResponse,
+	ConfigSuitResourceTemplatesResponse,
 	CreateConfigSuitRequest,
 	InstallResponse,
 	InstallRuntimeRequest,
@@ -1744,9 +1745,28 @@ export const configSuitsApi = {
 		};
 	},
 
+	getResourceTemplates: async (
+		suitId: string,
+	): Promise<ConfigSuitResourceTemplatesResponse> => {
+		const q = new URLSearchParams({ profile_id: suitId });
+		const response = await fetchApi<
+			ApiWrapper<{
+				profile_id: string;
+				profile_name: string;
+				templates: any[];
+			}>
+		>(`/api/mcp/profile/resource-templates/list?${q}`);
+		const data = extractApiData(response);
+		return {
+			suit_id: (data as any).profile_id,
+			suit_name: (data as any).profile_name,
+			templates: (data as any).templates || [],
+		};
+	},
+
 	// Component management operations
 	_manageComponent: (
-		endpoint: "servers" | "tools" | "resources" | "prompts",
+		endpoint: "servers" | "tools" | "resources" | "prompts" | "resource-templates",
 		suitId: string,
 		componentId: string,
 		action: "enable" | "disable" | "remove",
@@ -1762,7 +1782,7 @@ export const configSuitsApi = {
 
 	// Batch manage multiple component ids in one request for reliability/perf
 	_manageComponentsBatch: (
-		endpoint: "servers" | "tools" | "resources" | "prompts",
+		endpoint: "servers" | "tools" | "resources" | "prompts" | "resource-templates",
 		suitId: string,
 		componentIds: string[],
 		action: "enable" | "disable",
@@ -1806,6 +1826,23 @@ export const configSuitsApi = {
 		ids: string[],
 		action: "enable" | "disable",
 	) => configSuitsApi._manageComponentsBatch("resources", suitId, ids, action),
+	getResourceTemplatesForSuit: (suitId: string) =>
+		configSuitsApi.getResourceTemplates(suitId),
+	enableResourceTemplate: (suitId: string, id: string) =>
+		configSuitsApi._manageComponent("resource-templates", suitId, id, "enable"),
+	disableResourceTemplate: (suitId: string, id: string) =>
+		configSuitsApi._manageComponent("resource-templates", suitId, id, "disable"),
+	bulkResourceTemplates: (
+		suitId: string,
+		ids: string[],
+		action: "enable" | "disable",
+	) =>
+		configSuitsApi._manageComponentsBatch(
+			"resource-templates",
+			suitId,
+			ids,
+			action,
+		),
 	enablePrompt: (suitId: string, promptId: string) =>
 		configSuitsApi._manageComponent("prompts", suitId, promptId, "enable"),
 	disablePrompt: (suitId: string, promptId: string) =>

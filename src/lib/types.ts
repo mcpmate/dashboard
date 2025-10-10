@@ -558,9 +558,24 @@ export interface ConfigSuitResource {
 }
 
 export interface ConfigSuitResourcesResponse {
-	suit_id: string;
-	suit_name: string;
-	resources: ConfigSuitResource[];
+    suit_id: string;
+    suit_name: string;
+    resources: ConfigSuitResource[];
+}
+
+export interface ConfigSuitResourceTemplate {
+    id: string;
+    server_id: string;
+    server_name: string;
+    uri_template: string;
+    enabled: boolean;
+    allowed_operations: string[];
+}
+
+export interface ConfigSuitResourceTemplatesResponse {
+    suit_id: string;
+    suit_name: string;
+    templates: ConfigSuitResourceTemplate[];
 }
 
 export interface ConfigSuitPrompt {
