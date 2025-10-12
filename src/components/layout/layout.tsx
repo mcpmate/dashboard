@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useNavigate } from "react-router-dom";
+import { isTauriEnvironmentSync } from "../../lib/platform";
 import { useAppStore } from "../../lib/store";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
@@ -49,6 +50,9 @@ export function Layout() {
 		let cancelled = false;
 
 		const bind = async () => {
+			if (!isTauriEnvironmentSync()) {
+				return; // Skip binding in web dev/runtime
+			}
 			try {
 				const { listen } = await import("@tauri-apps/api/event");
 				if (cancelled) {
@@ -119,16 +123,20 @@ export function Layout() {
 		return () => window.removeEventListener("resize", handler);
 	}, [sidebarOpen, setSidebarOpen]);
 
-    // Footer labels (Terms / Privacy) localized inline
-    const { i18n } = useTranslation();
-    const lang = (i18n.language || "").toLowerCase();
-    const termsLabel = t("layout.terms", { defaultValue: "Terms" });
-    const privacyLabel = t("layout.privacy", { defaultValue: "Privacy" });
-    const langParam = lang.startsWith("zh") ? "zh" : lang.startsWith("ja") ? "ja" : "en";
-    const termsHref = `https://mcpmate.io/terms?lang=${langParam}`;
-    const privacyHref = `https://mcpmate.io/privacy?lang=${langParam}`;
+	// Footer labels (Terms / Privacy) localized inline
+	const { i18n } = useTranslation();
+	const lang = (i18n.language || "").toLowerCase();
+	const termsLabel = t("layout.terms", { defaultValue: "Terms" });
+	const privacyLabel = t("layout.privacy", { defaultValue: "Privacy" });
+	const langParam = lang.startsWith("zh")
+		? "zh"
+		: lang.startsWith("ja")
+			? "ja"
+			: "en";
+	const termsHref = `https://mcpmate.io/terms?lang=${langParam}`;
+	const privacyHref = `https://mcpmate.io/privacy?lang=${langParam}`;
 
-    return (
+	return (
 		<div className="min-h-screen">
 			<Sidebar />
 			<Header />
@@ -143,51 +151,59 @@ export function Layout() {
 						<Outlet />
 					</div>
 					<footer className="mt-6 text-[11px] text-slate-500 border-t border-slate-200 dark:border-slate-900 pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="flex items-center gap-4 flex-wrap">
-                        <a
-                            className="hover:underline"
-                            href="https://mcpmate.io"
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                            {t("layout.copyright", {
-                                defaultValue: "© 2025 MCPMate",
-                            })}
-                        </a>
-                        <div className="flex items-center gap-3">
-                            <a
-                                className="hover:underline"
-                                href={termsHref}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                {termsLabel}
-                            </a>
-                            <span className="text-slate-300">•</span>
-                            <a
-                                className="hover:underline"
-                                href={privacyHref}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                {privacyLabel}
-                            </a>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <a
-                            className="inline-flex items-center gap-1 hover:underline"
-                            href="https://forms.gle/zbZxTEJVpoVhpRE58"
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label={t("layout.feedback", { defaultValue: "Feedback Survey" })}
-                            title={t("layout.feedback", { defaultValue: "Feedback Survey" })}
-                        >
-                            {/* Fallback emoji icon to avoid extra imports */}
-                            <span role="img" aria-hidden="true">💬</span>
-                            <span>{t("layout.feedback", { defaultValue: "Feedback Survey" })}</span>
-                        </a>
-                    </div>
+						<div className="flex items-center gap-4 flex-wrap">
+							<a
+								className="hover:underline"
+								href="https://mcpmate.io"
+								target="_blank"
+								rel="noreferrer"
+							>
+								{t("layout.copyright", {
+									defaultValue: "© 2025 MCPMate",
+								})}
+							</a>
+							<div className="flex items-center gap-3">
+								<a
+									className="hover:underline"
+									href={termsHref}
+									target="_blank"
+									rel="noreferrer"
+								>
+									{termsLabel}
+								</a>
+								<span className="text-slate-300">•</span>
+								<a
+									className="hover:underline"
+									href={privacyHref}
+									target="_blank"
+									rel="noreferrer"
+								>
+									{privacyLabel}
+								</a>
+							</div>
+						</div>
+						<div className="flex items-center gap-2">
+							<a
+								className="inline-flex items-center gap-1 hover:underline"
+								href="https://forms.gle/zbZxTEJVpoVhpRE58"
+								target="_blank"
+								rel="noreferrer"
+								aria-label={t("layout.feedback", {
+									defaultValue: "Feedback Survey",
+								})}
+								title={t("layout.feedback", {
+									defaultValue: "Feedback Survey",
+								})}
+							>
+								{/* Fallback emoji icon to avoid extra imports */}
+								<span role="img" aria-hidden="true">
+									💬
+								</span>
+								<span>
+									{t("layout.feedback", { defaultValue: "Feedback Survey" })}
+								</span>
+							</a>
+						</div>
 					</footer>
 				</div>
 			</main>
