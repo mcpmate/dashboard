@@ -788,28 +788,30 @@ export interface ClientTemplateMetadata {
 }
 
 export interface ClientInfo {
-	identifier: string;
-	display_name: string;
-	category: ClientCategory;
-	enabled: boolean;
-	managed: boolean;
-	detected: boolean;
-	config_path: string;
-	config_exists: boolean;
-	has_mcp_config: boolean;
-	supported_transports: string[];
-	description?: string | null;
-	homepage_url?: string | null;
-	docs_url?: string | null;
-	support_url?: string | null;
-	config_type?: ClientConfigType | null;
-	config_mode?: string | null;
-	install_path?: string | null;
-	logo_url?: string | null;
-	last_detected?: string | null;
-	last_modified?: string | null;
-	template: ClientTemplateMetadata;
-	mcp_servers_count?: number | null;
+    identifier: string;
+    display_name: string;
+    category: ClientCategory;
+    enabled: boolean;
+    managed: boolean;
+    detected: boolean;
+    config_path: string;
+    config_exists: boolean;
+    has_mcp_config: boolean;
+    supported_transports: string[];
+    description?: string | null;
+    homepage_url?: string | null;
+    docs_url?: string | null;
+    support_url?: string | null;
+    config_type?: ClientConfigType | null;
+    config_mode?: string | null;
+    transport?: string | null;
+    client_version?: string | null;
+    install_path?: string | null;
+    logo_url?: string | null;
+    last_detected?: string | null;
+    last_modified?: string | null;
+    template: ClientTemplateMetadata;
+    mcp_servers_count?: number | null;
 }
 
 export interface ClientCheckData {

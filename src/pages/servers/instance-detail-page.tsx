@@ -17,13 +17,12 @@ import {
 	StopCircle,
 } from "lucide-react";
 import { StatusBadge } from "../../components/status-badge";
-import { formatRelativeTime } from "../../lib/utils";
 import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { useTranslation } from "react-i18next";
 
 export function InstanceDetailPage() {
 	usePageTranslations("servers");
-	const { t, i18n } = useTranslation("servers");
+    const { t } = useTranslation("servers");
 	const { serverId, instanceId } = useParams<{
 		serverId: string;
 		instanceId: string;
@@ -232,11 +231,10 @@ export function InstanceDetailPage() {
 												)}
 											</dt>
 											<dd className="text-sm">
-												{formatRelativeTime(
-													Date.now() -
-														instance.details.last_connected_seconds * 1000,
-													i18n.language,
-												)}
+                                            {new Date(
+                                                Date.now() -
+                                                    instance.details.last_connected_seconds * 1000,
+                                            ).toLocaleString()}
 											</dd>
 										</div>
 									)}

@@ -455,12 +455,14 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
 
 // Utility function to extract data from wrapped API responses
 function extractApiData<T>(response: ApiWrapper<T>): T {
-	if (response.success && response.data) {
-		return response.data;
-	}
-	throw new Error(
-		response.error ? String(response.error) : "API request failed",
-	);
+    if (response.success && response.data) {
+        return response.data;
+    }
+    // Prefer detailed backend message when available, but also preserve non-fatal warnings if any were returned.
+    // This function remains focused on data extraction; pages now read warning arrays on success paths.
+    throw new Error(
+        response.error ? String(response.error) : "API request failed",
+    );
 }
 
 // Utility function for batch operations
@@ -1978,13 +1980,29 @@ export const clientsApi = {
 		return extractApiData(resp);
 	},
 
-	configDetails: async (identifier: string, doImport = false) => {
+    configDetails: async (identifier: string, doImport = false) => {
 		const q = new URLSearchParams({ identifier, import: String(doImport) });
 		const resp = await fetchApi<ClientConfigResp>(
 			`/api/client/config/details?${q}`,
 		);
 		return extractApiData(resp);
-	},
+    },
+
+    update: async (payload: {
+        identifier: string;
+        config_mode?: string;
+        transport?: string;
+        client_version?: string;
+    }) => {
+        const resp = await fetchApi<{ success: boolean } & ApiWrapper<any>>(
+            `/api/client/update`,
+            {
+                method: "POST",
+                body: JSON.stringify(payload),
+            },
+        );
+        return resp;
+    },
 
 	applyConfig: async (payload: ClientConfigUpdateReq) => {
 		const resp = await fetchApi<ClientConfigUpdateResp>(

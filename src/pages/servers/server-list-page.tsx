@@ -859,12 +859,12 @@ export function ServerListPage() {
 		if (debugInfo) {
 			setDebugInfo(null);
 		} else {
-			const debugLines = [
-				`${t("debug.info.baseUrl", { defaultValue: "API Base URL" })}: ${window.location.origin}`,
-				`${t("debug.info.currentTime", { defaultValue: "Current Time" })}: ${new Date().toISOString()}`,
-				`${t("debug.info.error", { defaultValue: "Error" })}: ${error instanceof Error ? error.message : String(error)}`,
-				`${t("debug.info.data", { defaultValue: "Servers Data" })}: ${JSON.stringify(serverListResponse, null, 2)}`,
-			];
+            const debugLines = [
+                `${t("debug.info.baseUrl", { defaultValue: "API Base URL" })}: ${window.location.origin}`,
+                `${t("debug.info.currentTime", { defaultValue: "Current Time" })}: ${new Date().toLocaleString()}`,
+                `${t("debug.info.error", { defaultValue: "Error" })}: ${error instanceof Error ? error.message : String(error)}`,
+                `${t("debug.info.data", { defaultValue: "Servers Data" })}: ${JSON.stringify(serverListResponse, null, 2)}`,
+            ];
 			setDebugInfo(debugLines.join("\n"));
 		}
 	};

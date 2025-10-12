@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
+import { SchemaTable } from "./schema-table";
 
 type CapabilityKind = "tools" | "resources" | "prompts" | "templates";
 type ContextType = "server" | "profile";
@@ -272,7 +273,9 @@ export function CapabilityList<T = CapabilityRecord>({
         [items, kind],
     );
 	const data = useMemo(
-		() => mappedItems.filter((m) => matchText(m, search)),
+		() => mappedItems
+			.filter((m) => matchText(m, search))
+			.sort((a, b) => a.title.localeCompare(b.title)),
 		[mappedItems, search],
 	);
 
@@ -421,46 +424,7 @@ export function CapabilityList<T = CapabilityRecord>({
 									defaultValue: "Input Schema",
 								})}
 							</div>
-							<table className="w-full border-collapse text-xs">
-								<thead>
-									<tr className="text-left text-slate-500">
-										<th className="border-b py-1 pr-2">
-											{t("servers:capabilityList.table.property", {
-												defaultValue: "Property",
-											})}
-										</th>
-										<th className="border-b py-1 pr-2">
-											{t("servers:capabilityList.table.type", {
-												defaultValue: "Type",
-											})}
-										</th>
-										<th className="border-b py-1 pr-2">
-											{t("servers:capabilityList.table.description", {
-												defaultValue: "Description",
-											})}
-										</th>
-									</tr>
-								</thead>
-								<tbody>
-									{schemaEntries.map(([key, prop]) => {
-										const typedProp = prop as Record<string, unknown>;
-										const typeValue = Array.isArray(typedProp.type)
-											? typedProp.type.join("|")
-											: typedProp.type;
-										return (
-											<tr key={key}>
-												<td className="border-b py-1 pr-2 font-mono">{key}</td>
-												<td className="border-b py-1 pr-2">
-													{String(typeValue ?? "-")}
-												</td>
-												<td className="border-b py-1 pr-2">
-													{String(typedProp.description ?? "")}
-												</td>
-											</tr>
-										);
-									})}
-								</tbody>
-							</table>
+							<SchemaTable schema={mapped.schema as JsonSchema} />
 						</div>
 					) : null}
 
@@ -471,46 +435,7 @@ export function CapabilityList<T = CapabilityRecord>({
 									defaultValue: "Output Schema",
 								})}
 							</div>
-							<table className="w-full border-collapse text-xs">
-								<thead>
-									<tr className="text-left text-slate-500">
-										<th className="border-b py-1 pr-2">
-											{t("servers:capabilityList.table.property", {
-												defaultValue: "Property",
-											})}
-										</th>
-										<th className="border-b py-1 pr-2">
-											{t("servers:capabilityList.table.type", {
-												defaultValue: "Type",
-											})}
-										</th>
-										<th className="border-b py-1 pr-2">
-											{t("servers:capabilityList.table.description", {
-												defaultValue: "Description",
-											})}
-										</th>
-									</tr>
-								</thead>
-								<tbody>
-									{outputSchemaEntries.map(([key, prop]) => {
-										const typedProp = prop as Record<string, unknown>;
-										const typeValue = Array.isArray(typedProp.type)
-											? typedProp.type.join("|")
-											: typedProp.type;
-										return (
-											<tr key={key}>
-												<td className="border-b py-1 pr-2 font-mono">{key}</td>
-												<td className="border-b py-1 pr-2">
-													{String(typeValue ?? "-")}
-												</td>
-												<td className="border-b py-1 pr-2">
-													{String(typedProp.description ?? "")}
-												</td>
-											</tr>
-										);
-									})}
-								</tbody>
-							</table>
+							<SchemaTable schema={mapped.outputSchema as JsonSchema} />
 						</div>
 					) : null}
 

@@ -7,6 +7,7 @@ import {
 import {
 	Check,
 	Download,
+	HardDrive,
 	Info,
 	Play,
 	Plus,
@@ -16,6 +17,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import {
 	CapsuleStripeList,
@@ -29,7 +31,7 @@ import {
 } from "../../components/ui/avatar";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { ButtonGroup } from "../../components/ui/button-group";
+import { ButtonGroup, ButtonGroupText } from "../../components/ui/button-group";
 import {
 	Card,
 	CardContent,
@@ -62,8 +64,8 @@ import {
 	TabsTrigger,
 } from "../../components/ui/tabs";
 import { clientsApi, configSuitsApi } from "../../lib/api";
-import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
+import { notifyError, notifyInfo, notifySuccess } from "../../lib/notify";
 import type {
 	ClientBackupEntry,
 	ClientBackupPolicySetReq,
@@ -74,7 +76,6 @@ import type {
 	ConfigSuit,
 } from "../../lib/types";
 import { formatBackupTime } from "../../lib/utils";
-import { useTranslation } from "react-i18next";
 
 type ClientDetailTab = "overview" | "configuration" | "backups";
 
@@ -129,7 +130,7 @@ export function ClientDetailPage() {
 	const qc = useQueryClient();
 	const navigate = useNavigate();
 	usePageTranslations("clients");
-	const { t, i18n } = useTranslation("clients");
+	const { t } = useTranslation("clients");
 	const [displayName, setDisplayName] = useState("");
 	const [selectedBackups, setSelectedBackups] = useState<string[]>([]);
 	const [detected, setDetected] = useState<boolean>(false);
@@ -151,6 +152,10 @@ export function ClientDetailPage() {
 			if (found) {
 				setDisplayName(found.display_name || "");
 				setDetected(!!found.detected);
+				const modeVal = (found as any)?.config_mode;
+				if (typeof modeVal === "string") setMode(modeVal as ClientConfigMode);
+				const trVal = (found as any)?.transport;
+				setTransport(typeof trVal === "string" ? (trVal as string) : "auto");
 			}
 		}
 		if (!displayName) {
@@ -162,6 +167,11 @@ export function ClientDetailPage() {
 						const f = d.client.find((c) => c.identifier === identifier);
 						if (f?.display_name) setDisplayName(f.display_name);
 						if (typeof f?.detected === "boolean") setDetected(!!f.detected);
+						const modeVal = (f as any)?.config_mode;
+						if (typeof modeVal === "string")
+							setMode(modeVal as ClientConfigMode);
+						const trVal = (f as any)?.transport;
+						setTransport(typeof trVal === "string" ? (trVal as string) : "auto");
 					}
 				})
 				.catch(() => {});
@@ -170,6 +180,7 @@ export function ClientDetailPage() {
 
 	const limitId = useId();
 	const [mode, setMode] = useState<ClientConfigMode>("hosted");
+	const [transport, setTransport] = useState<string>("auto");
 	const [selectedConfig, setSelectedConfig] =
 		useState<ClientConfigSelected>("default");
 	const [policyOpen, setPolicyOpen] = useState(false);
@@ -378,6 +389,24 @@ export function ClientDetailPage() {
 							defaultValue: "Review the diff before applying.",
 						}),
 					);
+					// Surface backend warnings from preview
+					if (Array.isArray(data.warnings) && data.warnings.length) {
+						setLogEntries((prev) => {
+							const existing = new Set(prev.map((e) => e.message));
+							const next = [...prev];
+							for (const w of data.warnings!) {
+								if (!existing.has(w)) {
+									next.push({
+										id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+										message: w,
+										level: "warning",
+										timestamp: new Date().toISOString(),
+									});
+								}
+							}
+							return next;
+						});
+					}
 				} else {
 					notifyInfo(
 						t("detail.notifications.previewReady.title", {
@@ -399,6 +428,24 @@ export function ClientDetailPage() {
 				);
 				// Refresh backup records after successful apply
 				refetchBackups();
+				// Surface backend warnings from apply
+				if (data && Array.isArray(data.warnings) && data.warnings.length) {
+					setLogEntries((prev) => {
+						const existing = new Set(prev.map((e) => e.message));
+						const next = [...prev];
+						for (const w of data.warnings!) {
+							if (!existing.has(w)) {
+								next.push({
+									id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+									message: w,
+									level: "warning",
+									timestamp: new Date().toISOString(),
+								});
+							}
+						}
+						return next;
+					});
+				}
 			}
 			qc.invalidateQueries({ queryKey: ["client-config", identifier] });
 		},
@@ -780,7 +827,26 @@ export function ClientDetailPage() {
 														})}
 													</span>
 													<span className="text-xs">
-														{configDetails.last_modified || "-"}
+														{formatBackupTime(configDetails.last_modified)}
+													</span>
+
+													<span className="text-xs uppercase text-slate-500">
+														{t("detail.overview.labels.supportedTransports", {
+															defaultValue: "Supported Transports",
+														})}
+													</span>
+													<span className="text-xs flex gap-2">
+														{(configDetails.supported_transports || []).map(
+															(t) => (
+																<span
+																	key={t}
+																	className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+																	title={t}
+																>
+																	{t}
+																</span>
+															),
+														)}
 													</span>
 
 													{detailHomepageUrl ? (
@@ -873,6 +939,73 @@ export function ClientDetailPage() {
 																defaultValue: "Enable",
 															})}
 												</Button>
+												{(() => {
+													const supported =
+														(configDetails?.supported_transports ||
+															[]) as string[];
+													// Show selector only when there are 2+ concrete transports
+													if (!supported || supported.length < 2) return null;
+													const optionLabel = (v: string) =>
+														v === "streamable_http"
+															? "Streamable HTTP"
+															: v.toUpperCase();
+													const allowed = new Set(supported);
+													const options = [
+														"stdio",
+														"sse",
+														"streamable_http",
+													].filter((v) => allowed.has(v));
+													return (
+														<ButtonGroupText className="h-9 p-0 select-none shadow-none">
+															<Select
+																value={transport}
+																onValueChange={async (v) => {
+																	// Transport must be one of: auto, sse, stdio, streamable_http
+																	setTransport(v);
+																	try {
+																		await clientsApi.update({
+																			identifier: identifier!,
+																			transport: v,
+																		});
+																		notifySuccess(
+																			t("detail.overview.transport.updated", {
+																				defaultValue: "Transport updated",
+																			}),
+																			"",
+																		);
+																		// refresh cache so list shows new transport immediately
+																		qc.invalidateQueries({
+																			queryKey: ["clients"],
+																		});
+																	} catch (err) {
+																		notifyError(
+																			t(
+																				"detail.overview.transport.updateFailed",
+																				{ defaultValue: "Update failed" },
+																			),
+																			String(err),
+																		);
+																	}
+																}}
+															>
+																<SelectTrigger
+																	className="h-8 border-0 shadow-none focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus:outline-none select-none bg-transparent px-3 min-w-[9rem]"
+																	aria-label="Transport selector"
+																>
+																	<SelectValue />
+																</SelectTrigger>
+																<SelectContent align="end">
+																	<SelectItem value="auto">Auto</SelectItem>
+																	{options.map((v) => (
+																		<SelectItem key={v} value={v}>
+																			{optionLabel(v)}
+																		</SelectItem>
+																	))}
+																</SelectContent>
+															</Select>
+														</ButtonGroupText>
+													);
+												})()}
 											</ButtonGroup>
 										</div>
 									</div>
@@ -923,12 +1056,9 @@ export function ClientDetailPage() {
 											<CapsuleStripeListItem key={n}>
 												<div className="font-mono">{n}</div>
 												<div className="text-xs text-slate-500">
-													{t(
-														"detail.overview.currentServers.configuredLabel",
-														{
-															defaultValue: "configured",
-														},
-													)}
+													{t("detail.overview.currentServers.configuredLabel", {
+														defaultValue: "configured",
+													})}
 												</div>
 											</CapsuleStripeListItem>
 										))}
@@ -962,28 +1092,22 @@ export function ClientDetailPage() {
 										})}
 									</CardDescription>
 								</div>
-								<div className="flex items-center gap-2">
+								{configDetails?.managed ? (
 									<Button
 										size="sm"
-										variant="outline"
-										onClick={() => {
-											// Re-apply configuration logic
-											applyMutation.mutate({ preview: false });
-										}}
-										disabled={
-											applyMutation.isPending ||
-											!configDetails?.managed ||
-											mode === "none"
-										}
+										variant="default"
+										onClick={() => applyMutation.mutate({ preview: false })}
+										disabled={applyMutation.isPending}
+										className="gap-2"
 									>
-										<RefreshCw
-											className={`mr-2 h-4 w-4 ${applyMutation.isPending ? "animate-spin" : ""}`}
+										<HardDrive
+											className={`h-4 w-4 ${applyMutation.isPending ? "animate-pulse" : ""}`}
 										/>
 										{t("detail.configuration.reapply", {
-											defaultValue: "Re-apply",
+											defaultValue: "Apply",
 										})}
 									</Button>
-								</div>
+								) : null}
 							</CardHeader>
 							<CardContent className="pt-0">
 								<div className="grid grid-cols-10 gap-8">
@@ -1234,7 +1358,9 @@ export function ClientDetailPage() {
 																					{profile.description ||
 																						t(
 																							"detail.configuration.labels.noDescription",
-																							{ defaultValue: "No description" },
+																							{
+																								defaultValue: "No description",
+																							},
 																						)}
 																				</div>
 																				{capabilities && (
@@ -1246,8 +1372,7 @@ export function ClientDetailPage() {
 																									defaultValue: "Servers",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.servers.enabled}/
+																							: {capabilities.servers.enabled}/
 																							{capabilities.servers.total}
 																						</span>
 																						<span>
@@ -1257,8 +1382,7 @@ export function ClientDetailPage() {
 																									defaultValue: "Tools",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.tools.enabled}/
+																							: {capabilities.tools.enabled}/
 																							{capabilities.tools.total}
 																						</span>
 																						<span>
@@ -1268,9 +1392,8 @@ export function ClientDetailPage() {
 																									defaultValue: "Resources",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.resources.enabled}/
-																							{capabilities.resources.total}
+																							: {capabilities.resources.enabled}
+																							/{capabilities.resources.total}
 																						</span>
 																						<span>
 																							{t(
@@ -1279,8 +1402,7 @@ export function ClientDetailPage() {
 																									defaultValue: "Prompts",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.prompts.enabled}/
+																							: {capabilities.prompts.enabled}/
 																							{capabilities.prompts.total}
 																						</span>
 																					</div>
@@ -1363,7 +1485,9 @@ export function ClientDetailPage() {
 																					{profile.description ||
 																						t(
 																							"detail.configuration.labels.noDescription",
-																							{ defaultValue: "No description" },
+																							{
+																								defaultValue: "No description",
+																							},
 																						)}
 																				</div>
 																				{capabilities && (
@@ -1375,8 +1499,7 @@ export function ClientDetailPage() {
 																									defaultValue: "Servers",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.servers.enabled}/
+																							: {capabilities.servers.enabled}/
 																							{capabilities.servers.total}
 																						</span>
 																						<span>
@@ -1386,8 +1509,7 @@ export function ClientDetailPage() {
 																									defaultValue: "Tools",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.tools.enabled}/
+																							: {capabilities.tools.enabled}/
 																							{capabilities.tools.total}
 																						</span>
 																						<span>
@@ -1397,9 +1519,8 @@ export function ClientDetailPage() {
 																									defaultValue: "Resources",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.resources.enabled}/
-																							{capabilities.resources.total}
+																							: {capabilities.resources.enabled}
+																							/{capabilities.resources.total}
 																						</span>
 																						<span>
 																							{t(
@@ -1408,8 +1529,7 @@ export function ClientDetailPage() {
 																									defaultValue: "Prompts",
 																								},
 																							)}
-																							:{" "}
-																							{capabilities.prompts.enabled}/
+																							: {capabilities.prompts.enabled}/
 																							{capabilities.prompts.total}
 																						</span>
 																					</div>
@@ -1468,7 +1588,9 @@ export function ClientDetailPage() {
 																	{selectedConfig === "custom"
 																		? t(
 																				"detail.configuration.sections.profiles.ghost.titleCustom",
-																				{ defaultValue: "Customize the profile" },
+																				{
+																					defaultValue: "Customize the profile",
+																				},
 																			)
 																		: t(
 																				"detail.configuration.sections.profiles.ghost.titleDefault",
@@ -1725,7 +1847,9 @@ export function ClientDetailPage() {
 													{new Date(entry.timestamp).toLocaleTimeString()}
 												</span>
 												<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-													{t("detail.logs.warning", { defaultValue: "Warning" })}
+													{t("detail.logs.warning", {
+														defaultValue: "Warning",
+													})}
 												</span>
 											</div>
 											<pre className="px-4 py-3 text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
@@ -1737,7 +1861,8 @@ export function ClientDetailPage() {
 							) : (
 								<div className="rounded border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
 									{t("detail.logs.empty", {
-										defaultValue: "No log entries recorded for this client yet.",
+										defaultValue:
+											"No log entries recorded for this client yet.",
 									})}
 								</div>
 							)}
@@ -1746,36 +1871,40 @@ export function ClientDetailPage() {
 				</TabsContent>
 			</Tabs>
 
-	<ConfirmDialog
-		isOpen={!!confirm}
-		onClose={() => setConfirm(null)}
-		title={
-			confirm?.kind === "delete"
-				? t("detail.confirm.deleteTitle", { defaultValue: "Delete Backup" })
-				: t("detail.confirm.restoreTitle", { defaultValue: "Restore Backup" })
-		}
-		description={
-			confirm?.kind === "delete"
-				? t("detail.confirm.deleteDescription", {
-						defaultValue:
-							"Are you sure you want to delete this backup? This action cannot be undone.",
-					})
-				: t("detail.confirm.restoreDescription", {
-						defaultValue:
-							"Restore configuration from the selected backup? Current config may be overwritten.",
-					})
-		}
-		confirmLabel={
-			confirm?.kind === "delete"
-				? t("detail.confirm.deleteLabel", { defaultValue: "Delete" })
-				: t("detail.confirm.restoreLabel", { defaultValue: "Restore" })
-		}
-		cancelLabel={t("detail.confirm.cancelLabel", { defaultValue: "Cancel" })}
-		variant={confirm?.kind === "delete" ? "destructive" : "default"}
-		isLoading={deleteBackupMutation.isPending || restoreMutation.isPending}
-		onConfirm={async () => {
-			if (!confirm) return;
-			if (confirm.kind === "delete") {
+			<ConfirmDialog
+				isOpen={!!confirm}
+				onClose={() => setConfirm(null)}
+				title={
+					confirm?.kind === "delete"
+						? t("detail.confirm.deleteTitle", { defaultValue: "Delete Backup" })
+						: t("detail.confirm.restoreTitle", {
+								defaultValue: "Restore Backup",
+							})
+				}
+				description={
+					confirm?.kind === "delete"
+						? t("detail.confirm.deleteDescription", {
+								defaultValue:
+									"Are you sure you want to delete this backup? This action cannot be undone.",
+							})
+						: t("detail.confirm.restoreDescription", {
+								defaultValue:
+									"Restore configuration from the selected backup? Current config may be overwritten.",
+							})
+				}
+				confirmLabel={
+					confirm?.kind === "delete"
+						? t("detail.confirm.deleteLabel", { defaultValue: "Delete" })
+						: t("detail.confirm.restoreLabel", { defaultValue: "Restore" })
+				}
+				cancelLabel={t("detail.confirm.cancelLabel", {
+					defaultValue: "Cancel",
+				})}
+				variant={confirm?.kind === "delete" ? "destructive" : "default"}
+				isLoading={deleteBackupMutation.isPending || restoreMutation.isPending}
+				onConfirm={async () => {
+					if (!confirm) return;
+					if (confirm.kind === "delete") {
 						await deleteBackupMutation.mutateAsync({ backup: confirm.backup });
 					} else {
 						await restoreMutation.mutateAsync({ backup: confirm.backup });
@@ -1785,23 +1914,27 @@ export function ClientDetailPage() {
 			/>
 
 			{/* Bulk delete confirmation */}
-	<ConfirmDialog
-		isOpen={bulkConfirmOpen}
-		onClose={() => setBulkConfirmOpen(false)}
-		title={t("detail.backups.bulk.title", {
-			defaultValue: "Delete Selected Backups",
-		})}
-		description={t("detail.backups.bulk.description", {
-			defaultValue:
-				"Are you sure you want to delete {{count}} backup(s)? This action cannot be undone.",
-			count: selectedBackups.length,
-		})}
-		confirmLabel={t("detail.confirm.deleteLabel", { defaultValue: "Delete" })}
-		cancelLabel={t("detail.confirm.cancelLabel", { defaultValue: "Cancel" })}
-		variant="destructive"
-		isLoading={bulkDeleteMutation.isPending}
-		onConfirm={() => bulkDeleteMutation.mutate()}
-	/>
+			<ConfirmDialog
+				isOpen={bulkConfirmOpen}
+				onClose={() => setBulkConfirmOpen(false)}
+				title={t("detail.backups.bulk.title", {
+					defaultValue: "Delete Selected Backups",
+				})}
+				description={t("detail.backups.bulk.description", {
+					defaultValue:
+						"Are you sure you want to delete {{count}} backup(s)? This action cannot be undone.",
+					count: selectedBackups.length,
+				})}
+				confirmLabel={t("detail.confirm.deleteLabel", {
+					defaultValue: "Delete",
+				})}
+				cancelLabel={t("detail.confirm.cancelLabel", {
+					defaultValue: "Cancel",
+				})}
+				variant="destructive"
+				isLoading={bulkDeleteMutation.isPending}
+				onConfirm={() => bulkDeleteMutation.mutate()}
+			/>
 
 			{/* Backup Policy Drawer */}
 			<Drawer open={policyOpen} onOpenChange={setPolicyOpen}>
@@ -1891,46 +2024,46 @@ export function ClientDetailPage() {
 							<div className="h-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded" />
 						) : importPreviewData ? (
 							<div className="flex-1 min-h-0 flex flex-col gap-4">
-				<div className="grid grid-cols-[120px_1fr] gap-y-2 gap-x-4 text-sm leading-6">
-					<div className="text-slate-500">
-						{t("detail.importPreview.fields.attempted", {
-							defaultValue: "Attempted",
-						})}
-					</div>
-					<div>
-					{typeof importPreviewData.summary?.attempted === "boolean"
-						? importPreviewData.summary.attempted
-							? t("states.yes", { defaultValue: "Yes" })
-							: t("states.no", { defaultValue: "No" })
-							: "-"}
-					</div>
-					<div className="text-slate-500">
-						{t("detail.importPreview.fields.imported", {
-							defaultValue: "Imported",
-						})}
-					</div>
-					<div>{importPreviewData.summary?.imported_count ?? 0}</div>
-					<div className="text-slate-500">
-						{t("detail.importPreview.fields.skipped", {
-							defaultValue: "Skipped",
-						})}
-					</div>
-					<div>{importPreviewData.summary?.skipped_count ?? 0}</div>
-					<div className="text-slate-500">
-						{t("detail.importPreview.fields.failed", {
-							defaultValue: "Failed",
-						})}
-					</div>
-					<div>{importPreviewData.summary?.failed_count ?? 0}</div>
-				</div>
-				{Array.isArray(importPreviewData.items) &&
-				importPreviewData.items.length > 0 ? (
-					<div className="rounded border">
-						<div className="px-3 py-2 text-xs text-slate-500 border-b">
-							{t("detail.importPreview.sections.servers", {
-								defaultValue: "Servers to import",
-							})}
-						</div>
+								<div className="grid grid-cols-[120px_1fr] gap-y-2 gap-x-4 text-sm leading-6">
+									<div className="text-slate-500">
+										{t("detail.importPreview.fields.attempted", {
+											defaultValue: "Attempted",
+										})}
+									</div>
+									<div>
+										{typeof importPreviewData.summary?.attempted === "boolean"
+											? importPreviewData.summary.attempted
+												? t("states.yes", { defaultValue: "Yes" })
+												: t("states.no", { defaultValue: "No" })
+											: "-"}
+									</div>
+									<div className="text-slate-500">
+										{t("detail.importPreview.fields.imported", {
+											defaultValue: "Imported",
+										})}
+									</div>
+									<div>{importPreviewData.summary?.imported_count ?? 0}</div>
+									<div className="text-slate-500">
+										{t("detail.importPreview.fields.skipped", {
+											defaultValue: "Skipped",
+										})}
+									</div>
+									<div>{importPreviewData.summary?.skipped_count ?? 0}</div>
+									<div className="text-slate-500">
+										{t("detail.importPreview.fields.failed", {
+											defaultValue: "Failed",
+										})}
+									</div>
+									<div>{importPreviewData.summary?.failed_count ?? 0}</div>
+								</div>
+								{Array.isArray(importPreviewData.items) &&
+								importPreviewData.items.length > 0 ? (
+									<div className="rounded border">
+										<div className="px-3 py-2 text-xs text-slate-500 border-b">
+											{t("detail.importPreview.sections.servers", {
+												defaultValue: "Servers to import",
+											})}
+										</div>
 										<ul className="divide-y max-h-[30vh] overflow-auto">
 											{importPreviewData.items.map((it, idx: number) => (
 												<li
@@ -1951,7 +2084,8 @@ export function ClientDetailPage() {
 																"tools: {{tools}} • resources: {{resources}} • templates: {{templates}} • prompts: {{prompts}}",
 															tools: it.tools?.items?.length ?? 0,
 															resources: it.resources?.items?.length ?? 0,
-															templates: it.resource_templates?.items?.length ?? 0,
+															templates:
+																it.resource_templates?.items?.length ?? 0,
 															prompts: it.prompts?.items?.length ?? 0,
 														})}
 													</div>
@@ -1960,13 +2094,13 @@ export function ClientDetailPage() {
 										</ul>
 									</div>
 								) : null}
-				{importPreviewData.summary?.errors ? (
-					<details>
-						<summary className="text-xs text-slate-500 cursor-pointer">
-							{t("detail.importPreview.sections.errors", {
-								defaultValue: "Errors",
-							})}
-						</summary>
+								{importPreviewData.summary?.errors ? (
+									<details>
+										<summary className="text-xs text-slate-500 cursor-pointer">
+											{t("detail.importPreview.sections.errors", {
+												defaultValue: "Errors",
+											})}
+										</summary>
 										<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto max-h-[26vh]">
 											{JSON.stringify(
 												importPreviewData.summary.errors,
@@ -1976,61 +2110,61 @@ export function ClientDetailPage() {
 										</pre>
 									</details>
 								) : null}
-				<details className="mt-2 flex-1 min-h-0">
-					<summary className="text-xs text-slate-500 cursor-pointer">
-						{t("detail.importPreview.sections.raw", {
-							defaultValue: "Raw preview JSON",
-						})}
-					</summary>
+								<details className="mt-2 flex-1 min-h-0">
+									<summary className="text-xs text-slate-500 cursor-pointer">
+										{t("detail.importPreview.sections.raw", {
+											defaultValue: "Raw preview JSON",
+										})}
+									</summary>
 									<pre className="text-xs bg-slate-50 dark:bg-slate-900 p-2 rounded overflow-auto flex-1 min-h-0 max-h-[40vh]">
 										{JSON.stringify(importPreviewData, null, 2)}
 									</pre>
 								</details>
 							</div>
-			) : (
-				<div className="text-slate-500">
-					{t("detail.importPreview.noPreview", {
-						defaultValue: "No preview data.",
-					})}
-				</div>
-			)}
+						) : (
+							<div className="text-slate-500">
+								{t("detail.importPreview.noPreview", {
+									defaultValue: "No preview data.",
+								})}
+							</div>
+						)}
 					</div>
 					<DrawerFooter>
-				<div className="flex w-full items-center justify-between">
-					<Button
-						variant="outline"
-						onClick={() => setImportPreviewOpen(false)}
-					>
-						{t("detail.importPreview.buttons.close", {
-							defaultValue: "Close",
-						})}
-					</Button>
+						<div className="flex w-full items-center justify-between">
+							<Button
+								variant="outline"
+								onClick={() => setImportPreviewOpen(false)}
+							>
+								{t("detail.importPreview.buttons.close", {
+									defaultValue: "Close",
+								})}
+							</Button>
 							{importPreviewData ? (
 								(importPreviewData?.summary?.imported_count ?? 0) > 0 ? (
-						<Button
-							onClick={() => importMutation.mutate()}
-							disabled={importMutation.isPending}
-						>
-							{t("detail.importPreview.buttons.apply", {
-								defaultValue: "Apply Import",
-							})}
-						</Button>
+									<Button
+										onClick={() => importMutation.mutate()}
+										disabled={importMutation.isPending}
+									>
+										{t("detail.importPreview.buttons.apply", {
+											defaultValue: "Apply Import",
+										})}
+									</Button>
 								) : (
-						<div className="text-xs text-slate-500">
-							{t("detail.importPreview.states.noImportNeeded", {
-								defaultValue: "No import needed",
-							})}
-						</div>
+									<div className="text-xs text-slate-500">
+										{t("detail.importPreview.states.noImportNeeded", {
+											defaultValue: "No import needed",
+										})}
+									</div>
 								)
 							) : (
-						<Button
-							onClick={() => importPreviewMutation.mutate()}
-							disabled={importPreviewMutation.isPending}
-						>
-							{t("detail.importPreview.buttons.preview", {
-								defaultValue: "Preview",
-							})}
-						</Button>
+								<Button
+									onClick={() => importPreviewMutation.mutate()}
+									disabled={importPreviewMutation.isPending}
+								>
+									{t("detail.importPreview.buttons.preview", {
+										defaultValue: "Preview",
+									})}
+								</Button>
 							)}
 						</div>
 					</DrawerFooter>

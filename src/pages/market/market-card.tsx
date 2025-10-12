@@ -11,7 +11,7 @@ import {
 } from "../../components/ui/card";
 import { notifyInfo } from "../../lib/notify";
 import { getOfficialMeta } from "../../lib/registry";
-import { cn, formatRelativeTime, truncate } from "../../lib/utils";
+import { cn, formatLocalDateTime, truncate } from "../../lib/utils";
 import type { MarketCardProps } from "./types";
 import {
 	formatServerName,
@@ -43,9 +43,9 @@ export function MarketCard({
 	}, [server.packages, server.remotes]);
 
 	const publishedLabel = official?.updatedAt ?? official?.publishedAt;
-	const relativeTimestamp = publishedLabel
-		? formatRelativeTime(publishedLabel)
-		: null;
+    const absoluteTimestamp = publishedLabel
+        ? formatLocalDateTime(publishedLabel)
+        : null;
 	const displayName = formatServerName(server.name);
 
 	const supportsPreview = useMemo(() => hasPreviewableOption(server), [server]);
@@ -117,12 +117,12 @@ export function MarketCard({
 						{/* 版本和更新时间 - 与标题左对齐 */}
 						<div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
 							<span>{`Version ${server.version}`}</span>
-							{relativeTimestamp && (
-								<>
-									<span>•</span>
-									<span>Updated {relativeTimestamp}</span>
-								</>
-							)}
+                        {absoluteTimestamp && (
+                            <>
+                                <span>•</span>
+                                <span>Updated {absoluteTimestamp}</span>
+                            </>
+                        )}
 						</div>
 
 						{/* 描述 - 与标题左对齐 */}

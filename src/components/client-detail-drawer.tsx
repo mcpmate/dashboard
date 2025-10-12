@@ -190,7 +190,7 @@ export function ClientDetailDrawer({
 										MCP Config: {String(configDetails.has_mcp_config)} (Servers:{" "}
 										{configDetails.mcp_servers_count})
 									</div>
-									<div>Last Modified: {configDetails.last_modified || "-"}</div>
+									<div>Last Modified: {formatBackupTime(configDetails.last_modified)}</div>
 								</>
 							) : (
 								<div className="text-slate-500">No details available</div>

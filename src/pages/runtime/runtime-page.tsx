@@ -21,11 +21,11 @@ import type {
 	RuntimeCacheResponse,
 	RuntimeStatusResponse,
 } from "../../lib/types";
-import { formatBytes, formatRelativeTime } from "../../lib/utils";
+import { formatBytes, formatLocalDateTime } from "../../lib/utils";
 
 export function RuntimePage() {
 	usePageTranslations("runtime");
-	const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
 	const qc = useQueryClient();
 	const [confirm, setConfirm] = React.useState<
 		| { type: "resetAll" }
@@ -238,9 +238,9 @@ export function RuntimePage() {
 											{t("runtime:labels.lastModified")}
 										</span>
 										<span>
-											{c?.last_modified
-												? formatRelativeTime(c.last_modified, i18n.language)
-												: "—"}
+                                {c?.last_modified
+                                    ? formatLocalDateTime(c.last_modified)
+                                    : "—"}
 										</span>
 									</div>
 								</div>
@@ -326,12 +326,9 @@ export function RuntimePage() {
 										{t("runtime:capabilities.labels.lastCleanup")}
 									</span>
 									<span>
-										{capStats.storage.last_cleanup
-											? formatRelativeTime(
-													capStats.storage.last_cleanup,
-													i18n.language,
-												)
-											: "—"}
+                                {capStats.storage.last_cleanup
+                                    ? formatLocalDateTime(capStats.storage.last_cleanup)
+                                    : "—"}
 									</span>
 								</div>
 								<div className="flex items-center justify-between">
@@ -339,7 +336,7 @@ export function RuntimePage() {
 										{t("runtime:capabilities.labels.generated")}
 									</span>
 									<span>
-										{formatRelativeTime(capStats.generatedAt, i18n.language)}
+                                {formatLocalDateTime(capStats.generatedAt)}
 									</span>
 								</div>
 							</div>

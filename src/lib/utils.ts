@@ -127,32 +127,31 @@ export function getStatusVariant(
 /**
  * Formats a backup timestamp to a user-friendly local time format
  */
+export function formatLocalDateTime(
+    timestamp: string | number | Date | null | undefined,
+    options?: Intl.DateTimeFormatOptions,
+): string {
+    if (timestamp === null || timestamp === undefined) return "-";
+    try {
+        const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+        return date.toLocaleString(undefined, {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+            ...options,
+        });
+    } catch {
+        return "Invalid date";
+    }
+}
+
+// Backwards-compat wrapper: now always absolute local time
 export function formatBackupTime(timestamp: string | null | undefined): string {
-	if (!timestamp) return "-";
-
-	try {
-		const date = new Date(timestamp);
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
-		const diffHours = diffMs / (1000 * 60 * 60);
-
-		// If less than 24 hours, show relative time
-		if (diffHours < 24) {
-			return formatDistance(date, now, { addSuffix: true });
-		}
-
-		// Otherwise show local date and time
-		return date.toLocaleString(undefined, {
-			year: "numeric",
-			month: "2-digit",
-			day: "2-digit",
-			hour: "2-digit",
-			minute: "2-digit",
-			hour12: false,
-		});
-	} catch (error) {
-		return "Invalid date";
-	}
+    return formatLocalDateTime(timestamp);
 }
 
 /**

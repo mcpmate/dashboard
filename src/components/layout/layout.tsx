@@ -119,9 +119,14 @@ export function Layout() {
 		return () => window.removeEventListener("resize", handler);
 	}, [sidebarOpen, setSidebarOpen]);
 
-    const appVersion = (import.meta as any).env?.VITE_APP_VERSION ?? "0.1.0";
-    const buildTag = (import.meta as any).env?.VITE_BUILD_TAG as string | undefined;
-    const versionDisplay = `v${String(appVersion)}${buildTag ? ` (${buildTag})` : ""}`;
+    // Footer labels (Terms / Privacy) localized inline
+    const { i18n } = useTranslation();
+    const isZh = (i18n.language || "").toLowerCase().startsWith("zh");
+    const termsLabel = isZh ? "服务条款" : "Terms";
+    const privacyLabel = isZh ? "隐私政策" : "Privacy";
+    const langParam = isZh ? "zh" : "en";
+    const termsHref = `https://mcpmate.io/terms?lang=${langParam}`;
+    const privacyHref = `https://mcpmate.io/privacy?lang=${langParam}`;
 
     return (
 		<div className="min-h-screen">
@@ -138,24 +143,37 @@ export function Layout() {
 						<Outlet />
 					</div>
 					<footer className="mt-6 text-[11px] text-slate-500 border-t border-slate-200 dark:border-slate-900 pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-						<div>
-                        {t("layout.versionFooter", {
-                            defaultValue: "MCPMate Board",
-                        })}{" "}
-                        <span className="font-mono">{versionDisplay}</span>
+                    <div>
+                        <a
+                            className="hover:underline"
+                            href="https://mcpmate.io"
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            {t("layout.copyright", {
+                                defaultValue: "© 2025 MCPMate",
+                            })}
+                        </a>
                     </div>
-						<div className="flex items-center gap-3">
-							<a
-								className="hover:underline"
-								href="https://mcpmate.io"
-								target="_blank"
-								rel="noreferrer"
-							>
-								{t("layout.copyright", {
-									defaultValue: "© 2025 MCPMate",
-								})}
-							</a>
-						</div>
+                    <div className="flex items-center gap-3">
+                        <a
+                            className="hover:underline"
+                            href={termsHref}
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            {termsLabel}
+                        </a>
+                        <span className="text-slate-300">•</span>
+                        <a
+                            className="hover:underline"
+                            href={privacyHref}
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            {privacyLabel}
+                        </a>
+                    </div>
 					</footer>
 				</div>
 			</main>
