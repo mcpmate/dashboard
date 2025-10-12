@@ -121,10 +121,10 @@ export function Layout() {
 
     // Footer labels (Terms / Privacy) localized inline
     const { i18n } = useTranslation();
-    const isZh = (i18n.language || "").toLowerCase().startsWith("zh");
-    const termsLabel = isZh ? "服务条款" : "Terms";
-    const privacyLabel = isZh ? "隐私政策" : "Privacy";
-    const langParam = isZh ? "zh" : "en";
+    const lang = (i18n.language || "").toLowerCase();
+    const termsLabel = t("layout.terms", { defaultValue: "Terms" });
+    const privacyLabel = t("layout.privacy", { defaultValue: "Privacy" });
+    const langParam = lang.startsWith("zh") ? "zh" : lang.startsWith("ja") ? "ja" : "en";
     const termsHref = `https://mcpmate.io/terms?lang=${langParam}`;
     const privacyHref = `https://mcpmate.io/privacy?lang=${langParam}`;
 
@@ -143,7 +143,7 @@ export function Layout() {
 						<Outlet />
 					</div>
 					<footer className="mt-6 text-[11px] text-slate-500 border-t border-slate-200 dark:border-slate-900 pt-2 pb-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
+                    <div className="flex items-center gap-4 flex-wrap">
                         <a
                             className="hover:underline"
                             href="https://mcpmate.io"
@@ -154,24 +154,38 @@ export function Layout() {
                                 defaultValue: "© 2025 MCPMate",
                             })}
                         </a>
+                        <div className="flex items-center gap-3">
+                            <a
+                                className="hover:underline"
+                                href={termsHref}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {termsLabel}
+                            </a>
+                            <span className="text-slate-300">•</span>
+                            <a
+                                className="hover:underline"
+                                href={privacyHref}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {privacyLabel}
+                            </a>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                         <a
-                            className="hover:underline"
-                            href={termsHref}
+                            className="inline-flex items-center gap-1 hover:underline"
+                            href="https://forms.gle/zbZxTEJVpoVhpRE58"
                             target="_blank"
                             rel="noreferrer"
+                            aria-label={t("layout.feedback", { defaultValue: "Feedback Survey" })}
+                            title={t("layout.feedback", { defaultValue: "Feedback Survey" })}
                         >
-                            {termsLabel}
-                        </a>
-                        <span className="text-slate-300">•</span>
-                        <a
-                            className="hover:underline"
-                            href={privacyHref}
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                            {privacyLabel}
+                            {/* Fallback emoji icon to avoid extra imports */}
+                            <span role="img" aria-hidden="true">💬</span>
+                            <span>{t("layout.feedback", { defaultValue: "Feedback Survey" })}</span>
                         </a>
                     </div>
 					</footer>

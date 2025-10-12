@@ -18,6 +18,9 @@ export const navigationTranslations = {
 			expandSidebar: "Expand sidebar",
 			versionFooter: "MCPMate Board",
 			copyright: "© 2025 MCPMate",
+			feedback: "Feedback",
+			terms: "Terms",
+			privacy: "Privacy",
 		},
 		header: {
 			back: "Back",
@@ -61,6 +64,9 @@ export const navigationTranslations = {
 			expandSidebar: "展开侧边栏",
 			versionFooter: "MCPMate Board",
 			copyright: "© 2025 MCPMate",
+			feedback: "调查问卷",
+			terms: "服务条款",
+			privacy: "隐私政策",
 		},
 		header: {
 			back: "返回",
@@ -104,6 +110,9 @@ export const navigationTranslations = {
 			expandSidebar: "サイドバーを展開",
 			versionFooter: "MCPMate ダッシュボード",
 			copyright: "© 2025 MCPMate",
+			feedback: "フィードバック",
+			terms: "利用規約",
+			privacy: "プライバシーポリシー",
 		},
 		header: {
 			back: "戻る",

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, RotateCcw, Target } from "lucide-react";
+import { Loader2, RotateCcw, Target, ClipboardPaste } from "lucide-react";
 import {
 	forwardRef,
 	useCallback,
@@ -13,6 +13,7 @@ import {
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { readClipboardText } from "../../lib/clipboard";
+import { isTauriEnvironmentSync } from "../../lib/platform";
 import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { parseJsonDrafts } from "../../lib/install-normalizer";
 import { Button } from "../ui/button";
@@ -566,24 +567,31 @@ export const ServerInstallManualForm = forwardRef<
 			}
 		}, [isDropZoneCollapsed, setIsDropZoneCollapsed]);
 
-		const handleDropZoneClick = useCallback(() => {
-			if (!ingestEnabled) return;
-			if (isDropZoneCollapsed) {
-				setIsDropZoneCollapsed(false);
-				setIngestError(null);
-				setIsIngestSuccess(false);
-				setIngestMessage(ingestMessages.defaultMessage);
-			}
-			// Do not auto-read clipboard on click; paste must be triggered via Cmd/Ctrl+V
-		}, [
-			ingestEnabled,
-			isDropZoneCollapsed,
-			setIsDropZoneCollapsed,
-			setIngestError,
-			setIsIngestSuccess,
-			setIngestMessage,
-			ingestMessages.defaultMessage,
-		]);
+    const handleDropZoneClick = useCallback(() => {
+        if (!ingestEnabled) return;
+        if (isDropZoneCollapsed) {
+            setIsDropZoneCollapsed(false);
+            setIngestError(null);
+            setIsIngestSuccess(false);
+            setIngestMessage(ingestMessages.defaultMessage);
+        }
+        // In Tauri builds the WebView may not deliver clipboard data to paste events reliably.
+        // As a fallback, when the user clicks the drop zone we proactively try reading the
+        // clipboard via the Tauri plugin (user gesture present), then run the same pipeline.
+        if (isTauriEnvironmentSync() && !isIngesting) {
+            void ingestClipboardPayload(null);
+        }
+    }, [
+        ingestEnabled,
+        isDropZoneCollapsed,
+        setIsDropZoneCollapsed,
+        setIngestError,
+        setIsIngestSuccess,
+        setIngestMessage,
+        ingestMessages.defaultMessage,
+        ingestClipboardPayload,
+        isIngesting,
+    ]);
 
 		// Drag and drop handlers
 		const onDragEnter = (event: React.DragEvent<HTMLButtonElement>) => {
@@ -670,35 +678,39 @@ export const ServerInstallManualForm = forwardRef<
 			],
 		);
 
-		const onPaste = useCallback(
-			(event: React.ClipboardEvent<HTMLButtonElement>) => {
-				if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
-					return;
-				}
-				event.preventDefault();
-				void ingestClipboardPayload(
-					event.clipboardData?.getData("text/plain") ?? null,
-				);
-			},
-			[ingestClipboardPayload, ingestEnabled, isDropZoneCollapsed, isIngesting],
-		);
+    const onPaste = useCallback(
+        (event: React.ClipboardEvent<HTMLButtonElement>) => {
+            if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
+                return;
+            }
+            event.preventDefault();
+            // In Tauri/WebView, event.clipboardData may be empty even on user gesture.
+            // Prefer the Tauri clipboard plugin when available for reliability.
+            const seeded = isTauriEnvironmentSync()
+                ? null
+                : event.clipboardData?.getData("text/plain") ?? null;
+            void ingestClipboardPayload(seeded);
+        },
+        [ingestClipboardPayload, ingestEnabled, isDropZoneCollapsed, isIngesting],
+    );
 
-		// Paste listener
-		useEffect(() => {
-			if (!isOpen || !ingestEnabled) return;
-			const listener = (event: ClipboardEvent) => {
-				if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
-					return;
-				}
-				event.preventDefault();
-				void ingestClipboardPayload(
-					event.clipboardData?.getData("text/plain") ?? null,
-				);
-			};
-			window.addEventListener("paste", listener);
-			return () => window.removeEventListener("paste", listener);
-		}, [
-			ingestClipboardPayload,
+        // Paste listener
+        useEffect(() => {
+            if (!isOpen || !ingestEnabled) return;
+            const listener = (event: ClipboardEvent) => {
+                if (!ingestEnabled || isDropZoneCollapsed || isIngesting) {
+                    return;
+                }
+                event.preventDefault();
+                const seeded = isTauriEnvironmentSync()
+                    ? null
+                    : event.clipboardData?.getData("text/plain") ?? null;
+                void ingestClipboardPayload(seeded);
+            };
+            window.addEventListener("paste", listener);
+            return () => window.removeEventListener("paste", listener);
+        }, [
+            ingestClipboardPayload,
 			ingestEnabled,
 			isOpen,
 			isDropZoneCollapsed,
@@ -855,18 +867,31 @@ export const ServerInstallManualForm = forwardRef<
 										{headerDescription}
 									</DrawerDescription>
 								</div>
-								{ingestEnabled ? (
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon"
-										onClick={handleResetAll}
-										aria-label={resetLabel}
-										title={resetLabel}
-									>
-										<RotateCcw className="h-4 w-4" />
-									</Button>
-								) : null}
+                            {ingestEnabled ? (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={handleResetAll}
+                                    aria-label={resetLabel}
+                                    title={resetLabel}
+                                >
+                                    <RotateCcw className="h-4 w-4" />
+                                </Button>
+                            ) : null}
+                            {ingestEnabled ? (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => void ingestClipboardPayload(null)}
+                                    className="ml-1"
+                                    aria-label="Paste from clipboard"
+                                    title="Paste from clipboard"
+                                >
+                                    <ClipboardPaste className="mr-1 h-4 w-4" /> Paste
+                                </Button>
+                            ) : null}
 							</div>
 						</DrawerHeader>
 
