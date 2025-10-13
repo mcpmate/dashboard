@@ -1,5 +1,23 @@
 (() => {
 	try {
+		const emitToParent = (level, message, detail) => {
+			try {
+				if (window?.parent && window.parent !== window) {
+					window.parent.postMessage(
+						{
+							type: "mcpmate-market-log",
+							payload: {
+								level,
+								message,
+								detail,
+								portalId,
+							},
+						},
+						"*",
+					);
+				}
+			} catch {}
+		};
 		// Enhanced error handling for Next.js apps
 		const setupNextjsErrorHandling = () => {
 			if (portalId !== "mcpso") return;
@@ -14,6 +32,9 @@
 						"[mcpmate] Suppressed Next.js hydration error:",
 						event.error.message,
 					);
+					emitToParent("warn", "Suppressed Next.js hydration error", {
+						message: event.error?.message,
+					});
 					event.preventDefault();
 					event.stopPropagation();
 					return false;
@@ -29,6 +50,7 @@
 					message.includes("Warning: Prop")
 				) {
 					console.warn("[mcpmate] Suppressed React warning:", message);
+					emitToParent("warn", "Suppressed React warning", { message });
 					return;
 				}
 				originalConsoleError.apply(console, args);
@@ -121,12 +143,31 @@
 							},
 							"*",
 						);
+						emitToParent("info", "market-ready", {
+							portalId,
+							adapter: adapterId,
+						});
 					}
 				} catch {
 					/* noop */
 				}
 			};
 		})();
+
+		// Global error forwarding (outside of mcp.so specifics)
+		try {
+			window.addEventListener("error", (e) => {
+				emitToParent("error", "window.error", {
+					message: e?.error?.message || String(e?.message || ""),
+					stack: e?.error?.stack || "",
+				});
+			});
+			window.addEventListener("unhandledrejection", (e) => {
+				emitToParent("error", "unhandledrejection", {
+					reason: String(e?.reason || ""),
+				});
+			});
+		} catch {}
 
 		const mapUrl = (input) => {
 			try {
@@ -193,6 +234,7 @@
 						// set regardless
 						nextRequire.p = assetPrefix;
 					}
+					emitToParent("debug", "set webpack public path", { p: assetPrefix });
 				}
 				// Also set webpack public path fallback
 				try {
@@ -362,6 +404,11 @@
 			patchInsertionHooks();
 		}
 		ensureNextPublicPath();
+		emitToParent("info", "market-shim loaded", {
+			portalId,
+			adapter: adapterId,
+			prefix: prefixWithSlash,
+		});
 		setupNextjsErrorHandling();
 		const rewriteLogoElement = (node) => {
 			try {
