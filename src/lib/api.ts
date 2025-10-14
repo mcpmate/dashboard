@@ -68,7 +68,10 @@ import type {
 } from "./types";
 
 // Base API configuration
-// Prefer VITE_API_BASE_URL; otherwise infer from runtime context with sane fallbacks
+// Prefer VITE_API_BASE_URL; otherwise infer from runtime context with sane fallbacks.
+// For desktop (Tauri), allow runtime override so Settings can change ports without full reload.
+const API_BASE_OVERRIDE_KEY = "mcpmate.api_base_override";
+
 const resolveApiBaseUrl = (): string => {
 	const envBase =
 		typeof import.meta !== "undefined" ? import.meta.env?.VITE_API_BASE_URL : undefined;
@@ -77,11 +80,24 @@ const resolveApiBaseUrl = (): string => {
 		return envBase.trim();
 	}
 
+	// Runtime override (e.g., Tauri Settings → change API port)
+	try {
+		if (typeof window !== "undefined" && window.localStorage) {
+			const override = window.localStorage.getItem(API_BASE_OVERRIDE_KEY);
+			if (override && override.trim().length > 0) {
+				return override.trim();
+			}
+		}
+	} catch {
+		// ignore storage access issues
+	}
+
 	if (typeof window !== "undefined" && typeof window.location !== "undefined") {
 		const protocol = window.location.protocol.toLowerCase();
 
 		// Tauri / desktop shells use a custom protocol (e.g. tauri://localhost)
 		if (protocol === "tauri:" || protocol === "app:" || protocol === "file:") {
+			// default desktop port (may be overridden at runtime via localStorage)
 			return "http://127.0.0.1:8080";
 		}
 
@@ -93,7 +109,25 @@ const resolveApiBaseUrl = (): string => {
 	return "http://127.0.0.1:8080";
 };
 
-export const API_BASE_URL = resolveApiBaseUrl();
+// Mutable API base URL with runtime setter for desktop shells
+export let API_BASE_URL = resolveApiBaseUrl();
+export function setApiBaseUrl(newBase: string | null | undefined) {
+	const candidate = (newBase ?? "").trim();
+	if (candidate.length > 0) {
+		API_BASE_URL = candidate;
+		try {
+			window.localStorage?.setItem(API_BASE_OVERRIDE_KEY, candidate);
+		} catch {
+			// ignore persistence errors
+		}
+		return;
+	}
+	// Clear override and recompute
+	try {
+		window.localStorage?.removeItem(API_BASE_OVERRIDE_KEY);
+	} catch {}
+	API_BASE_URL = resolveApiBaseUrl();
+}
 
 const resolveWebSocketUrl = (): string => {
 	if (typeof window === "undefined") {

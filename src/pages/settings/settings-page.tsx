@@ -1,7 +1,6 @@
 import { Moon, RotateCcw, Sun } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useEffect, useId, useMemo, useState } from "react";
-import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
 import { Button } from "../../components/ui/button";
 import {
 	Card,
@@ -10,6 +9,14 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../../components/ui/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Segment, type SegmentOption } from "../../components/ui/segment";
@@ -27,6 +34,13 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "../../components/ui/tabs";
+import { API_BASE_URL, setApiBaseUrl } from "../../lib/api";
+import { SUPPORTED_LANGUAGES } from "../../lib/i18n/index";
+import { usePageTranslations } from "../../lib/i18n/usePageTranslations";
+import {
+	detectTauriEnvironment,
+	isTauriEnvironmentSync,
+} from "../../lib/platform";
 import {
 	type ClientBackupStrategy,
 	type ClientDefaultMode,
@@ -35,19 +49,14 @@ import {
 	type DashboardDefaultView,
 	type DashboardLanguage,
 	type DashboardSettings,
-	type MenuBarIconMode,
-	type MarketBlacklistEntry,
 	type DefaultMarket,
+	type MarketBlacklistEntry,
+	type MenuBarIconMode,
 	useAppStore,
 } from "../../lib/store";
-import {
-	detectTauriEnvironment,
-	isTauriEnvironmentSync,
-} from "../../lib/platform";
-import { SUPPORTED_LANGUAGES } from "../../lib/i18n/index";
 import type { OpenSourceDocument } from "../../types/open-source";
-import { AboutLicensesSection } from "./about-licenses-section";
 import { mergePortalOverrides } from "../market/portal-registry";
+import { AboutLicensesSection } from "./about-licenses-section";
 
 // Options for Segment components
 const THEME_CONFIG = [
@@ -66,21 +75,21 @@ const THEME_CONFIG = [
 ];
 
 const CLIENT_FILTER_CONFIG = [
-    {
-        value: "all" as const,
-        labelKey: "settings:clients.defaultVisibility.all",
-        fallback: "All",
-    },
-    {
-        value: "detected" as const,
-        labelKey: "settings:clients.defaultVisibility.detected",
-        fallback: "Detected",
-    },
-    {
-        value: "managed" as const,
-        labelKey: "settings:clients.defaultVisibility.managed",
-        fallback: "Managed",
-    },
+	{
+		value: "all" as const,
+		labelKey: "settings:clients.defaultVisibility.all",
+		fallback: "All",
+	},
+	{
+		value: "detected" as const,
+		labelKey: "settings:clients.defaultVisibility.detected",
+		fallback: "Detected",
+	},
+	{
+		value: "managed" as const,
+		labelKey: "settings:clients.defaultVisibility.managed",
+		fallback: "Managed",
+	},
 ];
 
 const DEFAULT_VIEW_CONFIG = [
@@ -185,6 +194,101 @@ export function SettingsPage() {
 	const [isTauriShell, setIsTauriShell] = useState(() =>
 		isTauriEnvironmentSync(),
 	);
+
+	// Developer → Backend ports (API/MCP)
+	const [apiPort, setApiPort] = useState<number | "">("");
+	const [mcpPort, setMcpPort] = useState<number | "">("");
+	const [loadingPorts, setLoadingPorts] = useState(false);
+	const [applyBusy, setApplyBusy] = useState(false);
+	const [webDialogOpen, setWebDialogOpen] = useState(false);
+	const devUrl =
+		typeof window !== "undefined" && window.location?.origin?.includes(":")
+			? window.location.origin
+			: "http://localhost:5173";
+
+	const loadRuntimePorts = useCallback(async () => {
+		setLoadingPorts(true);
+		try {
+			// seed from local persistence if available
+			let hadCached = false;
+			try {
+				const cachedApi = window.localStorage?.getItem(
+					"mcpmate.system.api_port",
+				);
+				const cachedMcp = window.localStorage?.getItem(
+					"mcpmate.system.mcp_port",
+				);
+				if (cachedApi) {
+					setApiPort(Number(cachedApi));
+					hadCached = true;
+				}
+				if (cachedMcp) {
+					setMcpPort(Number(cachedMcp));
+					hadCached = true;
+				}
+			} catch {}
+			if (isTauriEnvironmentSync()) {
+				const { invoke } = await import("@tauri-apps/api/core");
+				const resp = (await invoke("mcp_shell_read_runtime_ports")) as {
+					api_port: number;
+					mcp_port: number;
+					api_url: string;
+					mcp_http_url: string;
+					mcp_sse_url: string;
+				};
+				// In web mode, if user has configured ports (cached), keep them visible.
+				// Only initialize from backend when there is no cached value.
+				if (!hadCached) {
+					setApiPort(resp.api_port);
+					setMcpPort(resp.mcp_port);
+					try {
+						window.localStorage?.setItem(
+							"mcpmate.system.api_port",
+							String(resp.api_port),
+						);
+						window.localStorage?.setItem(
+							"mcpmate.system.mcp_port",
+							String(resp.mcp_port),
+						);
+					} catch {}
+				}
+				if (resp.api_url && !API_BASE_URL.includes(`:${resp.api_port}`)) {
+					setApiBaseUrl(resp.api_url);
+				}
+				return;
+			}
+
+			const apiBase = API_BASE_URL || "";
+			const url = apiBase ? `${apiBase}/api/system/ports` : `/api/system/ports`;
+			const response = await fetch(url, { cache: "no-store" });
+			if (response.ok) {
+				const data = await response.json();
+				const d = data?.data ?? data;
+				if (!hadCached) {
+					if (typeof d?.api_port === "number") {
+						setApiPort(d.api_port);
+						try {
+							window.localStorage?.setItem(
+								"mcpmate.system.api_port",
+								String(d.api_port),
+							);
+						} catch {}
+					}
+					if (typeof d?.mcp_port === "number") {
+						setMcpPort(d.mcp_port);
+						try {
+							window.localStorage?.setItem(
+								"mcpmate.system.mcp_port",
+								String(d.mcp_port),
+							);
+						} catch {}
+					}
+				}
+			}
+		} finally {
+			setLoadingPorts(false);
+		}
+	}, []);
 
 	const tabTriggerClass =
 		"justify-start px-3 py-2 text-left text-sm font-medium text-slate-600 data-[state=active]:text-emerald-700 dark:text-slate-300";
@@ -330,6 +434,10 @@ export function SettingsPage() {
 	}, []);
 
 	useEffect(() => {
+		void loadRuntimePorts();
+	}, [loadRuntimePorts]);
+
+	useEffect(() => {
 		if (!isTauriShell) {
 			return undefined;
 		}
@@ -366,13 +474,13 @@ export function SettingsPage() {
 
 	const showLicenseTab = licenseLoaded && licenseDocument !== null;
 
-    return (
-        <div className="space-y-4">
-            <div className="flex items-center gap-2 min-w-0">
-                <p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
-                    {t("settings:title", { defaultValue: "Settings" })}
-                </p>
-            </div>
+	return (
+		<div className="space-y-4">
+			<div className="flex items-center gap-2 min-w-0">
+				<p className="flex-1 min-w-0 truncate whitespace-nowrap text-base text-muted-foreground">
+					{t("settings:title", { defaultValue: "Settings" })}
+				</p>
+			</div>
 
 			<Tabs
 				defaultValue="general"
@@ -401,6 +509,9 @@ export function SettingsPage() {
 					</TabsTrigger>
 					<TabsTrigger value="develop" className={tabTriggerClass}>
 						{t("settings:tabs.developer", { defaultValue: "Developer" })}
+					</TabsTrigger>
+					<TabsTrigger value="system" className={tabTriggerClass}>
+						{t("settings:tabs.system", { defaultValue: "System" })}
 					</TabsTrigger>
 					{showLicenseTab && (
 						<TabsTrigger value="about" className={tabTriggerClass}>
@@ -884,6 +995,255 @@ export function SettingsPage() {
 						</Card>
 					</TabsContent>
 
+					{/* System tab: Backend ports configuration */}
+					<TabsContent value="system" className="mt-0 h-full">
+						<Card className="h-full">
+							<CardHeader>
+								<CardTitle>
+									{t("settings:system.title", { defaultValue: "System" })}
+								</CardTitle>
+								<CardDescription>
+									{t("settings:system.description", {
+										defaultValue:
+											"Configure backend ports used by the local MCP proxy and API.",
+									})}
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-6">
+								{/* Row: API Port */}
+								<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:items-center">
+									<div className="space-y-1.5">
+										<Label htmlFor="api-port">
+											{t("settings:system.apiPortTitle", {
+												defaultValue: "Backend API Port",
+											})}
+										</Label>
+										<p className="text-xs text-slate-500">
+											{t("settings:system.apiPortDescription", {
+												defaultValue:
+													"Port for REST and dashboard access (default 8080).",
+											})}
+										</p>
+									</div>
+									<div className="flex sm:justify-end">
+										<Input
+											id="api-port"
+											type="number"
+											min={1}
+											value={apiPort}
+											onChange={(e) =>
+												setApiPort(
+													e.target.value === "" ? "" : Number(e.target.value),
+												)
+											}
+											className="w-56"
+										/>
+									</div>
+								</div>
+
+								{/* Row: MCP Port */}
+								<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:items-center">
+									<div className="space-y-1.5">
+										<Label htmlFor="mcp-port">
+											{t("settings:system.mcpPortTitle", {
+												defaultValue: "Backend MCP Server Port",
+											})}
+										</Label>
+										<p className="text-xs text-slate-500">
+											{t("settings:system.mcpPortDescription", {
+												defaultValue:
+													"Port for MCP transports (/mcp for HTTP, /sse for SSE). Default 8000.",
+											})}
+										</p>
+									</div>
+									<div className="flex sm:justify-end">
+										<Input
+											id="mcp-port"
+											type="number"
+											min={1}
+											value={mcpPort}
+											onChange={(e) =>
+												setMcpPort(
+													e.target.value === "" ? "" : Number(e.target.value),
+												)
+											}
+											className="w-56"
+										/>
+									</div>
+								</div>
+
+								{/* Bottom actions */}
+								<div className="mt-1 flex items-center justify-between">
+									<p className="text-xs text-slate-500">
+										{isTauriShell
+											? t("settings:system.helperTauri", {
+													defaultValue:
+														"Tauri: Apply ports and restart backend in-place.",
+												})
+											: t("settings:system.helperWeb", {
+													defaultValue:
+														"Web: Change ports then restart the backend process externally.",
+												})}
+									</p>
+									<div className="space-x-2">
+										<Button
+											variant="secondary"
+											onClick={() => loadRuntimePorts()}
+											disabled={loadingPorts}
+										>
+											{loadingPorts
+												? t("loading", { defaultValue: "Loading…" })
+												: t("reload", { defaultValue: "Reload" })}
+										</Button>
+										<Button
+											variant="default"
+											disabled={
+												applyBusy ||
+												typeof apiPort !== "number" ||
+												typeof mcpPort !== "number" ||
+												apiPort <= 0 ||
+												mcpPort <= 0 ||
+												apiPort === mcpPort
+											}
+											onClick={async () => {
+												if (isTauriShell) {
+													try {
+														setApplyBusy(true);
+														setApiBaseUrl(`http://127.0.0.1:${apiPort}`);
+														const { invoke } = await import(
+															"@tauri-apps/api/core"
+														);
+														await invoke(
+															"mcp_shell_restart_backend_with_ports",
+															{ api_port: apiPort, mcp_port: mcpPort },
+														);
+														try {
+															window.localStorage?.setItem(
+																"mcpmate.system.api_port",
+																String(apiPort),
+															);
+															window.localStorage?.setItem(
+																"mcpmate.system.mcp_port",
+																String(mcpPort),
+															);
+														} catch {}
+													} finally {
+														setApplyBusy(false);
+													}
+												} else {
+													// In web mode, switch dashboard to use the new API port immediately
+													setApiBaseUrl(`http://127.0.0.1:${apiPort}`);
+													try {
+														window.localStorage?.setItem(
+															"mcpmate.system.api_port",
+															String(apiPort),
+														);
+														window.localStorage?.setItem(
+															"mcpmate.system.mcp_port",
+															String(mcpPort),
+														);
+													} catch {}
+													setWebDialogOpen(true);
+												}
+											}}
+										>
+											{applyBusy
+												? "Restarting…"
+												: t("settings:system.apply", {
+														defaultValue: "Apply & Restart",
+													})}
+										</Button>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					{/* Web-mode helper dialog for Apply & Restart */}
+					<Dialog open={webDialogOpen} onOpenChange={setWebDialogOpen}>
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>
+									{t("settings:system.webDialogTitle", {
+										defaultValue: "Apply & Restart (Web)",
+									})}
+								</DialogTitle>
+								<DialogDescription>
+									{t("settings:system.webDialogDesc", {
+										defaultValue:
+											"The browser cannot restart the backend. Use one of the commands below with the selected ports.",
+									})}
+								</DialogDescription>
+							</DialogHeader>
+							<div className="space-y-3">
+								<div>
+									<p className="mb-1 text-sm font-medium">
+										{t("settings:system.optionCargoTitle", {
+											defaultValue: "Option A — cargo run (dev)",
+										})}
+									</p>
+									<div className="rounded-md bg-slate-950/90 p-3 font-mono text-xs text-slate-100">
+										{`MCPMATE_API_PORT=${typeof apiPort === "number" ? apiPort : 8080} MCPMATE_MCP_PORT=${typeof mcpPort === "number" ? mcpPort : 8000} MCPMATE_ALLOWED_ORIGINS=${devUrl} cargo run -p app-mcpmate`}
+									</div>
+									<div className="mt-2 flex gap-2">
+										<Button
+											variant="secondary"
+											onClick={() =>
+												navigator.clipboard.writeText(
+													`MCPMATE_API_PORT=${typeof apiPort === "number" ? apiPort : 8080} MCPMATE_MCP_PORT=${typeof mcpPort === "number" ? mcpPort : 8000} MCPMATE_ALLOWED_ORIGINS=${devUrl} cargo run -p app-mcpmate`,
+												)
+											}
+										>
+											{t("settings:system.copy", { defaultValue: "Copy" })}
+										</Button>
+										<Button
+											variant="outline"
+											onClick={async () => {
+												const url = API_BASE_URL
+													? `${API_BASE_URL}/api/system/shutdown`
+													: "/api/system/shutdown";
+												try {
+													await fetch(url, { method: "POST" });
+												} catch {}
+											}}
+										>
+											{t("settings:system.stopCurrent", {
+												defaultValue: "Stop current backend",
+											})}
+										</Button>
+									</div>
+								</div>
+								<div>
+									<p className="mb-1 text-sm font-medium">
+										{t("settings:system.optionBinaryTitle", {
+											defaultValue: "Option B — binary (release)",
+										})}
+									</p>
+									<div className="rounded-md bg-slate-950/90 p-3 font-mono text-xs text-slate-100">
+										{`./app-mcpmate --api-port ${typeof apiPort === "number" ? apiPort : 8080} --mcp-port ${typeof mcpPort === "number" ? mcpPort : 8000}`}
+									</div>
+									<div className="mt-2">
+										<Button
+											variant="secondary"
+											onClick={() =>
+												navigator.clipboard.writeText(
+													`./app-mcpmate --api-port ${typeof apiPort === "number" ? apiPort : 8080} --mcp-port ${typeof mcpPort === "number" ? mcpPort : 8000}`,
+												)
+											}
+										>
+											{t("settings:system.copy", { defaultValue: "Copy" })}
+										</Button>
+									</div>
+								</div>
+							</div>
+							<DialogFooter>
+								<Button onClick={() => setWebDialogOpen(false)}>
+									{t("settings:system.close", { defaultValue: "Close" })}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+
 					<TabsContent value="develop" className="mt-0 h-full">
 						<Card className="h-full">
 							<CardHeader>
@@ -898,6 +1258,7 @@ export function SettingsPage() {
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-5">
+								{/* ports block moved to System tab */}
 								<div className="flex items-center justify-between gap-4">
 									<div>
 										<h3 className="text-base font-medium">
