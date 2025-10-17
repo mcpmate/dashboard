@@ -196,7 +196,6 @@ export function ServerDetailPage() {
 	const {
 		data: server,
 		isLoading,
-		refetch,
 		isRefetching,
 	} = useQuery({
 		queryKey: ["server", serverId],
@@ -240,6 +239,85 @@ export function ServerDetailPage() {
 			);
 		},
 	});
+
+	const refreshCapabilitiesMutation = useMutation({
+		mutationFn: async () => {
+			if (!serverId) throw new Error("Server ID is required");
+			const [tools, resources, prompts, templates] = await Promise.all([
+				serversApi.listTools(serverId, "force"),
+				serversApi.listResources(serverId, "force"),
+				serversApi.listPrompts(serverId, "force"),
+				serversApi.listResourceTemplates(serverId, "force"),
+			]);
+			return { tools, resources, prompts, templates };
+		},
+		onSuccess: async ({ tools, resources, prompts, templates }) => {
+			const normalize = (response: {
+				items: CapabilityRecord[] | undefined;
+				meta?: unknown;
+				state?: string;
+			}) => ({
+				items: Array.isArray(response.items) ? response.items : [],
+				meta: response.meta,
+				state: response.state,
+			});
+
+			queryClient.setQueryData(
+				["server-cap", "tools", serverId],
+				normalize({
+					items: tools.items as CapabilityRecord[] | undefined,
+					meta: tools.meta,
+					state: tools.state,
+				}),
+			);
+			queryClient.setQueryData(
+				["server-cap", "resources", serverId],
+				normalize({
+					items: resources.items as CapabilityRecord[] | undefined,
+					meta: resources.meta,
+					state: resources.state,
+				}),
+			);
+			queryClient.setQueryData(
+				["server-cap", "prompts", serverId],
+				normalize({
+					items: prompts.items as CapabilityRecord[] | undefined,
+					meta: prompts.meta,
+					state: prompts.state,
+				}),
+			);
+			queryClient.setQueryData(
+				["server-cap", "templates", serverId],
+				normalize({
+					items: templates.items as CapabilityRecord[] | undefined,
+					meta: templates.meta,
+					state: templates.state,
+				}),
+			);
+
+			await queryClient.invalidateQueries({ queryKey: ["server", serverId] });
+		},
+		onError: (error) => {
+			const message =
+				error instanceof Error
+					? error.message
+					: t("detail.notifications.refreshFailed.defaultMessage", {
+							defaultValue: "Unknown error",
+						});
+			notifyError(
+				t("detail.notifications.refreshFailed.title", {
+					defaultValue: "Refresh failed",
+				}),
+				t("detail.notifications.refreshFailed.message", {
+					message,
+					defaultValue: "Unable to refresh server capabilities: {{message}}",
+				}),
+			);
+		},
+	});
+
+	const isOverviewRefreshing =
+		isRefetching || refreshCapabilitiesMutation.isPending;
 
 	const deleteServerM = useMutation({
 		mutationFn: async () => {
@@ -933,12 +1011,14 @@ export function ServerDetailPage() {
 															<Button
 																size="sm"
 																variant="outline"
-																onClick={() => refetch()}
-																disabled={isRefetching}
+																onClick={() => {
+																	refreshCapabilitiesMutation.mutate();
+																}}
+																disabled={isOverviewRefreshing}
 																className="gap-2"
 															>
 																<RefreshCw
-																	className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`}
+																	className={`h-4 w-4 ${isOverviewRefreshing ? "animate-spin" : ""}`}
 																/>
 																{t("detail.actions.refresh", {
 																	defaultValue: "Refresh",
@@ -1212,6 +1292,10 @@ function ServerCapabilityList({
 }) {
 	const [search, setSearch] = useState("");
 	const { t } = useTranslation("servers");
+	const capabilityQueryOptions = {
+		staleTime: 0,
+		refetchOnMount: "always" as const,
+	};
 	const queryMap = {
 		tools: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "tools", serverId],
@@ -1225,6 +1309,7 @@ function ServerCapabilityList({
 					state: response.state,
 				};
 			},
+			...capabilityQueryOptions,
 		}),
 		resources: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "resources", serverId],
@@ -1238,6 +1323,7 @@ function ServerCapabilityList({
 					state: response.state,
 				};
 			},
+			...capabilityQueryOptions,
 		}),
 		prompts: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "prompts", serverId],
@@ -1251,6 +1337,7 @@ function ServerCapabilityList({
 					state: response.state,
 				};
 			},
+			...capabilityQueryOptions,
 		}),
 		templates: useQuery<CapabilityListResponse>({
 			queryKey: ["server-cap", "templates", serverId],
@@ -1264,6 +1351,7 @@ function ServerCapabilityList({
 					state: response.state,
 				};
 			},
+			...capabilityQueryOptions,
 		}),
 	} as const;
 	const q = queryMap[kind];
@@ -1732,8 +1820,9 @@ function InspectorDebugSection({
 }
 
 function safeLog(value: unknown) {
-    return smartFormat(value);
+	return smartFormat(value);
 }
 
 export default ServerDetailPage;
+
 import { smartFormat } from "../../lib/format";
